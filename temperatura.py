@@ -8,8 +8,13 @@ import matplotlib
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-matplotlib.rcParams['animation.ffmpeg_path'] = r'C:\Users\sala.AULASUC-214VNRO\ffmpeg\ffmpeg-master-latest-win64-gpl-shared\bin\ffmpeg.exe'
-
+import shutil
+ffmpeg = shutil.which('ffmpeg')
+if ffmpeg:
+    matplotlib.rcParams['animation.ffmpeg_path'] = ffmpeg
+else:
+    matplotlib.rcParams['animation.ffmpeg_path'] = r'C:\Users\sala.AULASUC-214VNRO\ffmpeg\ffmpeg-master-latest-win64-gpl-shared\bin\ffmpeg.exe'
+    
 PASO_TIEMPO = 900
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 
