@@ -2,10 +2,18 @@
 # (geometria + atmosfera + radiacion) para calcular la irradiancia
 # absorbida de toda la rejilla en un instante dado.
 #
-# i_toa() no depende de la posicion (solo de la distancia al Sol, igual
-# para todo el planeta en un instante dado) -- se llama una vez, sin
-# cambios. i_atm() e i_abs() son aritmetica pura, ya funcionan sobre
-# arrays sin tocarlas. Solo i_inst() usa math.cos y necesita version nueva.
+# i_toa() no depende de la posicion -- se llama una vez, sin cambios.
+# i_atm() e i_abs() son aritmetica pura, ya funcionan sobre arrays sin
+# tocarlas. Solo i_inst() usa math.cos y necesita version nueva.
+#
+# Dos puntos de entrada:
+#   - irradiancia_absorbida_desde_toa_rejilla(): version de bajo nivel,
+#     para el bucle de simular_rejilla() (fase0_temperatura.py), que ya
+#     tiene precalculados toa y el angulo horario a longitud 0 via
+#     precalcular_orbita() y solo necesita desplazarlo por columna.
+#   - irradiancia_absorbida_rejilla(): version de alto nivel, para pruebas
+#     sueltas, que parte de distancia/hora. Llama a la de bajo nivel por
+#     debajo, para no duplicar logica.
 
 import math
 import numpy as np
@@ -23,27 +31,31 @@ def i_inst_rejilla(irradiancia_toa, cenital_rad):
     return irradiancia_toa * np.cos(cenital_rad)
 
 
-def irradiancia_absorbida_rejilla(distancia, luminosidad, declinacion, hora, albedo, profundidad_optica):
+def irradiancia_absorbida_desde_toa_rejilla(toa, declinacion, ang_h_lon0, albedo, profundidad_optica):
     """
-    Encadena, sobre toda la rejilla a la vez, los mismos pasos que hace
-    simular() (temperatura.py) punto a punto en cada paso de tiempo:
-    angulo cenital -> irradiancia TOA -> irradiancia instantanea ->
-    atenuacion atmosferica -> absorcion. De noche, el resultado es 0 --
-    igual que hace temperatura.py con `if masa is None: abs_local = 0`.
+    Version de bajo nivel: toa y ang_h_lon0 ya vienen calculados (de
+    precalcular_orbita(), a longitud 0). angulo_horario() es lineal en la
+    longitud -- angulo(hora, lon) = angulo(hora, 0) + lon en radianes --
+    asi que basta sumar la longitud de cada columna, sin recalcular nada
+    de la orbita por columna.
     """
-    angulos_horarios = angulo_horario(hora, LONGITUDES_GRADOS)
-    cenital = angulo_cenital_rejilla(LATITUDES_GRADOS, declinacion, angulos_horarios)
+    ang_h_grid = ang_h_lon0 + np.radians(LONGITUDES_GRADOS)
+    cenital = angulo_cenital_rejilla(LATITUDES_GRADOS, declinacion, ang_h_grid)
 
-    irradiancia_toa = i_toa(distancia, luminosidad)
-    irradiancia_instantanea = i_inst_rejilla(irradiancia_toa, cenital)
-
+    irradiancia_instantanea = i_inst_rejilla(toa, cenital)
     masa = masa_aire_rejilla(cenital)
     transmitancia = trans_rejilla(masa, profundidad_optica)
-
     irradiancia_atenuada = i_atm(irradiancia_instantanea, transmitancia)
     irradiancia_absorbida = i_abs(irradiancia_atenuada, albedo)
 
     return np.nan_to_num(irradiancia_absorbida, nan=0.0)
+
+
+def irradiancia_absorbida_rejilla(distancia, luminosidad, declinacion, hora, albedo, profundidad_optica):
+    """Version de alto nivel, para pruebas sueltas: parte de distancia/hora."""
+    toa = i_toa(distancia, luminosidad)
+    ang_h_lon0 = angulo_horario(hora, 0)
+    return irradiancia_absorbida_desde_toa_rejilla(toa, declinacion, ang_h_lon0, albedo, profundidad_optica)
 
 
 if __name__ == "__main__":
