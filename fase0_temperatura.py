@@ -1,13 +1,18 @@
 # fase0_temperatura.py -- Fase 0: simular() vectorizado sobre toda la rejilla.
 #
-# La pieza mas delicada de la Fase 0. Ver las notas de diseño en el mensaje
-# que acompaña a este cambio (convergencia conjunta, sin registro por
-# celda, instante inicial de noche -> 273.15 K).
+# La pieza mas delicada de la Fase 0 (convergencia conjunta, sin registro
+# por celda, instante inicial de noche -> 273.15 K -- ver el mensaje que
+# acompaño la primera version de este archivo para la explicacion completa).
+#
+# NUEVO: paso_tiempo ahora es un parametro (por defecto, el PASO_TIEMPO de
+# temperatura.py) en vez de estar fijado por dentro -- necesario para poder
+# repetir la simulacion con otro paso de tiempo y comprobar sensibilidad,
+# sin duplicar la funcion entera para eso.
 
 import math
 import numpy as np
 from parametros import ROTACION_PERIODO, PI, CONSTANTE_SB
-from temperatura import precalcular_orbita, t_eq, PASO_TIEMPO
+from temperatura import precalcular_orbita, t_eq, PASO_TIEMPO as PASO_TIEMPO_POR_DEFECTO
 from fase0_radiacion import irradiancia_absorbida_desde_toa_rejilla
 from fase0_geometria import angulo_cenital_rejilla
 from fase0_atmosfera import masa_aire_rejilla
@@ -15,7 +20,7 @@ from rejilla import LATITUDES_GRADOS, LONGITUDES_GRADOS, FILAS, COLUMNAS
 
 
 def simular_rejilla(datos_orbita, emisividad, inercia, albedo, profundidad_optica,
-                     max_anos=50, tolerancia_convergencia=0.01):
+                     paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=50, tolerancia_convergencia=0.01):
     """
     Version de simular() (temperatura.py) sobre toda la rejilla lat/lon a
     la vez. Devuelve (T_final_grados_C, anos_hasta_converger).
@@ -39,7 +44,7 @@ def simular_rejilla(datos_orbita, emisividad, inercia, albedo, profundidad_optic
             abs_local = irradiancia_absorbida_desde_toa_rejilla(
                 toa, decl, ang_h_lon0, albedo, profundidad_optica
             )
-            dT = (PASO_TIEMPO / C) * (abs_local - (1 - emisividad / 2) * CONSTANTE_SB * T ** 4)
+            dT = (paso_tiempo / C) * (abs_local - (1 - emisividad / 2) * CONSTANTE_SB * T ** 4)
             T = T + dT
 
         diferencia_maxima = np.max(np.abs(T - T_inicio_ano))
@@ -61,22 +66,15 @@ if __name__ == "__main__":
     T_grid, anos = simular_rejilla(datos_orbita, EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA)
     print(f"Convergencia conjunta en {anos} año(s).")
 
-    # Validacion contra el modelo de un punto en celdas representativas
-    # (no las 2592 -- ver la explicacion en el mensaje que acompaña a
-    # este cambio). Tolerancia mas floja que en pasos anteriores porque
-    # la rejilla y el punto pueden converger en un numero de años distinto.
     celdas_de_prueba = [(0, 0), (9, 18), (17, 36), (18, 54), (35, 71)]
-
     max_diferencia = 0.0
     for i, j in celdas_de_prueba:
         lat = LATITUDES_GRADOS[i]
         lon = LONGITUDES_GRADOS[j]
         lat_rad = math.radians(lat)
         lon_rad = math.radians(lon)
-
         datos_orbita_desplazados = [(toa, decl, ang_h + lon_rad) for (toa, decl, ang_h) in datos_orbita]
         T_punto, _ = simular(lat_rad, datos_orbita_desplazados, EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA)
-
         diferencia = abs(T_punto - T_grid[i, j])
         max_diferencia = max(max_diferencia, diferencia)
         print(f"  Celda ({i},{j}) lat={lat:.1f} lon={lon:.1f}: rejilla={T_grid[i,j]:.4f} C | punto={T_punto:.4f} C | diff={diferencia:.2e}")
