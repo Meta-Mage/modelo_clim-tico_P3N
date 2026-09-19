@@ -1,0 +1,125 @@
+# fase1_geografia.py -- Fase 1: geografia real (agua/tierra + altitud por celda).
+#
+# Primer paso: un mapa DE PRUEBA (todo tierra, a nivel del mar) para
+# demostrar que el mecanismo nuevo (albedo/inercia por celda + correccion
+# por altitud) se reduce exactamente a la Fase 0 cuando no hay ninguna
+# diferencia real que aplicar. Los valores FISICOS reales de tierra/agua
+# (investigados aparte) se adoptan en un paso posterior, una vez validada
+# la mecanica -- mezclarlos aqui impediria saber si un fallo viene de la
+# mecanica o de haber cambiado los numeros.
+
+import math
+import numpy as np
+from parametros import ROTACION_PERIODO, PI, CONSTANTE_SB
+from temperatura import precalcular_orbita, t_eq, PASO_TIEMPO as PASO_TIEMPO_POR_DEFECTO
+from fase0_radiacion import irradiancia_absorbida_desde_toa_rejilla
+from fase0_geometria import angulo_cenital_rejilla
+from fase0_atmosfera import masa_aire_rejilla
+from fase0_temperatura import simular_rejilla
+from rejilla import LATITUDES_GRADOS, LONGITUDES_GRADOS, FILAS, COLUMNAS
+
+TIERRA = 1
+AGUA = 0
+
+GRADIENTE_TERMICO = 6.5  # C por km de altitud (correccion estandar simplificada)
+
+
+def mapa_falso_todo_tierra():
+    """Mapa de prueba: todas las celdas son tierra, todas a nivel del mar."""
+    tipo_superficie = np.full((FILAS, COLUMNAS), TIERRA)
+    altitud_metros = np.zeros((FILAS, COLUMNAS))
+    return tipo_superficie, altitud_metros
+
+
+def correccion_altitud(T_grados_C, altitud_metros):
+    return T_grados_C - GRADIENTE_TERMICO * (altitud_metros / 1000)
+
+
+def simular_rejilla_geografia(datos_orbita, tipo_superficie, altitud_metros, emisividad,
+                               albedo_por_tipo, inercia_por_tipo,
+                               paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=50, tolerancia_convergencia=0.01):
+    """
+    Version de simular_rejilla() (fase0_temperatura.py) con albedo e
+    inercia termica propios de cada celda segun su tipo (agua/tierra), y
+    correccion de temperatura por altitud al final.
+    """
+    albedo_grid = np.where(tipo_superficie == TIERRA, albedo_por_tipo[TIERRA], albedo_por_tipo[AGUA])
+    inercia_grid = np.where(tipo_superficie == TIERRA, inercia_por_tipo[TIERRA], inercia_por_tipo[AGUA])
+    C_grid = inercia_grid * math.sqrt(ROTACION_PERIODO / PI)
+
+    toa_ini, decl_ini, ang_h_ini_lon0 = datos_orbita[len(datos_orbita) // 2]
+    ang_h_ini_grid = ang_h_ini_lon0 + np.radians(LONGITUDES_GRADOS)
+    cenital_ini = angulo_cenital_rejilla(LATITUDES_GRADOS, decl_ini, ang_h_ini_grid)
+    masa_ini = masa_aire_rejilla(cenital_ini)
+    es_de_noche_ini = np.isnan(masa_ini)
+
+    # abs_ini necesita el albedo de cada celda -- i_abs() es aritmetica
+    # pura, asi que ya acepta un array de albedo sin ningun cambio.
+    abs_ini = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
+        toa_ini, decl_ini, ang_h_ini_lon0, albedo_grid, PROFUNDIDAD_OPTICA_GLOBAL
+    )
+    T = np.where(es_de_noche_ini, 273.15, t_eq(abs_ini))
+
+    for ano in range(max_anos):
+        T_inicio_ano = T.copy()
+        for toa, decl, ang_h_lon0 in datos_orbita:
+            abs_local = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
+                toa, decl, ang_h_lon0, albedo_grid, PROFUNDIDAD_OPTICA_GLOBAL
+            )
+            dT = (paso_tiempo / C_grid) * (abs_local - (1 - emisividad / 2) * CONSTANTE_SB * T ** 4)
+            T = T + dT
+
+        diferencia_maxima = np.max(np.abs(T - T_inicio_ano))
+        if diferencia_maxima < tolerancia_convergencia:
+            return correccion_altitud(T - 273.15, altitud_metros), ano + 1
+
+    return correccion_altitud(T - 273.15, altitud_metros), max_anos
+
+
+def irradiancia_absorbida_desde_toa_rejilla_con_albedo(toa, declinacion, ang_h_lon0, albedo_grid, profundidad_optica):
+    """
+    Igual que irradiancia_absorbida_desde_toa_rejilla() (fase0_radiacion.py)
+    pero con albedo por celda en vez de un unico valor -- se reimplementa
+    aqui en vez de tocar la version de la Fase 0 (que ya quedo validada tal
+    cual, con albedo unico, y no hay que arriesgarla).
+    """
+    from fase0_geometria import angulo_cenital_rejilla as _acr
+    from fase0_atmosfera import trans_rejilla as _tr
+    from radiacion import i_atm, i_abs
+    from fase0_radiacion import i_inst_rejilla as _iir
+
+    ang_h_grid = ang_h_lon0 + np.radians(LONGITUDES_GRADOS)
+    cenital = _acr(LATITUDES_GRADOS, declinacion, ang_h_grid)
+    inst = _iir(toa, cenital)
+    masa = masa_aire_rejilla(cenital)
+    tra = _tr(masa, profundidad_optica)
+    atm = i_atm(inst, tra)
+    absorbida = i_abs(atm, albedo_grid)  # i_abs es aritmetica pura -- acepta array de albedo sin cambios
+    return np.nan_to_num(absorbida, nan=0.0)
+
+
+if __name__ == "__main__":
+    from parametros import EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA, INCLINACION_AXIAL_RAD, S3N_LUMINOSIDAD, SEMIEJE_MAYOR
+    PROFUNDIDAD_OPTICA_GLOBAL = PROFUNDIDAD_OPTICA
+
+    print("Precalculando orbita...")
+    datos_orbita = precalcular_orbita(S3N_LUMINOSIDAD, INCLINACION_AXIAL_RAD, SEMIEJE_MAYOR)
+
+    print("Simulando con Fase 0 (sin geografia, referencia)...")
+    T_fase0, anos_fase0 = simular_rejilla(datos_orbita, EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA)
+
+    print("Simulando con Fase 1, mapa falso todo tierra a nivel del mar (mismos valores que Fase 0)...")
+    tipo_superficie, altitud_metros = mapa_falso_todo_tierra()
+    albedo_por_tipo = {TIERRA: ALBEDO, AGUA: ALBEDO}      # AGUA no se usa (mapa sin agua); mismo valor por seguridad
+    inercia_por_tipo = {TIERRA: INERCIA_TERMICA, AGUA: INERCIA_TERMICA}
+    T_fase1, anos_fase1 = simular_rejilla_geografia(
+        datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD, albedo_por_tipo, inercia_por_tipo
+    )
+
+    diferencia = np.abs(T_fase0 - T_fase1)
+    print(f"Convergencia: {anos_fase0} año(s) (Fase 0) vs {anos_fase1} año(s) (Fase 1, mapa falso)")
+    print(f"Diferencia maxima entre Fase 0 y Fase 1 con mapa todo tierra: {diferencia.max():.2e} C")
+    if diferencia.max() < 1e-6:
+        print("OK: con mapa falso todo tierra a nivel del mar, la Fase 1 coincide EXACTA con la Fase 0.")
+    else:
+        print("AVISO: deberian coincidir exactas -- revisar antes de seguir.")
