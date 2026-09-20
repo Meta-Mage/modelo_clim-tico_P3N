@@ -1,12 +1,12 @@
 # fase1_geografia.py -- Fase 1: geografia real (agua/tierra + altitud por celda).
 #
-# Primer paso: un mapa DE PRUEBA (todo tierra, a nivel del mar) para
-# demostrar que el mecanismo nuevo (albedo/inercia por celda + correccion
-# por altitud) se reduce exactamente a la Fase 0 cuando no hay ninguna
-# diferencia real que aplicar. Los valores FISICOS reales de tierra/agua
-# (investigados aparte) se adoptan en un paso posterior, una vez validada
-# la mecanica -- mezclarlos aqui impediria saber si un fallo viene de la
-# mecanica o de haber cambiado los numeros.
+# Mecanismo: albedo/inercia por celda + correccion por altitud. Validado
+# contra Fase 0 con un mapa DE PRUEBA (todo tierra, a nivel del mar) --
+# ver el bloque `if __name__ == "__main__":` mas abajo. Los valores
+# FISICOS reales de tierra/agua ya estan adoptados (ver
+# ALBEDO_POR_TIPO / INERCIA_POR_TIPO, mas abajo en este mismo archivo,
+# fecha 20/09/2026) -- la inercia del agua sigue marcada PROVISIONAL
+# hasta modelar la fisica oceanica con mas detalle (mezcla, corrientes).
 
 import math
 import numpy as np
@@ -35,9 +35,40 @@ def correccion_altitud(T_grados_C, altitud_metros):
     return T_grados_C - GRADIENTE_TERMICO * (altitud_metros / 1000)
 
 
+def estimar_T_inicial_equilibrio(datos_orbita, albedo_grid, emisividad, profundidad_optica):
+    """
+    Estimacion inicial de T de cada celda a partir de la irradiancia
+    absorbida MEDIA de todo el año orbital (no de un instante suelto).
+
+    No es la temperatura de equilibrio periodico exacta -- mean(T^4) no
+    es igual a mean(T)^4, asi que solo coincidiria del todo si T fuese
+    constante durante el año -- pero es un punto de partida mucho mas
+    cercano al resultado final que un instante arbitrario, sobre todo
+    para celdas de inercia termica alta (agua), que "olvidan" un mal
+    punto de partida muy despacio. El bucle de convergencia que sigue
+    a continuacion sigue siendo el que decide el resultado real; esto
+    solo reduce cuantas vueltas hacen falta para llegar a el.
+
+    Celdas sin ninguna absorcion durante todo el año (noche polar
+    permanente, posible con inclinacion axial 0) no tienen ningun
+    equilibrio radiativo que estimar -- se les asigna 273.15 K (0 C)
+    como punto de partida neutro, igual que hacia el codigo anterior
+    para celdas nocturnas en el instante que usaba.
+    """
+    suma_abs = np.zeros_like(albedo_grid, dtype=float)
+    for toa, decl, ang_h_lon0 in datos_orbita:
+        suma_abs += irradiancia_absorbida_desde_toa_rejilla_con_albedo(
+            toa, decl, ang_h_lon0, albedo_grid, profundidad_optica
+        )
+    abs_medio = np.maximum(suma_abs / len(datos_orbita), 0.0)
+
+    con_luz = abs_medio > 0
+    return np.where(con_luz, t_eq(abs_medio / (1 - emisividad / 2)), 273.15)
+
+
 def simular_rejilla_geografia(datos_orbita, tipo_superficie, altitud_metros, emisividad,
                                albedo_por_tipo, inercia_por_tipo, profundidad_optica,
-                               paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=50, tolerancia_convergencia=0.01):
+                               paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=150, tolerancia_convergencia=0.01):
     """
     Version de simular_rejilla() (fase0_temperatura.py) con albedo e
     inercia termica propios de cada celda segun su tipo (agua/tierra), y
@@ -47,18 +78,7 @@ def simular_rejilla_geografia(datos_orbita, tipo_superficie, altitud_metros, emi
     inercia_grid = np.where(tipo_superficie == TIERRA, inercia_por_tipo[TIERRA], inercia_por_tipo[AGUA])
     C_grid = inercia_grid * math.sqrt(ROTACION_PERIODO / PI)
 
-    toa_ini, decl_ini, ang_h_ini_lon0 = datos_orbita[len(datos_orbita) // 2]
-    ang_h_ini_grid = ang_h_ini_lon0 + np.radians(LONGITUDES_GRADOS)
-    cenital_ini = angulo_cenital_rejilla(LATITUDES_GRADOS, decl_ini, ang_h_ini_grid)
-    masa_ini = masa_aire_rejilla(cenital_ini)
-    es_de_noche_ini = np.isnan(masa_ini)
-
-    # abs_ini necesita el albedo de cada celda -- i_abs() es aritmetica
-    # pura, asi que ya acepta un array de albedo sin ningun cambio.
-    abs_ini = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
-        toa_ini, decl_ini, ang_h_ini_lon0, albedo_grid, profundidad_optica
-    )
-    T = np.where(es_de_noche_ini, 273.15, t_eq(abs_ini))
+    T = estimar_T_inicial_equilibrio(datos_orbita, albedo_grid, emisividad, profundidad_optica)
 
     for ano in range(max_anos):
         T_inicio_ano = T.copy()
@@ -178,21 +198,13 @@ INERCIA_POR_TIPO = {
 def simular_rejilla_geografia_con_registro(
     datos_orbita, tipo_superficie, altitud_metros, emisividad,
     albedo_por_tipo, inercia_por_tipo, profundidad_optica,
-    paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=50, tolerancia_convergencia=0.01,
+    paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=150, tolerancia_convergencia=0.01,
 ):
     albedo_grid = np.where(tipo_superficie == TIERRA, albedo_por_tipo[TIERRA], albedo_por_tipo[AGUA])
     inercia_grid = np.where(tipo_superficie == TIERRA, inercia_por_tipo[TIERRA], inercia_por_tipo[AGUA])
     C_grid = inercia_grid * math.sqrt(ROTACION_PERIODO / PI)
 
-    toa_ini, decl_ini, ang_h_ini_lon0 = datos_orbita[len(datos_orbita) // 2]
-    ang_h_ini_grid = ang_h_ini_lon0 + np.radians(LONGITUDES_GRADOS)
-    cenital_ini = angulo_cenital_rejilla(LATITUDES_GRADOS, decl_ini, ang_h_ini_grid)
-    masa_ini = masa_aire_rejilla(cenital_ini)
-    es_de_noche_ini = np.isnan(masa_ini)
-    abs_ini = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
-        toa_ini, decl_ini, ang_h_ini_lon0, albedo_grid, profundidad_optica
-    )
-    T = np.where(es_de_noche_ini, 273.15, t_eq(abs_ini))
+    T = estimar_T_inicial_equilibrio(datos_orbita, albedo_grid, emisividad, profundidad_optica)
 
     for ano in range(max_anos):
         T_inicio_ano = T.copy()

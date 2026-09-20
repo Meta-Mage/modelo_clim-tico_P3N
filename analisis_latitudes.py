@@ -138,12 +138,16 @@ if __name__ == "__main__":
     from puente_c3n import cargar_mapa_activo_de_c3n
     tipo_superficie, altitud_metros, nombre_mapa = cargar_mapa_activo_de_c3n()
 
-    print("Simulando (mapa falso todo tierra, PROVISIONAL hasta el puente con C3N)...")
+    print(f"Simulando mapa '{nombre_mapa}'...")
     _, anos_convergencia, registro_minima, registro_media, registro_maxima = simular_rejilla_geografia_con_registro(
         datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD,
         ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA,
     )
     print(f"Convergencia: {anos_convergencia} año(s)")
+    if anos_convergencia >= 50:
+        print("AVISO: se alcanzo el limite de 50 años sin confirmar convergencia real "
+              "(probablemente por la enorme inercia termica del agua) -- este resultado "
+              "puede no ser el equilibrio verdadero.")
     print()
 
     dias_especiales = obtener_dias_especiales(registro_media.shape[0])

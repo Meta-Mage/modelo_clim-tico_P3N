@@ -1,7 +1,7 @@
 #ATMÓSFERA
 from parametros import *
 from orbita import *
-from geometria import * 
+from geometria import *
 import math
 
 def masa_aire(cenital_rad):
@@ -17,8 +17,14 @@ def trans(masa, profundidad_optica):
     return transmitancia
 
 
-masa_aire_relativa = masa_aire(angulo_cenital_solar)
-transmitancia = trans(masa_aire_relativa, PROFUNDIDAD_OPTICA)
+if __name__ == "__main__":
+    AV_demo = anomalia_verdadera(anomalia_excentrica(anomalia_media(DIA, HORA)))
+    declinacion_demo = declinacion_solar(AV_demo, INCLINACION_AXIAL_RAD)
+    angulo_demo = angulo_horario(HORA)
+    angulo_cenital_solar = angulo_cenital(LATITUD_rad, declinacion_demo, angulo_demo)
 
-print(f"Masa de aire relativa: {masa_aire_relativa}")
-print(f"Transmitancia: {transmitancia}")
+    masa_aire_relativa = masa_aire(angulo_cenital_solar)
+    transmitancia = trans(masa_aire_relativa, PROFUNDIDAD_OPTICA)
+
+    print(f"Masa de aire relativa: {masa_aire_relativa}")
+    print(f"Transmitancia: {transmitancia}")

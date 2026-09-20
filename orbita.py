@@ -1,4 +1,4 @@
-#ÓRBITA 
+#ÓRBITA
 
 from parametros import *
 import math
@@ -31,19 +31,12 @@ def distancia_S3N(AV_rad, semieje):
     return distancia
 
 
-AM = anomalia_media (DIA, HORA)
-AE = anomalia_excentrica (AM)
-AV = anomalia_verdadera (AE)
-distancia = distancia_S3N(AV, SEMIEJE_MAYOR)
-
-print(f"Anomalía media: {AM}")
-print(f"Anomalía excéntrica: {AE}")
-print(f"Anomalía verdadera: {AV}")
-print(f"Distancia al Sol: {distancia}")
-
-
-# Calcular los límites de las estaciones
-AV_INVIERNO = anomalia_verdadera(anomalia_excentrica(anomalia_media(1,0)))
+# Limites de las estaciones -- se calculan aqui, sin guardia, porque
+# estacion() (justo debajo) los necesita como constantes globales, y
+# otros modulos (temperatura.py, analisis_latitudes.py) llaman a
+# estacion() e info_estaciones() directamente. Esto NO es codigo de
+# prueba suelto -- es la base real de esas dos funciones.
+AV_INVIERNO = anomalia_verdadera(anomalia_excentrica(anomalia_media(1, 0)))
 AV_PRIMAVERA = (AV_INVIERNO + PI/2) % (2*PI)
 AV_VERANO = (AV_INVIERNO + PI) % (2*PI)
 AV_OTOÑO = (AV_INVIERNO + 3*PI/2) % (2*PI)
@@ -57,11 +50,10 @@ def estacion(momento):
         return "Verano"
     else:
         return "Otoño"
-print(f"Estación: {estacion(AV)}")
 
 def info_estaciones():
     estaciones = ['Invierno', 'Primavera', 'Verano', 'Otoño']
-    
+
     AM_inicio = anomalia_media(1, 0)
     t_perihelio_a_inicio = AM_inicio / (2 * PI) * ORBITA_PERIODO
     AV_inicio = anomalia_verdadera(anomalia_excentrica(AM_inicio))
@@ -98,3 +90,16 @@ def info_estaciones():
             'duracion': duracion
         })
     return resultados
+
+
+if __name__ == "__main__":
+    AM = anomalia_media(DIA, HORA)
+    AE = anomalia_excentrica(AM)
+    AV = anomalia_verdadera(AE)
+    distancia = distancia_S3N(AV, SEMIEJE_MAYOR)
+
+    print(f"Anomalía media: {AM}")
+    print(f"Anomalía excéntrica: {AE}")
+    print(f"Anomalía verdadera: {AV}")
+    print(f"Distancia al Sol: {distancia}")
+    print(f"Estación: {estacion(AV)}")

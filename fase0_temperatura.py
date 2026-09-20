@@ -19,6 +19,22 @@ from fase0_atmosfera import masa_aire_rejilla
 from rejilla import LATITUDES_GRADOS, LONGITUDES_GRADOS, FILAS, COLUMNAS
 
 
+def estimar_T_inicial_equilibrio_rejilla_uniforme(datos_orbita, emisividad, albedo, profundidad_optica):
+    """
+    Igual que estimar_T_inicial_equilibrio() (fase1_geografia.py), pero
+    con un unico albedo global en vez de uno por celda -- version para la
+    rejilla de Fase 0 (sin geografia). Ver alli la explicacion completa.
+    """
+    suma_abs = np.zeros((FILAS, COLUMNAS), dtype=float)
+    for toa, decl, ang_h_lon0 in datos_orbita:
+        suma_abs += irradiancia_absorbida_desde_toa_rejilla(
+            toa, decl, ang_h_lon0, albedo, profundidad_optica
+        )
+    abs_medio = np.maximum(suma_abs / len(datos_orbita), 0.0)
+    con_luz = abs_medio > 0
+    return np.where(con_luz, t_eq(abs_medio / (1 - emisividad / 2)), 273.15)
+
+
 def simular_rejilla(datos_orbita, emisividad, inercia, albedo, profundidad_optica,
                      paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=50, tolerancia_convergencia=0.01):
     """
@@ -26,17 +42,7 @@ def simular_rejilla(datos_orbita, emisividad, inercia, albedo, profundidad_optic
     la vez. Devuelve (T_final_grados_C, anos_hasta_converger).
     """
     C = inercia * math.sqrt(ROTACION_PERIODO / PI)
-
-    toa_ini, decl_ini, ang_h_ini_lon0 = datos_orbita[len(datos_orbita) // 2]
-    ang_h_ini_grid = ang_h_ini_lon0 + np.radians(LONGITUDES_GRADOS)
-    cenital_ini = angulo_cenital_rejilla(LATITUDES_GRADOS, decl_ini, ang_h_ini_grid)
-    masa_ini = masa_aire_rejilla(cenital_ini)
-    es_de_noche_ini = np.isnan(masa_ini)
-
-    abs_ini = irradiancia_absorbida_desde_toa_rejilla(
-        toa_ini, decl_ini, ang_h_ini_lon0, albedo, profundidad_optica
-    )
-    T = np.where(es_de_noche_ini, 273.15, t_eq(abs_ini))
+    T = estimar_T_inicial_equilibrio_rejilla_uniforme(datos_orbita, emisividad, albedo, profundidad_optica)
 
     for ano in range(max_anos):
         T_inicio_ano = T.copy()

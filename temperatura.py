@@ -64,19 +64,37 @@ def t_eq(irradiancia_absorbida):
     return (irradiancia_absorbida / CONSTANTE_SB) ** 0.25
 
 
+def estimar_T_inicial_equilibrio_punto(latitud_rad, datos_orbita, emisividad, albedo, profundidad_optica):
+    """
+    Version de un unico punto de estimar_T_inicial_equilibrio()
+    (fase1_geografia.py): irradiancia absorbida MEDIA de todo el año como
+    punto de partida, en vez de un unico instante -- ver alli la
+    explicacion completa. No es el equilibrio periodico exacto (solo
+    coincidiria si T fuese constante durante el año), pero es un punto de
+    partida mucho mas cercano al resultado final, sobre todo cuando la
+    inercia termica es alta.
+    """
+    suma_abs = 0.0
+    for toa, decl, ang_h in datos_orbita:
+        cenital = angulo_cenital(latitud_rad, decl, ang_h)
+        inst = i_inst(toa, cenital)
+        masa = masa_aire(cenital)
+        if masa is None:
+            abs_local = 0.0
+        else:
+            tra = trans(masa, profundidad_optica)
+            atm = i_atm(inst, tra)
+            abs_local = i_abs(atm, albedo)
+        suma_abs += abs_local
+    abs_medio = max(suma_abs / len(datos_orbita), 0.0)
+    if abs_medio > 0:
+        return t_eq(abs_medio / (1 - emisividad / 2))
+    return 273.15
+
+
 def simular(latitud_rad, datos_orbita, emisividad, inercia, albedo, profundidad_optica):
     C = inercia * math.sqrt(ROTACION_PERIODO / PI)
-    toa_ini, decl_ini, ang_h_ini = datos_orbita[len(datos_orbita)//2]
-    cenital_ini = angulo_cenital(latitud_rad, decl_ini, ang_h_ini)
-    inst_ini = i_inst(toa_ini, cenital_ini)
-    masa_ini = masa_aire(cenital_ini)
-    if masa_ini is None:
-        T = 273.15
-    else:
-        tra_ini = trans(masa_ini, profundidad_optica)
-        atm_ini = i_atm(inst_ini, tra_ini)
-        abs_ini = i_abs(atm_ini, albedo)
-        T = t_eq(abs_ini)
+    T = estimar_T_inicial_equilibrio_punto(latitud_rad, datos_orbita, emisividad, albedo, profundidad_optica)
 
     for año in range(50):
         T_inicio_año = T

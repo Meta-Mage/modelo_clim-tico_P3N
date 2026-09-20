@@ -22,10 +22,12 @@ def angulo_cenital(latitud, declinacion, angulo):
     return cenital_rad
 
 
-declinacion = declinacion_solar(AV, INCLINACION_AXIAL_RAD)
-angulo = angulo_horario(HORA)
-angulo_cenital_solar = angulo_cenital(LATITUD_rad, declinacion, angulo)
+if __name__ == "__main__":
+    AV_demo = anomalia_verdadera(anomalia_excentrica(anomalia_media(DIA, HORA)))
+    declinacion = declinacion_solar(AV_demo, INCLINACION_AXIAL_RAD)
+    angulo = angulo_horario(HORA)
+    angulo_cenital_solar = angulo_cenital(LATITUD_rad, declinacion, angulo)
 
-print(f"Declinación solar: {declinacion}")
-print(f"Ángulo horario: {angulo}")
-print(f"Ángulo cenital solar: {angulo_cenital_solar}")
+    print(f"Declinación solar: {declinacion}")
+    print(f"Ángulo horario: {angulo}")
+    print(f"Ángulo cenital solar: {angulo_cenital_solar}")
