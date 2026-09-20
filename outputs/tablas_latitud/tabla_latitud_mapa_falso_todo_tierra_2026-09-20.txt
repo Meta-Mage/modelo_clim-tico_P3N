@@ -1,0 +1,47 @@
+ Latitud | Dia de referencia    | Tipo    |  Minima (C) |  Media (C) |  Maxima (C)
+----------------------------------------------------------------------------------
+      60 | Inicio de Invierno   | tierra  |      -56.04 |     -48.47 |      -36.82
+      60 | Mitad de Invierno    | tierra  |      -55.21 |     -49.63 |      -43.83
+      60 | Inicio de Primavera  | tierra  |      -54.22 |     -48.56 |      -42.69
+      60 | Mitad de Primavera   | tierra  |      -51.90 |     -46.07 |      -40.02
+      60 | Inicio de Verano     | tierra  |      -49.58 |     -43.54 |      -37.28
+      60 | Mitad de Verano      | tierra  |      -48.22 |     -42.04 |      -35.62
+      60 | Inicio de Otoño      | tierra  |      -48.93 |     -42.74 |      -36.30
+      60 | Mitad de Otoño       | tierra  |      -51.45 |     -45.45 |      -39.20
+----------------------------------------------------------------------------------
+      30 | Inicio de Invierno   | tierra  |       -0.46 |      19.64 |       49.41
+      30 | Mitad de Invierno    | tierra  |        1.94 |      16.86 |       32.87
+      30 | Inicio de Primavera  | tierra  |       -0.41 |      13.84 |       29.10
+      30 | Mitad de Primavera   | tierra  |       -1.83 |      11.99 |       26.73
+      30 | Inicio de Verano     | tierra  |       -1.21 |      12.76 |       27.67
+      30 | Mitad de Verano      | tierra  |        1.08 |      15.65 |       31.26
+      30 | Inicio de Otoño      | tierra  |        3.76 |      19.08 |       35.53
+      30 | Mitad de Otoño       | tierra  |        4.97 |      20.64 |       37.49
+----------------------------------------------------------------------------------
+       0 | Inicio de Invierno   | tierra  |       14.64 |      40.28 |       77.85
+       0 | Mitad de Invierno    | tierra  |       17.70 |      36.79 |       57.51
+       0 | Inicio de Primavera  | tierra  |       13.93 |      31.86 |       51.26
+       0 | Mitad de Primavera   | tierra  |       10.87 |      27.91 |       46.26
+       0 | Inicio de Verano     | tierra  |       10.75 |      27.78 |       46.13
+       0 | Mitad de Verano      | tierra  |       13.42 |      31.29 |       50.62
+       0 | Inicio de Otoño      | tierra  |       17.57 |      36.71 |       57.50
+       0 | Mitad de Otoño       | tierra  |       20.36 |      40.34 |       62.08
+----------------------------------------------------------------------------------
+     -30 | Inicio de Invierno   | tierra  |        7.36 |      30.02 |       63.11
+     -30 | Mitad de Invierno    | tierra  |        9.42 |      26.09 |       44.05
+     -30 | Inicio de Primavera  | tierra  |        4.40 |      19.80 |       36.34
+     -30 | Mitad de Primavera   | tierra  |       -0.17 |      14.16 |       29.49
+     -30 | Inicio de Verano     | tierra  |       -1.06 |      13.12 |       28.28
+     -30 | Mitad de Verano      | tierra  |        1.91 |      16.89 |       32.98
+     -30 | Inicio de Otoño      | tierra  |        7.39 |      23.75 |       41.38
+     -30 | Mitad de Otoño       | tierra  |       11.66 |      29.05 |       47.83
+----------------------------------------------------------------------------------
+     -60 | Inicio de Invierno   | tierra  |      -30.62 |     -18.81 |       -1.40
+     -60 | Mitad de Invierno    | tierra  |      -31.38 |     -22.95 |      -14.11
+     -60 | Inicio de Primavera  | tierra  |      -38.40 |     -30.88 |      -23.01
+     -60 | Mitad de Primavera   | tierra  |      -45.63 |     -38.99 |      -32.05
+     -60 | Inicio de Verano     | tierra  |      -48.11 |     -41.75 |      -35.11
+     -60 | Mitad de Verano      | tierra  |      -44.95 |     -38.07 |      -30.88
+     -60 | Inicio de Otoño      | tierra  |      -37.29 |     -29.41 |      -21.13
+     -60 | Mitad de Otoño       | tierra  |      -30.36 |     -21.64 |      -12.46
+----------------------------------------------------------------------------------
