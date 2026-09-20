@@ -246,8 +246,11 @@ def simular_rejilla_geografia_con_registro(
         suma_dia = suma_dia + T
         contador_dia += 1
 
-    if contador_dia > 0:
+    if contador_dia == pasos_por_dia:
         guardar_dia()
+    elif contador_dia > 0:
+        print(f"Aviso: se descarta el ultimo dia registrado por estar incompleto "
+              f"({contador_dia} de {pasos_por_dia} pasos).")
 
     registro_minima = np.array(registro_minima)
     registro_media = np.array(registro_media)
@@ -286,11 +289,12 @@ if __name__ == "__main__":
     orden_correcto = np.all(registro_minima <= registro_media + 1e-9) and np.all(registro_media <= registro_maxima + 1e-9)
     print(f"Orden minima <= media <= maxima en todas las celdas y dias: {orden_correcto}")
 
-    dentro_del_rango = np.all(T_registro >= registro_minima[-1] - 1e-6) and np.all(T_registro <= registro_maxima[-1] + 1e-6)
-    print(f"T final dentro del rango [minima, maxima] del ultimo dia registrado: {dentro_del_rango}")
-
-    forma_correcta = abs(registro_media.shape[0] - dias_esperados_aprox) < 2
-    if orden_correcto and forma_correcta and dentro_del_rango:
+    # Nota: ya no comprobamos que T_registro (instante final, incluye los
+    # pasos del dia parcial descartado) caiga dentro del rango del ultimo
+    # dia completo -- desde que descartamos ese dia parcial, no hay razon
+    # fisica para que coincida.
+    forma_correcta = abs(registro_media.shape[0] - (dias_esperados_aprox - 1)) < 2
+    if orden_correcto and forma_correcta:
         print("OK: el registro diario (minima/media/maxima) es coherente.")
     else:
         print("AVISO: revisar antes de seguir.")
