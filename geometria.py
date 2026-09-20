@@ -8,7 +8,7 @@ LATITUD_grados = 15
 LATITUD_rad = LATITUD_grados * PI / 180
 
 def declinacion_solar(momento, inclinacion_axial_rad):
-    declinacion = inclinacion_axial_rad * math.sin(momento + DESFASE_SOLSTICIO_RAD)
+    declinacion = math.asin(math.sin(inclinacion_axial_rad) * math.sin(momento + DESFASE_SOLSTICIO_RAD))
     return declinacion
 
 
