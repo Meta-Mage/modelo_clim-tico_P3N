@@ -87,9 +87,8 @@ if __name__ == "__main__":
 
     datos_orbita = precalcular_orbita(S3N_LUMINOSIDAD, INCLINACION_AXIAL_RAD, SEMIEJE_MAYOR)
 
-    # PROVISIONAL: mapa falso todo tierra, hasta que exista el puente con C3N
-    nombre_mapa = "mapa_falso_todo_tierra"
-    tipo_superficie, altitud_metros = mapa_falso_todo_tierra()
+    from puente_c3n import cargar_mapa_activo_de_c3n
+    tipo_superficie, altitud_metros, nombre_mapa = cargar_mapa_activo_de_c3n()
 
     print("Simulando (mapa falso todo tierra, PROVISIONAL hasta el puente con C3N)...")
     _, anos_convergencia, registro_minima, registro_media, registro_maxima = simular_rejilla_geografia_con_registro(
