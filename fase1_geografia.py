@@ -162,15 +162,17 @@ INERCIA_POR_TIPO = {
 
 
 # ============================================================================
-# MOTOR DE REGISTRO ANUAL (foto diaria de la rejilla completa)
+# MOTOR DE REGISTRO ANUAL (minima, media y maxima diaria de la rejilla)
 # ============================================================================
 # Igual que simular_rejilla_geografia(), pero una vez alcanzada la
-# convergencia, simula UN año adicional y guarda una foto de toda la
-# rejilla (ya con la correccion por altitud aplicada) una vez al dia.
-# Esa "pelicula" de temperaturas es la base comun para: consultas de un
-# punto concreto, tablas por latitud, graficos globales y animaciones --
-# todo se deriva de este mismo registro, sin recalcular la simulacion
-# cada vez.
+# convergencia, simula UN año adicional y para cada dia de ese año
+# acumula todos los pasos de tiempo dentro de ese dia para calcular la
+# temperatura minima, media y maxima de cada celda -- no una sola foto
+# instantanea, sino el ciclo dia/noche completo de cada dia. Estas tres
+# "peliculas" (minima, media, maxima) son la base comun para: consultas
+# de un punto concreto, tablas por latitud, graficos globales y
+# animaciones -- todo se deriva de este mismo registro, sin recalcular
+# la simulacion cada vez.
 # ============================================================================
 
 def simular_rejilla_geografia_con_registro(
@@ -208,20 +210,52 @@ def simular_rejilla_geografia_con_registro(
         anos_convergencia = max_anos
 
     pasos_por_dia = round(ROTACION_PERIODO / paso_tiempo)
-    registro = []
+
+    registro_minima = []
+    registro_media = []
+    registro_maxima = []
+
+    T_min_dia = None
+    T_max_dia = None
+    suma_dia = None
+    contador_dia = 0
+
+    def guardar_dia():
+        T_media_dia = suma_dia / contador_dia
+        registro_minima.append(correccion_altitud(T_min_dia - 273.15, altitud_metros))
+        registro_media.append(correccion_altitud(T_media_dia - 273.15, altitud_metros))
+        registro_maxima.append(correccion_altitud(T_max_dia - 273.15, altitud_metros))
+
     for paso, (toa, decl, ang_h_lon0) in enumerate(datos_orbita):
         if paso % pasos_por_dia == 0:
-            registro.append(correccion_altitud(T - 273.15, altitud_metros))
+            if contador_dia > 0:
+                guardar_dia()
+            T_min_dia = np.full_like(T, np.inf)
+            T_max_dia = np.full_like(T, -np.inf)
+            suma_dia = np.zeros_like(T)
+            contador_dia = 0
+
         abs_local = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
             toa, decl, ang_h_lon0, albedo_grid, profundidad_optica
         )
         dT = (paso_tiempo / C_grid) * (abs_local - (1 - emisividad / 2) * CONSTANTE_SB * T ** 4)
         T = T + dT
 
-    registro_diario = np.array(registro)
+        T_min_dia = np.minimum(T_min_dia, T)
+        T_max_dia = np.maximum(T_max_dia, T)
+        suma_dia = suma_dia + T
+        contador_dia += 1
+
+    if contador_dia > 0:
+        guardar_dia()
+
+    registro_minima = np.array(registro_minima)
+    registro_media = np.array(registro_media)
+    registro_maxima = np.array(registro_maxima)
+
     T_final_corregida = correccion_altitud(T - 273.15, altitud_metros)
 
-    return T_final_corregida, anos_convergencia, registro_diario
+    return T_final_corregida, anos_convergencia, registro_minima, registro_media, registro_maxima
 
 
 if __name__ == "__main__":
@@ -237,23 +271,26 @@ if __name__ == "__main__":
         ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA,
     )
 
-    T_registro, anos_registro, registro_diario = simular_rejilla_geografia_con_registro(
+    T_registro, anos_registro, registro_minima, registro_media, registro_maxima = simular_rejilla_geografia_con_registro(
         datos_orbita, tipo_tierra, altitud_cero, EMISIVIDAD,
         ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA,
     )
 
-    print(f"Convergencia (sin registro): {anos_normal} ano(s)")
-    print(f"Convergencia (con registro): {anos_registro} ano(s)")
-    print(f"Forma del registro diario: {registro_diario.shape} (dias, filas, columnas)")
-
-    diferencia_maxima = np.max(np.abs(T_registro - T_normal))
-    print(f"Diferencia maxima entre T final con y sin registro: {diferencia_maxima:.4e} C")
+    print(f"Convergencia (sin registro): {anos_normal} año(s)")
+    print(f"Convergencia (con registro): {anos_registro} año(s)")
+    print(f"Forma de cada registro (minima/media/maxima): {registro_media.shape} (dias, filas, columnas)")
 
     dias_esperados_aprox = ORBITA_PERIODO / ROTACION_PERIODO
     print(f"Dias esperados aproximadamente: {dias_esperados_aprox:.1f}")
 
-    tolerancia = 0.02
-    if diferencia_maxima < tolerancia and abs(registro_diario.shape[0] - dias_esperados_aprox) < 2:
-        print("OK: el registro diario es coherente con la simulacion normal.")
+    orden_correcto = np.all(registro_minima <= registro_media + 1e-9) and np.all(registro_media <= registro_maxima + 1e-9)
+    print(f"Orden minima <= media <= maxima en todas las celdas y dias: {orden_correcto}")
+
+    dentro_del_rango = np.all(T_registro >= registro_minima[-1] - 1e-6) and np.all(T_registro <= registro_maxima[-1] + 1e-6)
+    print(f"T final dentro del rango [minima, maxima] del ultimo dia registrado: {dentro_del_rango}")
+
+    forma_correcta = abs(registro_media.shape[0] - dias_esperados_aprox) < 2
+    if orden_correcto and forma_correcta and dentro_del_rango:
+        print("OK: el registro diario (minima/media/maxima) es coherente.")
     else:
         print("AVISO: revisar antes de seguir.")
