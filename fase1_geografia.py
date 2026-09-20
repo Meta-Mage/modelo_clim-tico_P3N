@@ -36,7 +36,7 @@ def correccion_altitud(T_grados_C, altitud_metros):
 
 
 def simular_rejilla_geografia(datos_orbita, tipo_superficie, altitud_metros, emisividad,
-                               albedo_por_tipo, inercia_por_tipo,
+                               albedo_por_tipo, inercia_por_tipo, profundidad_optica,
                                paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=50, tolerancia_convergencia=0.01):
     """
     Version de simular_rejilla() (fase0_temperatura.py) con albedo e
@@ -56,7 +56,7 @@ def simular_rejilla_geografia(datos_orbita, tipo_superficie, altitud_metros, emi
     # abs_ini necesita el albedo de cada celda -- i_abs() es aritmetica
     # pura, asi que ya acepta un array de albedo sin ningun cambio.
     abs_ini = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
-        toa_ini, decl_ini, ang_h_ini_lon0, albedo_grid, PROFUNDIDAD_OPTICA_GLOBAL
+        toa_ini, decl_ini, ang_h_ini_lon0, albedo_grid, profundidad_optica
     )
     T = np.where(es_de_noche_ini, 273.15, t_eq(abs_ini))
 
@@ -64,7 +64,7 @@ def simular_rejilla_geografia(datos_orbita, tipo_superficie, altitud_metros, emi
         T_inicio_ano = T.copy()
         for toa, decl, ang_h_lon0 in datos_orbita:
             abs_local = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
-                toa, decl, ang_h_lon0, albedo_grid, PROFUNDIDAD_OPTICA_GLOBAL
+                toa, decl, ang_h_lon0, albedo_grid, profundidad_optica
             )
             dT = (paso_tiempo / C_grid) * (abs_local - (1 - emisividad / 2) * CONSTANTE_SB * T ** 4)
             T = T + dT
@@ -100,7 +100,6 @@ def irradiancia_absorbida_desde_toa_rejilla_con_albedo(toa, declinacion, ang_h_l
 
 if __name__ == "__main__":
     from parametros import EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA, INCLINACION_AXIAL_RAD, S3N_LUMINOSIDAD, SEMIEJE_MAYOR
-    PROFUNDIDAD_OPTICA_GLOBAL = PROFUNDIDAD_OPTICA
 
     print("Precalculando orbita...")
     datos_orbita = precalcular_orbita(S3N_LUMINOSIDAD, INCLINACION_AXIAL_RAD, SEMIEJE_MAYOR)
@@ -113,7 +112,7 @@ if __name__ == "__main__":
     albedo_por_tipo = {TIERRA: ALBEDO, AGUA: ALBEDO}      # AGUA no se usa (mapa sin agua); mismo valor por seguridad
     inercia_por_tipo = {TIERRA: INERCIA_TERMICA, AGUA: INERCIA_TERMICA}
     T_fase1, anos_fase1 = simular_rejilla_geografia(
-        datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD, albedo_por_tipo, inercia_por_tipo
+        datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD, albedo_por_tipo, inercia_por_tipo, PROFUNDIDAD_OPTICA
     )
 
     diferencia = np.abs(T_fase0 - T_fase1)
