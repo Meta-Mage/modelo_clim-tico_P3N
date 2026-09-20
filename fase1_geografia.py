@@ -122,3 +122,40 @@ if __name__ == "__main__":
         print("OK: con mapa falso todo tierra a nivel del mar, la Fase 1 coincide EXACTA con la Fase 0.")
     else:
         print("AVISO: deberian coincidir exactas -- revisar antes de seguir.")
+
+
+# ============================================================================
+# VALORES DE REFERENCIA FIJADOS (Fase 1, 20/09/2026)
+# ============================================================================
+# Albedo: valores de investigacion academica (NASA MyNASAData, literatura
+# MODIS de albedo de vegetacion/suelo). Tierra: valor medio comunmente
+# citado. Oceano: punto medio del rango tipico de albedo oceanico real
+# (0.06-0.10).
+#
+# Inercia termica:
+#   TIERRA (2500): dentro del rango real de inercia termica de suelo/roca
+#     (400-2500 tiu, J m-2 K-1 s-0.5), elegido de forma prudente en el
+#     extremo alto de ese rango.
+#   AGUA (1200000): NO es una inercia termica de material en sentido
+#     estricto -- el oceano no se calienta por conduccion como la tierra,
+#     sino por mezcla turbulenta de viento/oleaje de una capa de decenas
+#     de metros, cuyo espesor no escala con el periodo de forzamiento
+#     igual que la conduccion en tierra. Es un valor EFECTIVO, calculado
+#     para que la formula C = inercia * sqrt(periodo_rotacion / pi)
+#     reproduzca la capacidad calorifica real de una capa oceanica
+#     mezclada (~10^7-10^8 J/m2/K, contrastado con Williams & Kasting 1997
+#     y Bhattacharya & Bordoni 2020).
+#     PROVISIONAL: pendiente de revision cuando se modele la fisica
+#     oceanica (mezcla, corrientes, profundidad variable por latitud y
+#     estacion) con mas detalle.
+# ============================================================================
+
+ALBEDO_POR_TIPO = {
+    TIERRA: 0.20,
+    AGUA: 0.08,
+}
+
+INERCIA_POR_TIPO = {
+    TIERRA: 2500,
+    AGUA: 1200000,
+}
