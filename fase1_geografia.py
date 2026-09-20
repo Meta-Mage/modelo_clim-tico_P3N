@@ -159,3 +159,101 @@ INERCIA_POR_TIPO = {
     TIERRA: 2500,
     AGUA: 1200000,
 }
+
+
+# ============================================================================
+# MOTOR DE REGISTRO ANUAL (foto diaria de la rejilla completa)
+# ============================================================================
+# Igual que simular_rejilla_geografia(), pero una vez alcanzada la
+# convergencia, simula UN año adicional y guarda una foto de toda la
+# rejilla (ya con la correccion por altitud aplicada) una vez al dia.
+# Esa "pelicula" de temperaturas es la base comun para: consultas de un
+# punto concreto, tablas por latitud, graficos globales y animaciones --
+# todo se deriva de este mismo registro, sin recalcular la simulacion
+# cada vez.
+# ============================================================================
+
+def simular_rejilla_geografia_con_registro(
+    datos_orbita, tipo_superficie, altitud_metros, emisividad,
+    albedo_por_tipo, inercia_por_tipo, profundidad_optica,
+    paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=50, tolerancia_convergencia=0.01,
+):
+    albedo_grid = np.where(tipo_superficie == TIERRA, albedo_por_tipo[TIERRA], albedo_por_tipo[AGUA])
+    inercia_grid = np.where(tipo_superficie == TIERRA, inercia_por_tipo[TIERRA], inercia_por_tipo[AGUA])
+    C_grid = inercia_grid * math.sqrt(ROTACION_PERIODO / PI)
+
+    toa_ini, decl_ini, ang_h_ini_lon0 = datos_orbita[len(datos_orbita) // 2]
+    ang_h_ini_grid = ang_h_ini_lon0 + np.radians(LONGITUDES_GRADOS)
+    cenital_ini = angulo_cenital_rejilla(LATITUDES_GRADOS, decl_ini, ang_h_ini_grid)
+    masa_ini = masa_aire_rejilla(cenital_ini)
+    es_de_noche_ini = np.isnan(masa_ini)
+    abs_ini = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
+        toa_ini, decl_ini, ang_h_ini_lon0, albedo_grid, profundidad_optica
+    )
+    T = np.where(es_de_noche_ini, 273.15, t_eq(abs_ini))
+
+    for ano in range(max_anos):
+        T_inicio_ano = T.copy()
+        for toa, decl, ang_h_lon0 in datos_orbita:
+            abs_local = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
+                toa, decl, ang_h_lon0, albedo_grid, profundidad_optica
+            )
+            dT = (paso_tiempo / C_grid) * (abs_local - (1 - emisividad / 2) * CONSTANTE_SB * T ** 4)
+            T = T + dT
+        diferencia_maxima = np.max(np.abs(T - T_inicio_ano))
+        if diferencia_maxima < tolerancia_convergencia:
+            anos_convergencia = ano + 1
+            break
+    else:
+        anos_convergencia = max_anos
+
+    pasos_por_dia = round(ROTACION_PERIODO / paso_tiempo)
+    registro = []
+    for paso, (toa, decl, ang_h_lon0) in enumerate(datos_orbita):
+        if paso % pasos_por_dia == 0:
+            registro.append(correccion_altitud(T - 273.15, altitud_metros))
+        abs_local = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
+            toa, decl, ang_h_lon0, albedo_grid, profundidad_optica
+        )
+        dT = (paso_tiempo / C_grid) * (abs_local - (1 - emisividad / 2) * CONSTANTE_SB * T ** 4)
+        T = T + dT
+
+    registro_diario = np.array(registro)
+    T_final_corregida = correccion_altitud(T - 273.15, altitud_metros)
+
+    return T_final_corregida, anos_convergencia, registro_diario
+
+
+if __name__ == "__main__":
+    from temperatura import precalcular_orbita
+    from parametros import ORBITA_PERIODO
+
+    datos_orbita = precalcular_orbita(S3N_LUMINOSIDAD, INCLINACION_AXIAL_RAD, SEMIEJE_MAYOR)
+
+    tipo_tierra, altitud_cero = mapa_falso_todo_tierra()
+
+    T_normal, anos_normal = simular_rejilla_geografia(
+        datos_orbita, tipo_tierra, altitud_cero, EMISIVIDAD,
+        ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA,
+    )
+
+    T_registro, anos_registro, registro_diario = simular_rejilla_geografia_con_registro(
+        datos_orbita, tipo_tierra, altitud_cero, EMISIVIDAD,
+        ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA,
+    )
+
+    print(f"Convergencia (sin registro): {anos_normal} ano(s)")
+    print(f"Convergencia (con registro): {anos_registro} ano(s)")
+    print(f"Forma del registro diario: {registro_diario.shape} (dias, filas, columnas)")
+
+    diferencia_maxima = np.max(np.abs(T_registro - T_normal))
+    print(f"Diferencia maxima entre T final con y sin registro: {diferencia_maxima:.4e} C")
+
+    dias_esperados_aprox = ORBITA_PERIODO / ROTACION_PERIODO
+    print(f"Dias esperados aproximadamente: {dias_esperados_aprox:.1f}")
+
+    tolerancia = 0.02
+    if diferencia_maxima < tolerancia and abs(registro_diario.shape[0] - dias_esperados_aprox) < 2:
+        print("OK: el registro diario es coherente con la simulacion normal.")
+    else:
+        print("AVISO: revisar antes de seguir.")
