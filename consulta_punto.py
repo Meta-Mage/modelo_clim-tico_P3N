@@ -5,12 +5,15 @@ from datetime import date
 import numpy as np
 
 from parametros import *
-from temperatura import precalcular_orbita
-from rejilla import LATITUDES_GRADOS, LONGITUDES_GRADOS
-from fase1_geografia import (
-    mapa_falso_todo_tierra, ALBEDO_POR_TIPO, INERCIA_POR_TIPO,
-    simular_rejilla_geografia_con_registro,
-)
+from rejilla import LATITUDES_GRADOS, LONGITUDES_GRADOS, FILAS, COLUMNAS
+from fase1_geografia import mapa_falso_todo_tierra, ALBEDO_POR_TIPO, INERCIA_POR_TIPO
+from fase2_difusion import D_DIFUSION_REFERENCIA
+from cache_simulacion import precalcular_orbita_cacheada, simular_rejilla_combinada_cacheada
+
+# D de la difusion horizontal activa en esta herramienta. Pon esto a
+# np.zeros((FILAS, COLUMNAS)) para volver a la fisica de Fase 1 pura
+# (sin transporte de calor entre celdas), por ejemplo para comparar.
+D_GRID_ACTIVO = np.full((FILAS, COLUMNAS), D_DIFUSION_REFERENCIA)
 
 NUM_DIAS_MUESTRA = 12
 CARPETA_RESULTADOS = os.path.join("outputs", "consultas_punto")
@@ -85,15 +88,16 @@ if __name__ == "__main__":
         latitud_grados = float(input("Latitud (grados, -90 a 90): "))
         longitud_grados = float(input("Longitud (grados, -180 a 180): "))
 
-    datos_orbita = precalcular_orbita(S3N_LUMINOSIDAD, INCLINACION_AXIAL_RAD, SEMIEJE_MAYOR)
+    datos_orbita = precalcular_orbita_cacheada(S3N_LUMINOSIDAD, INCLINACION_AXIAL_RAD, SEMIEJE_MAYOR)
 
     from puente_c3n import cargar_mapa_activo_de_c3n
     tipo_superficie, altitud_metros, nombre_mapa = cargar_mapa_activo_de_c3n()
 
     print(f"Simulando mapa '{nombre_mapa}'...")
-    _, anos_convergencia, registro_minima, registro_media, registro_maxima = simular_rejilla_geografia_con_registro(
+    _, anos_convergencia, registro_minima, registro_media, registro_maxima = simular_rejilla_combinada_cacheada(
         datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD,
-        ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA,
+        ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA, D_GRID_ACTIVO,
+        nombre_mapa=nombre_mapa,
     )
     print(f"Convergencia: {anos_convergencia} año(s)")
     if anos_convergencia >= 50:
