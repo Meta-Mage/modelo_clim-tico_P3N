@@ -67,6 +67,18 @@
 # real de P3N podria ser distinta a la terrestre por otras razones
 # (rotacion, insolacion, composicion atmosferica...) que este
 # reescalado no captura. Lo señalo como limitacion, igual que antes.
+#
+# CORRECCION 3 (28/09/2026, decision de Carlos) -- ANULA LA CORRECCION 2:
+# el razonamiento de la correccion 2 estaba invertido. En la forma en
+# radianes, D equivale a (difusividad fisica * capacidad) / R^2: con la
+# misma eficiencia de transporte, un planeta MAS PEQUENO iguala MAS sus
+# temperaturas, asi que D deberia SUBIR (0.55*(R_T/R_P3N)^2 ~ 1.02), no
+# bajar a 0.30. Ademas, el escalado de referencia para otros planetas
+# (Williams & Kasting 1997) NO depende del radio, solo de presion,
+# capacidad calorifica, masa molecular y velocidad de rotacion. P3N
+# rota en 24 h como la Tierra, asi que se adopta D = 0.55 sin cambios.
+# La perdida de contraste tierra/mar que motivo la correccion 2 no es
+# motivo fisico para cambiar D; si hace falta, se estudiara aparte.
 # ================================================================
 #
 # SOBRE LOS POLOS: el termino meridional se evalua en la FRONTERA entre
@@ -159,9 +171,9 @@ from fase1_geografia import (
 # valor correcto sale solo con volver a ejecutar este archivo -- no
 # hay un numero ya calculado escondido que se pueda quedar
 # desactualizado sin que nadie se de cuenta.
-D_DIFUSION_REFERENCIA_TIERRA = 0.55  # W/m2/K -- valor de la literatura, tal cual, SIN adaptar a P3N
-RADIO_TIERRA_REFERENCIA = 6_371_000  # m -- el radio para el que esta calibrado ese 0.55
-D_DIFUSION_REFERENCIA = D_DIFUSION_REFERENCIA_TIERRA * (P3N_RADIO / RADIO_TIERRA_REFERENCIA) ** 2
+D_DIFUSION_REFERENCIA_TIERRA = 0.55  # W/m2/K -- valor de la literatura (North 1975)
+# CORRECCION 3 (28/09): sin reescalado por radio -- ver nota en la cabecera.
+D_DIFUSION_REFERENCIA = D_DIFUSION_REFERENCIA_TIERRA
 
 DLAMBDA_RAD = math.radians(GRADOS_POR_COL)
 DPHI_RAD = math.radians(GRADOS_POR_FILA)
