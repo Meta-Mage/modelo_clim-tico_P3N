@@ -8,7 +8,7 @@ HORA = 16
 
 def anomalia_media(dia, hora):
     tiempo_transcurrido = (dia -1) * 86400 + hora * 3600
-    AM_grados = (19.043217 + tiempo_transcurrido * MOVIMIENTO_MEDIO) % 360
+    AM_grados = (ANOMALIA_MEDIA_INICIO_GRADOS + tiempo_transcurrido * MOVIMIENTO_MEDIO) % 360
     AM_rad = AM_grados * PI/180
     return AM_rad
 

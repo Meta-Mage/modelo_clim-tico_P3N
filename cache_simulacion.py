@@ -118,14 +118,24 @@ def cargar_o_calcular(nombre_funcion, parametros_clave, funcion_calculo, etiquet
 # ================================================================
 
 def precalcular_orbita_cacheada(luminosidad, inclinacion_axial_rad, semieje):
-    from parametros import ORBITA_PERIODO
+    from parametros import (
+        ORBITA_PERIODO, ORBITA_EXCENTRICIDAD,
+        ANOMALIA_MEDIA_INICIO_GRADOS, DESFASE_SOLSTICIO_RAD,
+    )
     from temperatura import precalcular_orbita, PASO_TIEMPO
 
     # luminosidad, inclinacion_axial_rad y semieje ya llegan como
-    # argumentos, pero ORBITA_PERIODO y PASO_TIEMPO se leen como globales
-    # dentro de precalcular_orbita() -- hay que incluirlos aqui a mano
-    # o un cambio en cualquiera de los dos no se detectaria.
-    clave = ("precalcular_orbita_v1", luminosidad, inclinacion_axial_rad, semieje, ORBITA_PERIODO, PASO_TIEMPO)
+    # argumentos, pero el resto se lee como globales dentro de
+    # precalcular_orbita() (y de anomalia_media, anomalia_excentrica,
+    # declinacion_solar...) -- hay que incluirlos aqui a mano o un cambio
+    # en cualquiera de ellos no se detectaria. v2 (01/10/2026): se añaden
+    # excentricidad, anomalia media inicial y desfase del solsticio, que
+    # faltaban en v1.
+    clave = (
+        "precalcular_orbita_v2", luminosidad, inclinacion_axial_rad, semieje,
+        ORBITA_PERIODO, PASO_TIEMPO,
+        ORBITA_EXCENTRICIDAD, ANOMALIA_MEDIA_INICIO_GRADOS, DESFASE_SOLSTICIO_RAD,
+    )
     return cargar_o_calcular(
         "orbita", clave,
         lambda: precalcular_orbita(luminosidad, inclinacion_axial_rad, semieje),

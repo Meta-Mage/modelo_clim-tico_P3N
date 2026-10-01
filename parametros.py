@@ -31,7 +31,35 @@ ORBITA_EXCENTRICIDAD = 0.046
 ORBITA_PERIODO = 23_337_579.9978  
 MOVIMIENTO_MEDIO = 360/ORBITA_PERIODO  
 SEMIEJE_MAYOR = (CONSTANTE_GRAVITACIONAL * S3N_MASA * ORBITA_PERIODO**2 / (4 * PI**2)) ** (1/3)
-DESFASE_SOLSTICIO_RAD = 242.1084 * PI / 180 
+# Anomalia media de P3N en el instante inicial del calendario (dia 1,
+# 0 h), en grados: fija EN QUE PUNTO de la orbita empieza el año. Antes
+# estaba escrita a mano dentro de orbita.py.
+ANOMALIA_MEDIA_INICIO_GRADOS = 19.043217
+
+# DESFASE DEL SOLSTICIO -- ahora se CALCULA. Antes era 242.1084 escrito a
+# mano, calibrado para la excentricidad antigua (0.186); con la actual
+# (0.046) dejaba el solsticio de invierno del hemisferio norte en el
+# dia 5 en vez del dia 1 (corregido el 01/10/2026).
+# Criterio del calendario de P3N: el dia 1 a las 0 h es exactamente el
+# solsticio de invierno del hemisferio norte (declinacion minima). La
+# declinacion es asin(sin(inclinacion) * sin(AV + DESFASE)), minima
+# cuando AV + DESFASE = 270 grados, asi que DESFASE = 270 - AV(dia 1, 0 h).
+# La ecuacion de Kepler se repite aqui (no se importa orbita.py porque
+# orbita.py importa este archivo: seria una importacion circular).
+def _anomalia_verdadera_inicio():
+    import math
+    am = math.radians(ANOMALIA_MEDIA_INICIO_GRADOS)
+    ae = am
+    for _ in range(100):
+        ae_nuevo = ae - (ae - ORBITA_EXCENTRICIDAD * math.sin(ae) - am) / (1 - ORBITA_EXCENTRICIDAD * math.cos(ae))
+        if abs(ae_nuevo - ae) < 1e-12:
+            ae = ae_nuevo
+            break
+        ae = ae_nuevo
+    factor = math.sqrt((1 + ORBITA_EXCENTRICIDAD) / (1 - ORBITA_EXCENTRICIDAD))
+    return 2 * math.atan(factor * math.tan(ae / 2))
+
+DESFASE_SOLSTICIO_RAD = (3 * PI / 2 - _anomalia_verdadera_inicio()) % (2 * PI)
 ROTACION_PERIODO = 86400
 
 #ATMÓSFERA Y SUPERFICIE
