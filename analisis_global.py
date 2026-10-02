@@ -51,7 +51,7 @@ from orbita import info_estaciones, anomalia_media
 from rejilla import LATITUDES_GRADOS, FILAS, COLUMNAS
 from fase1_geografia import TIERRA, AGUA, ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from fase2_difusion import D_DIFUSION_REFERENCIA
-from cache_simulacion import precalcular_orbita_cacheada, simular_rejilla_combinada_cacheada
+from cache_simulacion import precalcular_orbita_cacheada, simular_modelo_cacheado, simular_fase2b_cacheada
 
 # D de la difusion horizontal (igual que en el resto de herramientas).
 D_GRID_ACTIVO = np.full((FILAS, COLUMNAS), D_DIFUSION_REFERENCIA)
@@ -313,7 +313,7 @@ if __name__ == "__main__":
     tipo_superficie, altitud_metros, nombre_mapa = cargar_mapa_activo_de_c3n()
 
     print(f"Simulando mapa '{nombre_mapa}' (si ya esta en cache, es instantaneo)...")
-    _, anos_convergencia, registro_minima, registro_media, registro_maxima = simular_rejilla_combinada_cacheada(
+    _, anos_convergencia, registro_minima, registro_media, registro_maxima = simular_modelo_cacheado(
         datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD,
         ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA, D_GRID_ACTIVO,
         nombre_mapa=nombre_mapa,
@@ -328,6 +328,29 @@ if __name__ == "__main__":
     ]
     if anos_convergencia >= 50:
         cabecera.append("AVISO: se alcanzo el limite de 50 años sin confirmar convergencia -- puede no ser el equilibrio.")
+
+    # Fase 2b: la temperatura de las tablas es la del AIRE A 2 m. Datos
+    # complementarios del suelo y de las dos capas de aire (misma
+    # simulacion, ya en cache: no recalcula nada).
+    completo = simular_fase2b_cacheada(
+        datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD,
+        ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA, float(D_DIFUSION_REFERENCIA),
+        nombre_mapa=nombre_mapa,
+    )
+    todo = np.ones_like(tipo_superficie, dtype=bool)
+    es_tierra = tipo_superficie == TIERRA
+    oscilacion_suelo = (completo["suelo_max"] - completo["suelo_min"]).mean(axis=0)
+    oscilacion_aire = (completo["reg_max"] - completo["reg_min"]).mean(axis=0)
+    cabecera += [
+        "Temperaturas de las tablas: AIRE A 2 m (la de un parte meteorologico).",
+        f"Suelo: media anual global {fmt(media_ponderada(completo['suelo_media'].mean(axis=0), todo))} C | "
+        f"oscilacion dia/noche media en tierra: suelo {fmt(media_ponderada(oscilacion_suelo, es_tierra))} C, "
+        f"aire {fmt(media_ponderada(oscilacion_aire, es_tierra))} C",
+        f"Aire: capa limite media {fmt(media_ponderada(completo['cl_media'].mean(axis=0), todo))} C | "
+        f"troposfera media {fmt(media_ponderada(completo['tr_media'].mean(axis=0), todo))} C",
+        f"Balance de energia (año final): diferencia entre lo absorbido y lo emitido al espacio "
+        f"{completo['energia']['diferencia_relativa']:.1e}",
+    ]
     cabecera.append("")
 
     global_ = resumen_global(registro_minima, registro_media, tipo_superficie, indice_perihelio, indice_afelio)

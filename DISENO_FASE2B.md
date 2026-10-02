@@ -1,6 +1,6 @@
 # M3N — Diseño de la Fase 2b: atmósfera con cuerpo
 
-**Estado:** aprobado por Carlos (02/10/2026). No hay código escrito todavía.
+**Estado:** aprobado por Carlos (02/10/2026) e **implementado** en `fase2b_atmosfera.py` (02/10/2026). Ver la sección 11 para lo que cambió al implementarlo y los resultados de la validación.
 **Fecha:** 01/10/2026 · **Versión prevista:** `v2.2b` · **Parte de:** `v2.2` (commit `a0b5059` + arreglo del solsticio)
 
 ---
@@ -322,6 +322,46 @@ Cada pieza lleva su interruptor y su validación antes de pasar a la siguiente.
 - Se permite ejecutar simulaciones y tests para validar.
 
 **Pendientes:** ninguna para empezar a programar.
+
+---
+
+## 11. Implementación y validación (02/10/2026)
+
+Código: `fase2b_atmosfera.py` (física, interruptores) y `cache_simulacion.py` (`simular_fase2b_cacheada`, `simular_modelo_cacheado`). Las cuatro herramientas usan ya la Fase 2b; sus tablas dan la **temperatura del aire a 2 m**.
+
+### Cambios respecto al diseño (decididos al implementar)
+
+1. **Calibración del infrarrojo sin "modo Tierra".** Se descartó simular una Tierra sin nubes para calibrar: en equilibrio, una Tierra sin nubes emitiría al espacio lo que absorbe (~287 W/m²), no los 267 medidos. Los 267 corresponden a la atmósfera real, calentada también por las nubes. Se calibró directamente con las temperaturas medias observadas (Atmósfera Estándar US 1976, promediada en masa en cada capa): suelo 289 K, CL 285,3 K, TR 246,3 K. Con ellas, infrarrojo hacia el suelo = 314 y hacia el espacio = 267 dan **ε_b = 0,740** y **ε_t = 0,661**. Absorción total del infrarrojo: 0,912 (antes 0,77 en una capa, calibrada para la Tierra con nubes).
+2. **Aire a 2 m:** interpolación logarítmica **neutra** entre el suelo y el aire de la CL (fracción ln(2/z0h)/ln(10/z0h): 0,83 en tierra, 0,88 en océano). No se aplican aún las funciones de estabilidad en la interpolación. Efecto esperado: de noche, el aire a 2 m sale algo más templado que el real, con la inversión infravalorada. Refinamiento pendiente.
+3. **Calor sensible:** se resuelve como un sistema implícito de 2×2 (suelo y CL) por celda en cada paso, en lugar de dentro del sistema tridiagonal de la columna. Conserva la energía exactamente y permite que `C_H` cambie en cada paso sin refactorizar nada.
+4. **Aceleración de la convergencia:** lo último en converger es un único modo lento, el océano polar, que de noche casi no intercambia calor con el aire estable (cada año cambia ~61 % de lo que cambió el anterior). Cuando ese ritmo se mantiene tres años seguidos, se salta lo que falta (suma de la serie geométrica). Después se siguen simulando años normales con el criterio de siempre. Se probó también arrancar con el océano de capacidad reducida, y se descartó: sesgaba el estado medio.
+5. **Fracción oceánica del transporte:** `f` = **0,13**. Con ese valor, el océano lleva el 17 % (norte) y el 13 % (sur) del transporte a 35° (Trenberth y Caron 2001: 22 % y 8 %).
+6. **Masa de S3N:** **0,884 M☉** (antes 0,97). La luz que llega a P3N baja de 1875 a 1441 W/m², y la estrella pasa de ~5700 K a ~5450 K. Calibrada simulando: 0,85 → 7,9 °C; 0,885 → 15,7 °C; **0,884 → 15,45 °C**.
+
+### Validación
+
+| Prueba | Resultado |
+|---|---|
+| V0. Interruptores apagados = `v2.2` | **Idéntico bit a bit** (diferencia 0,0 en mínimas, medias y máximas) |
+| V1. Energía en lo alto de la atmósfera | Diferencia 3,8×10⁻⁵ (criterio < 10⁻³) |
+| Aceleración frente a simulación sin acelerar | Diferencia máxima 0,02 °C, media 0,005 °C (dentro de la tolerancia de convergencia) |
+| V5. Paso de 450 s frente a 900 s | Aire a 2 m: máx. 0,17 °C, media 0,02 °C; suelo (máximas): máx. 0,84 °C, media 0,12 °C |
+| Combinaciones de interruptores | Todas finitas y estables; las combinaciones no permitidas se rechazan con un error explicativo |
+
+### Resultados en `prueba1` (masa 0,884)
+
+- **Media global del aire a 2 m: 15,5 °C.** Tierra 23,2 °C, océano 12,9 °C. Ciclo anual global de 14,4 a 17,0 °C (excentricidad).
+- **Tierra ecuatorial:** aire a 2 m con mínima 23,4, media 27,2 y máxima 31,4 °C. **Oscilación día/noche del aire ~8 °C** (realista para los trópicos) y del suelo ~20 °C (suelo desnudo, sin evaporación: típico de zonas semiáridas). Antes, 35 °C en el suelo y nada que separara el aire del suelo.
+- **Océano ecuatorial:** ~33 °C (sigue alto: falta la evaporación, Fase 5). **Océano polar:** −28 a −35 °C y líquido (falta el hielo, Fase 3).
+- **Troposfera:** de ~−2 °C (ecuador) a ~−35 °C (polos), media en masa.
+- **Tiempo:** ~6 min por simulación completa (11 años con 2 saltos, ~32 s por año), frente a ~8,5 min de `v2.2` antes de optimizar y ~2 min después. La Fase 2b cuesta más por año (dos capas de aire, dos sistemas de difusión).
+
+### Pendientes conocidos
+
+- Estabilidad en la interpolación del aire a 2 m (punto 2).
+- Presión y masa de aire menores con la altitud (sección 2.6).
+- Evaporación (Fase 5), que bajará el océano tropical y la oscilación del suelo.
+- Barrido final de parámetros al terminar M3N (masa, órbita, presión, emisividades).
 
 ---
 

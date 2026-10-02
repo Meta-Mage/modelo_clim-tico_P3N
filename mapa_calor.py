@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from parametros import *
 from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from fase2_difusion import D_DIFUSION_REFERENCIA
-from cache_simulacion import precalcular_orbita_cacheada, simular_rejilla_combinada_cacheada
+from cache_simulacion import precalcular_orbita_cacheada, simular_modelo_cacheado
 from puente_c3n import cargar_mapa_activo_de_c3n
 from rejilla import FILAS, COLUMNAS
 
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     tipo_superficie, altitud_metros, nombre_mapa = cargar_mapa_activo_de_c3n()
 
     print(f"Simulando mapa '{nombre_mapa}' (media anual por celda, promediando dia/noche y estaciones)...")
-    _, anos_convergencia, _, registro_media, _ = simular_rejilla_combinada_cacheada(
+    _, anos_convergencia, _, registro_media, _ = simular_modelo_cacheado(
         datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD,
         ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA, D_GRID_ACTIVO,
         nombre_mapa=nombre_mapa,

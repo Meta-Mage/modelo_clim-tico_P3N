@@ -9,7 +9,7 @@ LUMINOSIDAD_SOL = 3.828e26
 TEMPERATURA_SOL = 5778
  
 # ESTRELLA S3N
-S3N_MASAS_SOLARES = 0.97
+S3N_MASAS_SOLARES = 0.884   # 02/10/2026, Fase 2b: calibrada para aire a 2 m medio global = 15.5 C (antes 0.97). Provisional hasta el barrido final de parametros.
 EXP_MASA_RADIO = 0.8
 EXP_MASA_TEMPERATURA = 0.475
 S3N_MASA =  S3N_MASAS_SOLARES * MASA_SOL

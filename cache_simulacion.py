@@ -193,6 +193,66 @@ def simular_rejilla_combinada_cacheada(
     )
 
 
+
+# ================================================================
+# FASE 2b (02/10/2026): simulacion con atmosfera de dos capas
+# (fase2b_atmosfera.py). La clave incluye TODAS las constantes en
+# mayusculas de ese modulo (interruptores, capacidades, emisividades,
+# viento, rugosidades, fraccion oceanica...), asi que cambiar cualquiera
+# invalida la cache sola, sin tener que acordarse de añadirla aqui.
+# ================================================================
+
+def simular_fase2b_cacheada(
+    datos_orbita, tipo_superficie, altitud_metros, emisividad,
+    albedo_por_tipo, inercia_por_tipo, profundidad_optica, D,
+    nombre_mapa="", paso_tiempo=None, tolerancia_convergencia=0.015,
+):
+    """Devuelve el dict completo de simular_fase2b()."""
+    import fase2b_atmosfera as F
+    from fase2_inercia_multicapa import K_DIFUSIVIDAD_TIERRA, N_CAPAS_DEFECTO
+    from temperatura import PASO_TIEMPO as PASO_TIEMPO_DEFECTO
+    if paso_tiempo is None:
+        paso_tiempo = PASO_TIEMPO_DEFECTO
+    constantes = tuple(sorted(
+        (nombre, repr(valor)) for nombre, valor in vars(F).items()
+        if nombre.isupper() and isinstance(valor, (int, float, dict, tuple))
+    ))
+    clave = (
+        "simular_fase2b_v1", datos_orbita, tipo_superficie, altitud_metros, emisividad,
+        tuple(sorted(albedo_por_tipo.items())), tuple(sorted(inercia_por_tipo.items())),
+        profundidad_optica, D, K_DIFUSIVIDAD_TIERRA, N_CAPAS_DEFECTO, paso_tiempo,
+        tolerancia_convergencia, constantes,
+    )
+    return cargar_o_calcular(
+        "simulacion_fase2b", clave,
+        lambda: F.simular_fase2b(
+            datos_orbita, tipo_superficie, altitud_metros, emisividad,
+            albedo_por_tipo, inercia_por_tipo, profundidad_optica, D,
+            paso_tiempo=paso_tiempo, tolerancia_convergencia=tolerancia_convergencia,
+        ),
+        etiqueta=nombre_mapa,
+    )
+
+
+def simular_modelo_cacheado(
+    datos_orbita, tipo_superficie, altitud_metros, emisividad,
+    albedo_por_tipo, inercia_por_tipo, profundidad_optica, D_grid, nombre_mapa="",
+):
+    """
+    Punto de entrada de las herramientas (mapa_calor, consulta_punto,
+    analisis_latitudes, analisis_global): mismos argumentos y misma forma
+    de devolver el resultado que simular_rejilla_combinada_cacheada()
+    -- (T_final, anos, registro_minima, registro_media, registro_maxima)
+    -- pero con el modelo de la Fase 2b. Los registros son la
+    temperatura del AIRE A 2 m (la de un parte meteorologico).
+    """
+    D = float(np.max(D_grid))
+    r = simular_fase2b_cacheada(
+        datos_orbita, tipo_superficie, altitud_metros, emisividad,
+        albedo_por_tipo, inercia_por_tipo, profundidad_optica, D, nombre_mapa=nombre_mapa,
+    )
+    return r["T_final"], r["anos"], r["reg_min"], r["reg_media"], r["reg_max"]
+
 if __name__ == "__main__":
     # Auto-prueba rapida y barata: NO ejecuta la simulacion de rejilla
     # completa (seria repetir minutos de calculo solo para probar la

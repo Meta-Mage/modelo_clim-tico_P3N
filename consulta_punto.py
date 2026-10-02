@@ -8,7 +8,7 @@ from parametros import *
 from rejilla import LATITUDES_GRADOS, LONGITUDES_GRADOS, FILAS, COLUMNAS
 from fase1_geografia import mapa_falso_todo_tierra, ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from fase2_difusion import D_DIFUSION_REFERENCIA
-from cache_simulacion import precalcular_orbita_cacheada, simular_rejilla_combinada_cacheada
+from cache_simulacion import precalcular_orbita_cacheada, simular_modelo_cacheado
 
 # D de la difusion horizontal activa en esta herramienta. Pon esto a
 # np.zeros((FILAS, COLUMNAS)) para volver a la fisica de Fase 1 pura
@@ -94,7 +94,7 @@ if __name__ == "__main__":
     tipo_superficie, altitud_metros, nombre_mapa = cargar_mapa_activo_de_c3n()
 
     print(f"Simulando mapa '{nombre_mapa}'...")
-    _, anos_convergencia, registro_minima, registro_media, registro_maxima = simular_rejilla_combinada_cacheada(
+    _, anos_convergencia, registro_minima, registro_media, registro_maxima = simular_modelo_cacheado(
         datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD,
         ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA, D_GRID_ACTIVO,
         nombre_mapa=nombre_mapa,
