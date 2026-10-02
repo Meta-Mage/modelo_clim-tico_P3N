@@ -52,6 +52,7 @@ from rejilla import LATITUDES_GRADOS, FILAS, COLUMNAS
 from fase1_geografia import TIERRA, AGUA, ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from fase2_difusion import D_DIFUSION_REFERENCIA
 from cache_simulacion import precalcular_orbita_cacheada, simular_modelo_cacheado, simular_fase2b_cacheada
+import fase2b_atmosfera as _F2B
 
 # D de la difusion horizontal (igual que en el resto de herramientas).
 D_GRID_ACTIVO = np.full((FILAS, COLUMNAS), D_DIFUSION_REFERENCIA)
@@ -197,6 +198,33 @@ def resumen_global(registro_minima, registro_media, tipo_superficie, indice_peri
     return lineas
 
 
+def resumen_hielo(completo, tipo_superficie):
+    """Fase 3: hielo marino (extension y espesor) y diagnostico de nieve
+    permanente en tierra. Lista vacia si la simulacion no tiene hielo."""
+    if "hielo_espesor" not in completo:
+        return []
+    h = completo["hielo_espesor"]                     # (dias, FILAS, COLUMNAS), metros
+    es_agua = tipo_superficie != TIERRA
+    norte = (LATITUDES_GRADOS > 0).reshape(-1, 1) * np.ones((1, COLUMNAS), dtype=bool)
+    lineas = ["HIELO MARINO (Fase 3) -- porcentaje del oceano helado (minimo / maximo del año)"]
+    for nombre, mascara in (("Global", es_agua), ("Hemisferio norte", es_agua & norte), ("Hemisferio sur", es_agua & ~norte)):
+        if not mascara.any():
+            continue
+        serie = np.array([fraccion_area(h[d] > 0, mascara) for d in range(h.shape[0])])
+        lineas.append(f"  {nombre:<17} {100 * serie.min():5.1f} % (dia {serie.argmin() + 1}) / {100 * serie.max():5.1f} % (dia {serie.argmax() + 1})")
+    medio = h.mean(axis=0)
+    if (medio > 0).any():
+        lineas.append(f"  Espesor medio anual donde hay hielo: medio {medio[medio > 0].mean():.1f} m, maximo {medio.max():.1f} m")
+        lineas.append("  (En los polos de P3N casi no hay verano: el hielo grueso sigue acercandose a su equilibrio, ver DISENO_FASE3.md)")
+    else:
+        lineas.append("  Sin hielo marino en todo el año.")
+    if "nieve_permanente_posible" in completo:
+        es_tierra = tipo_superficie == TIERRA
+        lineas.append(f"NIEVE (solo diagnostico): {pct(fraccion_area(completo['nieve_permanente_posible'], es_tierra))} "
+                      "de la tierra tiene todos los meses bajo 0 C (si nevara, la nieve no se fundiria nunca)")
+    return lineas
+
+
 def resumen_bandas_anual(registro_minima, registro_media, registro_maxima, tipo_superficie):
     """Tabla corta (una linea por banda) con los valores anuales."""
     media_anual = registro_media.mean(axis=0)
@@ -324,7 +352,7 @@ if __name__ == "__main__":
 
     cabecera = [
         f"ANALISIS GLOBAL -- mapa '{nombre_mapa}' -- {date.today().isoformat()}",
-        f"D = {D_DIFUSION_REFERENCIA} W/m2/K | convergencia: {anos_convergencia} año(s) | año de {num_dias} dias",
+        f"Difusion: atmosfera D = {_F2B.D_ATMOSFERA}, oceano D = {_F2B.D_OCEANO} W/m2/K | convergencia: {anos_convergencia} año(s) | año de {num_dias} dias",
     ]
     if anos_convergencia >= 50:
         cabecera.append("AVISO: se alcanzo el limite de 50 años sin confirmar convergencia -- puede no ser el equilibrio.")
@@ -354,6 +382,9 @@ if __name__ == "__main__":
     cabecera.append("")
 
     global_ = resumen_global(registro_minima, registro_media, tipo_superficie, indice_perihelio, indice_afelio)
+    hielo = resumen_hielo(completo, tipo_superficie)
+    if hielo:
+        global_ = global_ + [""] + hielo
     anual = resumen_bandas_anual(registro_minima, registro_media, registro_maxima, tipo_superficie)
     detalle = tabla_detallada(registro_minima, registro_media, registro_maxima, tipo_superficie, dias_referencia)
 

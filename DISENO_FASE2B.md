@@ -1,6 +1,6 @@
 # M3N — Diseño de la Fase 2b: atmósfera con cuerpo
 
-**Estado:** aprobado por Carlos (02/10/2026) e **implementado** en `fase2b_atmosfera.py` (02/10/2026). Ver la sección 11 para lo que cambió al implementarlo y los resultados de la validación.
+**Estado:** aprobado por Carlos (02/10/2026) e **implementado** en `fase2b_atmosfera.py` (02/10/2026). La sección 11 recoge lo que cambió al implementarlo y los resultados de la validación, y la sección 12 las correcciones de la versión v2.2c.
 **Fecha:** 01/10/2026 · **Versión prevista:** `v2.2b` · **Parte de:** `v2.2` (commit `a0b5059` + arreglo del solsticio)
 
 ---
@@ -23,7 +23,7 @@ Y añade cinco piezas de física:
 
 1. **Reparto de la luz** con valores medidos de la Tierra sin nubes (Wild et al. 2019).
 2. **Radiación infrarroja de dos capas grises**, calibrada con el balance terrestre sin nubes.
-3. **Calor sensible** suelo↔aire con la fórmula bulk y estabilidad de Louis (1979).
+3. **Calor sensible** suelo↔aire con la fórmula bulk y estabilidad de Louis, Tiedtke y Geleyn (1982).
 4. **Ajuste convectivo** entre la CL y la troposfera (Manabe y Wetherald 1967): de día el aire caliente sube; de noche las capas se desacoplan.
 5. **Difusión horizontal reubicada**: la parte atmosférica actúa sobre la troposfera y la oceánica sobre la capa de mezcla del océano (reparto guiado por Trenberth y Caron 2001).
 
@@ -135,7 +135,7 @@ H = ρ · c_p · C_H · U · (θ_s − θ_b)
   - **Neutro (sin efectos de estabilidad):**
     - **Océano:** `C_H ≈ 1,1×10⁻³` (Large y Pond 1982; Smith 1988).
     - **Tierra:** depende de la rugosidad del terreno `z0` mediante `C_HN = κ² / [ln(z/z0m)·ln(z/z0h)]` (κ = 0,4, z = 10 m, z0h = z0m/10). Con **suelo desnudo (z0m = 0,01 m, decisión de Carlos)** sale **2,5×10⁻³**. La vegetación (z0m mayor) llegará por bioma en la Fase 7b.
-  - **Estabilidad:** funciones de **Louis (1979)**, que dependen del número de Richardson (mide si el aire de abajo está más caliente que el de arriba):
+  - **Estabilidad:** funciones de **Louis, Tiedtke y Geleyn (1982)**, que dependen del número de Richardson (mide si el aire de abajo está más caliente que el de arriba):
     - suelo más caliente que el aire (día): `C_H` aumenta, típicamente ×2–3;
     - suelo más frío (noche): `C_H` cae mucho. Es la inversión nocturna: el aire frío pegado al suelo apenas se mezcla.
 
@@ -365,6 +365,78 @@ Código: `fase2b_atmosfera.py` (física, interruptores) y `cache_simulacion.py` 
 
 ---
 
+## 12. Versión v2.2c (02/10/2026): auditoría y correcciones
+
+Tras auditar la v2.2b antes de la Fase 3 se corrigen cuatro cosas. Todas cambian sobre todo la temperatura de las regiones polares, de la que depende el hielo.
+
+### 12.1 Error corregido: umbral del ajuste convectivo
+
+La diferencia máxima CL−TR antes de que actúe la convección se calculaba como 6,5 K/km × (distancia entre los centros de masa de las capas) = 28,7 K. Pero las emisividades se calibraron con temperaturas **medias en masa** de cada capa, y la media en masa de la TR (troposfera alta + estratosfera) es mucho más fría que la temperatura de su centro de masa. Ahora el umbral se calcula con la misma definición: medias en masa de la Atmósfera Estándar en equilibrio hidrostático con la gravedad del planeta (`diferencia_critica_cl_tr`). Resultado: **40,5 K en P3N** (39,1 K en la Tierra). Con el valor antiguo la TR salía demasiado caliente, emitía de más al espacio y enfriaba el suelo.
+
+### 12.2 Albedo del océano según la altura del sol (interruptor I8)
+
+Antes: 0,08 fijo. Ahora se calcula desde la física, con la misma base que Jin et al. (2004):
+
+- reflexión de Fresnel del agua (n = 1,34);
+- pendientes de las olas de Cox y Munk (1954), con el viento de 5 m/s;
+- luz difusa del cielo, que da 0,0675;
+- luz que sale de debajo del agua, +0,006 (Jin et al. 2004).
+
+Para la fracción difusa, el haz directo se atenúa con un espesor óptico 0,285 frente a 0,18 de la luz total, de modo que con el sol en la vertical el 10 % de la luz es difusa (cielo despejado típico, Iqbal 1983).
+
+| Seno de la altura del sol | 1 | 0,8 | 0,5 | 0,3 | 0,2 | 0,1 |
+|---|---|---|---|---|---|---|
+| M3N v2.2c | 0,032 | 0,036 | 0,072 | 0,142 | 0,182 | 0,181 |
+| Taylor et al. (1996), según la literatura | 0,030 | 0,039 | 0,065 | 0,105 | 0,139 | 0,191 |
+
+Coincide bien con la parametrización empírica de Taylor et al. (1996). Aviso: los coeficientes de Taylor (0,037/(1,1·μ^1,4 + 0,15)) no se pudieron verificar en el artículo original porque el acceso estaba bloqueado. Se usan solo como comprobación independiente, no en el modelo.
+
+### 12.3 Difusión atmosférica y oceánica recalibradas
+
+El D = 0,55 de la literatura multiplica el gradiente de temperatura de superficie en modelos de una sola temperatura. Aplicado a la troposfera, cuyo gradiente es aproximadamente la mitad, transportaba la mitad de calor. Se recalibró repitiendo el procedimiento de la literatura con la estructura de M3N, en un **modo Tierra**:
+
+- órbita, inclinación y gravedad terrestres;
+- máscara de tierra de la Tierra a 5° (paquete `global-land-mask`; 28,9 % de tierra);
+- Antártida a 2300 m y Groenlandia a 2000 m;
+- comparación con Trenberth y Caron (2001).
+
+| D aire | D océano | Pico atm. N/S (PW) | Total a 35° N/S | % océano a 35° N/S |
+|---|---|---|---|---|
+| 1,2 | 0,16 | 3,29 / 2,85 | 3,88 / 3,92 | 15 / 27 |
+| **2,4** | **0,12** | **4,01 / 3,51** | **4,46 / 4,32** | **10 / 19** |
+| 2,4 | 0,24 | 3,83 / 3,20 | 4,59 / 4,60 | 16 / 31 |
+| 3,6 | 0,14 | 4,26 / 3,68 | 4,76 / 4,58 | 10 / 20 |
+| Observado | | 5,0 | — | 22 / 8 |
+
+El transporte **satura**: por encima de D ≈ 2,4 casi no aumenta y solo aplana la temperatura de la troposfera. La causa es estructural: en la Tierra, una parte importante del transporte es calor latente (vapor de agua) y lo modulan las nubes, y ninguna de las dos cosas existe hasta la Fase 5. Se elige el inicio de la saturación: **D_atm = 2,4** (~80 % del transporte atmosférico observado) y **D_oc = 0,12** (14,5 % oceánico medio a 35°; observado, 15 %). Por Williams y Kasting (1997), D no depende del radio, así que vale para P3N.
+
+Diagnóstico adicional del modo Tierra: el aire a 2 m medio de la Tierra simulada (sin nubes ni hielo) sale **14,5 °C**. Perfil zonal (D = 2,4): ecuador 27,4 °C; 47,5° N 6,0 °C; 62,5° N −8,9 °C. Razonable para un modelo sin humedad, nubes ni hielo.
+
+### 12.4 Cita corregida
+
+Las funciones de estabilidad son las de Louis, Tiedtke y Geleyn (1982), versión de capa superficial con b = c = d = 5 (ECMWF). Se citaban como Louis (1979). El cálculo no cambia.
+
+### 12.5 Recalibración de la estrella y resultados
+
+- **Objetivo:** media global del aire a 2 m sorteada al azar entre 15,0 y 16,0 °C (decisión de Carlos): **15,94 °C**.
+- **Masa de S3N:** 0,870 → 15,04 °C; 0,884 → 18,23 °C; **0,874 → 15,96 °C**. Valor adoptado: **0,874 M☉**. La luz que llega a P3N queda en 1396 W/m² y la estrella a ~5420 K.
+
+Mapa `prueba1`, media anual zonal del aire a 2 m (°C):
+
+| Latitud | 87,5 N | 72,5 N | 62,5 N | 47,5 N | 32,5 N | 17,5 N | 2,5 N | 17,5 S | 32,5 S | 47,5 S | 62,5 S | 72,5 S | 87,5 S |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| v2.2b | −36,2 | −23,4 | −9,8 | 9,1 | 22,6 | 28,7 | 30,1 | 27,3 | 21,1 | 7,5 | −11,1 | −24,1 | −36,8 |
+| v2.2c | −24,4 | −15,7 | −5,7 | 9,3 | 20,9 | 28,0 | 30,0 | 26,5 | 19,4 | 7,6 | −7,2 | −16,6 | −25,1 |
+
+Polos unos 12 °C más templados; latitudes medias y trópicos casi iguales.
+
+**Validación:**
+
+- V0: con todos los interruptores apagados, idéntico bit a bit a v2.2.
+- Energía: diferencia de 2×10⁻⁴ en lo alto de la atmósfera.
+
+---
+
 ## Referencias
 
 - Charnock, H. (1955). Wind stress on a water surface. *Q. J. R. Meteorol. Soc.* 81.
@@ -372,6 +444,11 @@ Código: `fase2b_atmosfera.py` (física, interruptores) y `cache_simulacion.py` 
 - Garratt, J. R. (1992). *The Atmospheric Boundary Layer*. Cambridge University Press.
 - Large, W. G. y Pond, S. (1982). Sensible and latent heat flux measurements over the ocean. *J. Phys. Oceanogr.* 12.
 - Louis, J.-F. (1979). A parametric model of vertical eddy fluxes in the atmosphere. *Boundary-Layer Meteorol.* 17, 187–202.
+- Louis, J.-F., Tiedtke, M. y Geleyn, J.-F. (1982). A short history of the PBL parametrization at ECMWF. *Workshop on Planetary Boundary Layer Parameterization*, ECMWF (funciones de estabilidad con b = c = d = 5, las usadas en M3N).
+- Cox, C. y Munk, W. (1954). Measurement of the roughness of the sea surface from photographs of the sun's glitter. *J. Opt. Soc. Am.* 44.
+- Iqbal, M. (1983). *An Introduction to Solar Radiation*. Academic Press.
+- Jin, Z. et al. (2004). A parameterization of ocean surface albedo. *Geophys. Res. Lett.* 31.
+- Taylor, J. P. et al. (1996). Studies with a flexible new radiation code. II: Comparisons with aircraft short-wave observations. *Q. J. R. Meteorol. Soc.* 122.
 - Manabe, S. y Strickler, R. F. (1964). Thermal equilibrium of the atmosphere with a convective adjustment. *J. Atmos. Sci.* 21.
 - Manabe, S. y Wetherald, R. T. (1967). Thermal equilibrium of the atmosphere with a given distribution of relative humidity. *J. Atmos. Sci.* 24.
 - Pickering, K. A. (2002). The southern limits of the ancient star catalog. *DIO* 12 (fórmula de masa de aire ya usada en M3N).

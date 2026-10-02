@@ -8,7 +8,7 @@
 #     atmosfera y 27 % vuelve al espacio.
 #   - Infrarrojo de dos capas grises (Pierrehumbert 2010, cap. 4).
 #   - Calor sensible suelo <-> CL, formula bulk con estabilidad de
-#     Louis (1979), resuelto de forma implicita.
+#     Louis, Tiedtke y Geleyn (1982), resuelto de forma implicita.
 #   - Ajuste convectivo CL <-> TR (Manabe y Wetherald 1967), 6.5 K/km.
 #   - Difusion horizontal reubicada: parte atmosferica en la TR, parte
 #     oceanica en la capa de mezcla del oceano (Trenberth y Caron 2001).
@@ -42,11 +42,13 @@ from fase2_inercia_multicapa import (
 INTERRUPTORES_FASE2B = {
     "luz_absorbida": True,          # I1: reparto de la luz (Wild 2019) en vez de tau=0.3 perdido
     "capacidad_atmosfera": True,    # I2: CL y TR con temperatura y capacidad propias
-    "calor_sensible": True,         # I3: calor sensible suelo <-> CL (Louis 1979)
+    "calor_sensible": True,         # I3: calor sensible suelo <-> CL (Louis, Tiedtke y Geleyn 1982)
     "capa_limite_radiativa": True,  # I4: la CL absorbe/emite infrarrojo (eps_b > 0)
     "ajuste_convectivo": True,      # I5: ajuste convectivo CL <-> TR
     "difusion_reubicada": True,     # I6: difusion en TR + oceano, no en la piel del suelo
     "altitud_en_fisica": True,      # I7: altitud dentro de la fisica, no a posteriori
+    "albedo_oceano_solar": True,    # I8 (v2.2c): albedo del agua segun la altura del sol (Fresnel + Cox-Munk)
+    "hielo_marino": True,           # I9 (Fase 3): hielo marino termodinamico (Semtner 1976; Wagner y Eisenman 2015)
 }
 INTERRUPTORES_APAGADOS = {k: False for k in INTERRUPTORES_FASE2B}
 
@@ -66,7 +68,34 @@ Z_CENTRO_CL = ALTURA_ESCALA * math.log(1000 / 950)             # ~0.41 km
 Z_CENTRO_TR = ALTURA_ESCALA * math.log(1000 / 550)             # ~4.83 km
 GRADIENTE_ADIABATICO = P3N_GRAVEDAD / CP_AIRE                   # K/m, ~9.0 K/km
 GRADIENTE_CRITICO = 6.5e-3                                       # K/m (Manabe y Wetherald 1967)
-DT_CRITICA_CL_TR = GRADIENTE_CRITICO * (Z_CENTRO_TR - Z_CENTRO_CL)   # ~28.7 K
+
+
+def diferencia_critica_cl_tr(gravedad, presion_superficie=PRESION_SUPERFICIE, presion_techo_cl=PRESION_TECHO_CL):
+    """
+    v2.2c -- CORRIGE un error de la v2.2b. La diferencia maxima de
+    temperatura entre la CL y la TR antes de que actue la conveccion debe
+    medirse con las MISMAS definiciones de temperatura con las que se
+    calibraron las emisividades: temperatura media PONDERADA EN MASA de
+    cada capa. En v2.2b se uso 6.5 K/km x (distancia entre los centros
+    de masa de las capas) = 28.7 K, pero la media en masa de la TR (que
+    incluye la troposfera alta y la estratosfera, mucho mas frias) no es
+    la temperatura de su centro de masa. Aqui se calcula como en la
+    calibracion: perfil de la Atmosfera Estandar (6.5 K/km hasta la
+    tropopausa a 216.65 K, isoterma hasta 20 km y +1 K/km por encima),
+    en equilibrio hidrostatico con la gravedad del planeta, y diferencia
+    entre las medias en masa de 1000-900 hPa y 900-0 hPa. Tierra: 39.0 K.
+    """
+    dz = 5.0
+    z = np.arange(0, 60000, dz)
+    T = np.where(z < 11000, 288.15 - 0.0065 * z, np.where(z < 20000, 216.65, 216.65 + 0.001 * (z - 20000)))
+    lnp = math.log(presion_superficie) - np.cumsum(gravedad / (R_AIRE * T)) * dz
+    p = np.exp(lnp)
+    dm = -np.gradient(p)
+    cl = p >= presion_techo_cl
+    return float((T[cl] * dm[cl]).sum() / dm[cl].sum() - (T[~cl] * dm[~cl]).sum() / dm[~cl].sum())
+
+
+DT_CRITICA_CL_TR = diferencia_critica_cl_tr(P3N_GRAVEDAD)
 
 # Luz (Wild et al. 2019, sin nubes)
 TAU_NUEVO = 0.18                     # transmision media 72.6 % con la masa de aire de M3N
@@ -94,11 +123,37 @@ LOUIS_B, LOUIS_C, LOUIS_D = 5.0, 5.0, 5.0
 
 DEPURAR = False
 
-# Difusion reubicada (I6): fraccion oceanica de D. CALIBRADA (02/10/2026)
-# para que el oceano lleve ~15 % del transporte hacia los polos a 35
-# grados (Trenberth y Caron 2001: 22 % en el norte, 8 % en el sur),
-# diagnosticando el transporte de cada componente en el mapa prueba1.
-FRACCION_DIFUSION_OCEANO = 0.13
+# Difusion reubicada (I6), v2.2c: coeficientes PROPIOS de la atmosfera
+# (sobre la troposfera) y del oceano (sobre su capa de mezcla). El 0.55
+# de la literatura (North 1975; Williams y Kasting 1997) multiplica el
+# gradiente de temperatura de SUPERFICIE en un modelo de una sola
+# temperatura; aplicado a la troposfera (gradiente ~la mitad) transportaba
+# ~1/3 menos de lo debido. Se recalibran repitiendo el procedimiento de
+# la literatura con la estructura de M3N: en "modo Tierra" (orbita,
+# inclinacion, gravedad y continentes terrestres) se ajustan para
+# reproducir Trenberth y Caron (2001): transporte atmosferico maximo
+# 5.0 PW (~43 grados) y, a 35 grados, 78 % (norte) / 92 % (sur) del
+# total por la atmosfera. Segun Williams y Kasting (1997), D depende de
+# presion, composicion y rotacion, no del radio: el mismo valor vale
+# para P3N (1 bar, aire tipo Tierra, dia de 24 h).
+#
+# RESULTADO DE LA CALIBRACION (02/10/2026, mapa terrestre a 5 grados,
+# sin nubes ni humedad):
+#   D_atm  D_oc | pico atm. N/S (PW) | total a 35 N/S | % oceano 35 N/S
+#   1.2   0.16 |   3.29 / 2.85      |  3.88 / 3.92   |  15 / 27
+#   2.4   0.12 |   4.01 / 3.51      |  4.46 / 4.32   |  10 / 19
+#   2.4   0.24 |   3.83 / 3.20      |  4.59 / 4.60   |  16 / 31
+#   3.6   0.14 |   4.26 / 3.68      |  4.76 / 4.58   |  10 / 20
+#   (Trenberth y Caron 2001: pico atm. 5.0 PW; oceano 22 % / 8 % a 35)
+# El transporte SATURA: por encima de D_atm ~2.4, subir D casi no mueve
+# mas calor (solo aplana la temperatura de la troposfera). El modelo no
+# puede llegar a 5.0 PW porque le falta lo que en la Tierra aumenta ese
+# transporte: el calor latente del vapor de agua y las nubes (Fase 5).
+# Se elige el inicio de la saturacion, D_atm = 2.4 (el transporte
+# atmosferico llega al ~80 % del observado), y D_oc = 0.12, que da un
+# 14.5 % de transporte oceanico medio a 35 grados (observado: 15 %).
+D_ATMOSFERA = 2.4
+D_OCEANO = 0.12
 
 
 def coeficientes_neutros(tipo_superficie):
@@ -112,7 +167,9 @@ def coeficientes_neutros(tipo_superficie):
 
 
 def factor_estabilidad_louis(ri, c_n, z0m):
-    """Funcion de estabilidad para el calor de Louis (1979), b=c=d=5."""
+    """Funcion de estabilidad para el calor de Louis, Tiedtke y Geleyn (1982),
+    version de capa superficial con b=c=d=5 (la del ECMWF). En v2.2b se
+    citaba por error como Louis (1979); la formula no cambia."""
     inestable = ri < 0
     ri_abs = np.abs(ri)
     f_inestable = 1 - 3 * LOUIS_B * ri / (1 + 3 * LOUIS_B * LOUIS_C * c_n * np.sqrt(Z_REF / z0m * ri_abs))
@@ -161,7 +218,131 @@ def construir_matriz_difusion_enmascarada(D, mascara):
     return sp.csr_matrix((vals, (filas_idx, cols_idx)), shape=(N, N))
 
 
-def preparar_luz(albedo_grid, tau, reparto_nuevo):
+# ================================================================
+# ALBEDO DEL OCEANO SEGUN LA ALTURA DEL SOL (v2.2c, interruptor I8)
+# ================================================================
+# Calculado desde la fisica, con la misma base que Jin et al. (2004):
+#   - Reflexion de Fresnel del agua (indice de refraccion n = 1.34,
+#     luz no polarizada): 2.1 % con el sol en la vertical, ~100 % rasante.
+#   - Rugosidad del mar: cada ola es un "espejo" inclinado; la
+#     distribucion de pendientes es la medida por Cox y Munk (1954):
+#     pendiente cuadratica media = 0.003 + 0.00512 * viento (m/s),
+#     isotropa. Se integra la reflexion de Fresnel sobre todas las
+#     facetas iluminadas (se desprecian sombras y reflexiones multiples
+#     entre olas, igual que en la formulacion basica de Cox-Munk).
+#   - Luz difusa (cielo): reflexion de Fresnel integrada sobre un cielo
+#     isotropo = 0.0675.
+#   - Luz que sale de debajo del agua (dispersion en el oceano): +0.006
+#     (Jin et al. 2004).
+#   - Fraccion difusa de la luz que llega al suelo: el haz directo se
+#     atenua con un espesor optico mayor (TAU_DIRECTO) que la luz total
+#     (TAU_NUEVO = 0.18, directa + difusa); la diferencia es la luz que
+#     llega dispersada. TAU_DIRECTO se fija para que con el sol en la
+#     vertical el 10 % de la luz sea difusa, valor tipico de cielo
+#     despejado (Iqbal 1983). Resulta ~19 % difusa con el sol a 30
+#     grados de altura y ~65 % con el sol a 6 grados.
+# Resultado (media ponderada por la luz, viento 5 m/s): ~0.05 en el
+# ecuador y ~0.2 cerca de los polos, frente al 0.08 fijo de antes.
+N_AGUA = 1.34
+FRACCION_DIFUSA_CENIT = 0.10
+TAU_DIRECTO = -math.log((1 - FRACCION_DIFUSA_CENIT) * math.exp(-0.18))   # ~0.285 (TAU_NUEVO = 0.18)
+ALBEDO_SUBSUPERFICIE = 0.006
+_tabla_albedo_directo = None
+
+
+def _fresnel(cos_i, n=N_AGUA):
+    cos_i = np.clip(cos_i, 0.0, 1.0)
+    sin_t = np.sqrt(1 - cos_i ** 2) / n
+    cos_t = np.sqrt(1 - sin_t ** 2)
+    rs = (cos_i - n * cos_t) / (cos_i + n * cos_t)
+    rp = (n * cos_i - cos_t) / (n * cos_i + cos_t)
+    return 0.5 * (rs ** 2 + rp ** 2)
+
+
+def _albedo_directo_cox_munk(mu0, viento, n=301, lim=6.0):
+    s2 = 0.003 + 0.00512 * viento
+    sig = math.sqrt(s2 / 2)
+    z = np.linspace(-lim * sig, lim * sig, n)
+    zx, zy = np.meshgrid(z, z)
+    p = np.exp(-(zx ** 2 + zy ** 2) / (2 * sig ** 2))
+    nz = 1 / np.sqrt(1 + zx ** 2 + zy ** 2)
+    cos_chi = np.clip((-zx * math.sqrt(1 - mu0 ** 2) + zy * 0.0 + mu0) * nz, 0, None)
+    peso = p / nz * cos_chi
+    return float((peso * _fresnel(cos_chi)).sum() / peso.sum())
+
+
+def _albedo_difuso():
+    mu = np.linspace(0, 1, 20001)[1:]
+    return float(2 * np.trapezoid(_fresnel(mu) * mu, mu))
+
+
+ALBEDO_DIFUSO_AGUA = _albedo_difuso()   # 0.0675
+
+
+def tabla_albedo_directo():
+    global _tabla_albedo_directo
+    if _tabla_albedo_directo is None:
+        mus = np.linspace(0.005, 1.0, 200)
+        _tabla_albedo_directo = (mus, np.array([_albedo_directo_cox_munk(m, VIENTO) for m in mus]))
+    return _tabla_albedo_directo
+
+
+def albedo_oceano(mu, transmitancia):
+    """Albedo del agua para la luz que llega con coseno cenital mu y
+    transmitancia atmosferica dada (arrays de las celdas de dia)."""
+    mus, tabla = tabla_albedo_directo()
+    directo = np.interp(mu, mus, tabla)
+    directa = transmitancia ** (TAU_DIRECTO / TAU_NUEVO)      # = exp(-TAU_DIRECTO * masa)
+    fraccion_difusa = 1 - directa / np.maximum(transmitancia, 1e-300)
+    return (1 - fraccion_difusa) * directo + fraccion_difusa * ALBEDO_DIFUSO_AGUA + ALBEDO_SUBSUPERFICIE
+
+
+# ================================================================
+# FASE 3: HIELO MARINO (interruptor I9). Ver DISENO_FASE3.md.
+# ================================================================
+# Modelo termodinamico "de capa cero" (Semtner 1976) en la formulacion
+# por ENTALPIA de Wagner y Eisenman (2015): cada celda de oceano guarda
+# una energia E (J/m2) respecto al agua a punto de congelarse:
+#   E >= 0 -> agua liquida a T = T_CONGELACION + E / C0 (capa de mezcla)
+#   E <  0 -> hielo de espesor h = -E / (RHO_HIELO * L_FUSION), con el
+#             agua de debajo a T_CONGELACION
+# Congelar exige quitar calor latente y fundir aportarlo: la energia se
+# conserva por construccion. El hielo AISLA: el calor sube por
+# conduccion, F = K_HIELO * (T_congelacion - T_superficie) / h, y la
+# temperatura de la superficie del hielo sale del balance de energia
+# con la atmosfera (luz, infrarrojo, calor sensible), con un maximo de
+# 0 C (si sobra energia, el hielo se funde por arriba).
+T_CONGELACION = 273.15 - 1.8     # agua de mar ~34 psu (Tf = -0.054 C/psu x S; CAM6 usa -1.8 C)
+K_HIELO = 2.034                  # W/m/K, hielo puro (Maykut y Untersteiner 1971; CAM6/CICE)
+RHO_HIELO = 917.0                # kg/m3
+L_FUSION = 3.34e5                # J/kg
+RHO_L_HIELO = RHO_HIELO * L_FUSION   # ~3.06e8 J/m3 (WE15: 9.5 W yr m-3 = 3.0e8)
+ALBEDO_HIELO = 0.65              # hielo desnudo (SHEBA, Perovich et al. 2002); sin nieve hasta la Fase 5
+ESPESOR_ALBEDO_HIELO = 0.5       # m: por debajo, el hielo fino es mas oscuro (CAM6: valores de hielo "mas grueso de 0.5 m");
+                                 # transicion LINEAL agua -> hielo entre 0 y 0.5 m (forma supuesta, documentada)
+ESPESOR_MINIMO_CONDUCCION = 0.01 # m: evita dividir por cero con hielo recien formado
+ANOS_SALTO_HIELO = (6, 12, 18)   # años en que se acelera el hielo grueso hacia su equilibrio (solo con acelerar=True)
+FLUJO_OCEANO_PROFUNDO = 4.0      # W/m2 hacia la base del hielo (Wagner y Eisenman 2015). Se RETIRA en igual
+                                 # cantidad del oceano libre (como hace en la realidad la circulacion profunda):
+                                 # redistribuye energia, no la crea.
+
+
+def nieve_permanente_posible(registro_media_C, es_tierra, dias_mes=None):
+    """
+    DIAGNOSTICO, sin efecto en la fisica (decision de Carlos, 02/10/2026:
+    la nieve en tierra llega con la precipitacion de la Fase 5). Marca
+    las celdas de tierra donde, SI nevara, la nieve no llegaria a
+    fundirse nunca: el "mes" mas calido tiene media < 0 C, que es la
+    definicion del clima de casquete glaciar (EF) de Koppen. El año de
+    P3N se divide en 12 "meses" iguales (270/12 = 22.5 dias).
+    """
+    n = registro_media_C.shape[0]
+    dias_mes = n / 12 if dias_mes is None else dias_mes
+    medias = np.array([registro_media_C[int(round(k * dias_mes)):int(round((k + 1) * dias_mes))].mean(axis=0) for k in range(12)])
+    return es_tierra & (medias.max(axis=0) < 0.0)
+
+
+def preparar_luz(albedo_grid, tau, reparto_nuevo, mascara_agua=None, albedo_solar=False):
     """
     Devuelve luz(toa, decl, ang_h_lon0) -> (absorbida_suelo, absorbida_atmosfera).
     Misma geometria y masa de aire que preparar_irradiancia_absorbida_
@@ -174,7 +355,7 @@ def preparar_luz(albedo_grid, tau, reparto_nuevo):
     uno_menos_albedo = 1 - albedo_grid
     t_subida = math.exp(-tau * FACTOR_DIFUSIVIDAD)
 
-    def luz(toa, declinacion, ang_h_lon0):
+    def luz(toa, declinacion, ang_h_lon0, peso_hielo=None):
         ang_h = (ang_h_lon0 + lon_rad).reshape(1, -1)
         cos_cenital = sin_lat * np.sin(declinacion) + cos_lat * np.cos(declinacion) * np.cos(ang_h)
         cos_cenital = np.clip(cos_cenital, -1.0, 1.0)
@@ -189,9 +370,20 @@ def preparar_luz(albedo_grid, tau, reparto_nuevo):
             transmitancia = np.exp(-masa * tau)
             inst = toa * np.cos(cenital[dia])
             llega = inst * transmitancia
-            suelo[dia] = llega * uno_menos_albedo[dia]
+            if albedo_solar:
+                alb = np.where(mascara_agua[dia], albedo_oceano(np.cos(cenital[dia]), transmitancia), albedo_grid[dia])
+            else:
+                alb = albedo_grid[dia]
+            if peso_hielo is not None:
+                w = peso_hielo[dia]
+                alb = np.where(w > 0, (1 - w) * alb + w * ALBEDO_HIELO, alb)
+                suelo[dia] = llega * (1 - alb)
+            elif albedo_solar:
+                suelo[dia] = llega * (1 - alb)
+            else:
+                suelo[dia] = llega * uno_menos_albedo[dia]
             if reparto_nuevo:
-                reflejada = llega * albedo_grid[dia]
+                reflejada = llega * alb
                 atmos[dia] = FRACCION_ATENUADO_ABSORBIDA * (inst * (1 - transmitancia) + reflejada * (1 - t_subida))
         return suelo, atmos
 
@@ -203,8 +395,8 @@ def simular_fase2b(
     albedo_por_tipo, inercia_por_tipo, profundidad_optica, D,
     interruptores=None, K_difusividad=K_DIFUSIVIDAD_TIERRA, n_capas=N_CAPAS_DEFECTO,
     paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=50, tolerancia_convergencia=0.015,
-    eps_cl=EMISIVIDAD_CL, eps_tr=EMISIVIDAD_TR, fraccion_oceano=FRACCION_DIFUSION_OCEANO,
-    acelerar=True,
+    eps_cl=EMISIVIDAD_CL, eps_tr=EMISIVIDAD_TR, d_atmosfera=None, d_oceano=None,
+    acelerar=True, estado_inicial="libre",
 ):
     """
     Simulacion de la Fase 2b. Devuelve un dict con:
@@ -221,11 +413,18 @@ def simular_fase2b(
     if I["difusion_reubicada"] and not atm:
         raise ValueError("difusion_reubicada necesita capacidad_atmosfera (la difusion atmosferica actua sobre la TR)")
 
+    hielo_on = I.get("hielo_marino", False)
+    if hielo_on and not (atm and I["calor_sensible"] and I["luz_absorbida"]):
+        raise ValueError("hielo_marino necesita capacidad_atmosfera, calor_sensible y luz_absorbida")
+
     sigma = CONSTANTE_SB
     es_tierra = tipo_superficie == TIERRA
+    es_agua = ~es_tierra
     albedo_grid = np.where(es_tierra, albedo_por_tipo[TIERRA], albedo_por_tipo[AGUA])
     tau = TAU_NUEVO if I["luz_absorbida"] else profundidad_optica
-    luz = preparar_luz(albedo_grid, tau, I["luz_absorbida"])
+    if I["albedo_oceano_solar"] and not I["luz_absorbida"]:
+        raise ValueError("albedo_oceano_solar necesita luz_absorbida (usa el reparto de la luz de Wild 2019)")
+    luz = preparar_luz(albedo_grid, tau, I["luz_absorbida"], ~es_tierra, I["albedo_oceano_solar"])
     eps_b = eps_cl if I["capa_limite_radiativa"] else 0.0
     eps_t = eps_tr if I["capa_limite_radiativa"] else emisividad
 
@@ -235,9 +434,11 @@ def simular_fase2b(
     D_grid = np.full((FILAS, COLUMNAS), D)
     L_total = construir_matriz_difusion(D_grid)
     if I["difusion_reubicada"]:
-        L_tr = construir_matriz_difusion(np.full((FILAS, COLUMNAS), D * (1 - fraccion_oceano)))
+        d_atm = D_ATMOSFERA if d_atmosfera is None else d_atmosfera
+        d_oc = D_OCEANO if d_oceano is None else d_oceano
+        L_tr = construir_matriz_difusion(np.full((FILAS, COLUMNAS), d_atm))
         fact_tr = splu((sp.diags(np.full(FILAS * COLUMNAS, CAPACIDAD_TR / paso_tiempo)) - L_tr).tocsc())
-        L_oc = construir_matriz_difusion_enmascarada(D * fraccion_oceano, ~es_tierra)
+        L_oc = construir_matriz_difusion_enmascarada(d_oc, ~es_tierra)
 
     def preparar_superficie(capacidades):
         """Todo lo que depende de la capacidad de la superficie (cambia
@@ -275,6 +476,18 @@ def simular_fase2b(
     T_tr = (Ts ** 4 / 2) ** 0.25
     T_cl = Ts - desfase_theta
 
+    # Estado del hielo (Fase 3): espesor h (m) y temperatura de su superficie.
+    HIELO = {"h": np.zeros((FILAS, COLUMNAS)), "Ts": np.full((FILAS, COLUMNAS), T_CONGELACION)}
+    if hielo_on and estado_inicial == "helado":
+        # Prueba de biestabilidad: TODO el oceano cubierto de 5 m de hielo
+        # y el planeta frio (agua a punto de congelarse, aire acorde).
+        HIELO["h"] = np.where(es_agua, 5.0, 0.0)
+        T_col[es_agua] = T_CONGELACION
+        T_tr = np.minimum(T_tr, 230.0); T_cl = np.minimum(T_cl, 250.0)
+
+    def peso_hielo_actual():
+        return np.minimum(1.0, HIELO["h"] / ESPESOR_ALBEDO_HIELO) if hielo_on else None
+
     def paso(T_col, T_cl, T_tr, s_abs, a_abs, acumular=None):
         C0, resolver_conduccion, fact_sup = SUPERFICIE
         Ts = T_col[..., 0]
@@ -282,11 +495,41 @@ def simular_fase2b(
         if atm:
             Eb = sigma * T_cl ** 4
             Et = sigma * T_tr ** 4
-            sube_cl = (1 - eps_b) * F0 + eps_b * Eb
             baja_tr = eps_t * Et
             dlr = (1 - eps_b) * baja_tr + eps_b * Eb
+            if hielo_on:
+                hay_hielo = es_agua & (HIELO["h"] > 0)
+                if hay_hielo.any():
+                    # Balance de la superficie del hielo (capa cero): resuelve
+                    # luz + infrarrojo - sigma*T^4 - H(T) + K/h (Tf - T) = 0
+                    # (Newton), con un maximo de 0 C (fusion por arriba).
+                    th = T_cl + desfase_theta
+                    kh = K_HIELO / np.maximum(HIELO["h"], ESPESOR_MINIMO_CONDUCCION)
+                    T = HIELO["Ts"]
+                    tm = 0.5 * (T + th)
+                    ri = P3N_GRAVEDAD * Z_REF * (th - T) / (tm * VIENTO ** 2)
+                    g_h = PRESION_SUPERFICIE / (R_AIRE * th) * CP_AIRE * c_hn * factor_estabilidad_louis(ri, c_n, z0m) * VIENTO
+                    for _ in range(4):
+                        f = s_abs + dlr - sigma * T ** 4 - g_h * (T - th) + kh * (T_CONGELACION - T)
+                        T = T - f / (-4 * sigma * T ** 3 - g_h - kh)
+                    T = np.minimum(T, 273.15)
+                    T = np.where(hay_hielo, T, T_CONGELACION)
+                    HIELO["Ts"] = T
+                    flujo_h_hielo = np.where(hay_hielo, g_h * (T - th), 0.0)
+                    F0 = np.where(hay_hielo, sigma * T ** 4, F0)
+                    F_superior = s_abs + dlr - F0 - flujo_h_hielo
+                    T_cl = T_cl + (paso_tiempo / CAPACIDAD_CL) * flujo_h_hielo
+                    # flujo del oceano profundo a la base del hielo, retirado del oceano libre
+                    libre = es_agua & ~hay_hielo
+                    compensacion = FLUJO_OCEANO_PROFUNDO * (PESO * hay_hielo).sum() / max((PESO * libre).sum(), 1e-12)
+                else:
+                    hay_hielo = None
+            sube_cl = (1 - eps_b) * F0 + eps_b * Eb
             olr = (1 - eps_t) * sube_cl + eps_t * Et
             neto_s = s_abs + dlr - F0
+            if hielo_on and hay_hielo is not None:
+                neto_s = np.where(hay_hielo, F_superior + FLUJO_OCEANO_PROFUNDO, neto_s)
+                neto_s = np.where(libre, neto_s - compensacion, neto_s)
             neto_b = eps_b * (F0 + baja_tr) - 2 * eps_b * Eb
             neto_t = eps_t * sube_cl - 2 * eps_t * Et + a_abs
             T_cl = T_cl + (paso_tiempo / CAPACIDAD_CL) * neto_b
@@ -322,6 +565,8 @@ def simular_fase2b(
             c_h = c_hn * factor_estabilidad_louis(ri, c_n, z0m)
             rho = PRESION_SUPERFICIE / (R_AIRE * theta_aire)
             g = rho * CP_AIRE * c_h * VIENTO
+            if hielo_on:
+                g = np.where(es_agua & (HIELO["h"] > 0), 0.0, g)
             a_s = C0 / paso_tiempo
             a_b = CAPACIDAD_CL / paso_tiempo
             dif_nueva = dif / (1 + g * (1 / a_s + 1 / a_b))
@@ -339,11 +584,27 @@ def simular_fase2b(
                 T_cl = np.where(exceso, tr_aj + DT_CRITICA_CL_TR, T_cl)
 
         T_col = resolver_conduccion(T_col)
+
+        if hielo_on:
+            # Entalpia del oceano: E = C0 (T0 - Tf) - rho L h  ->  nuevo (T0, h)
+            E = np.where(es_agua, C0 * (T_col[..., 0] - T_CONGELACION) - RHO_L_HIELO * HIELO["h"], 0.0)
+            h_nuevo = np.where(es_agua, np.maximum(0.0, -E / RHO_L_HIELO), 0.0)
+            nace = (h_nuevo > 0) & (HIELO["h"] <= 0)
+            HIELO["Ts"] = np.where(nace, T_CONGELACION, HIELO["Ts"])
+            HIELO["h"] = h_nuevo
+            T_col[..., 0] = np.where(es_agua, T_CONGELACION + np.maximum(E, 0.0) / C0, T_col[..., 0])
         return T_col, T_cl, T_tr
 
     PESO = np.cos(np.radians(LATITUDES_GRADOS)).reshape(-1, 1) * np.ones((1, COLUMNAS))
 
     SUPERFICIE = preparar_superficie(capacidades_reales)
+
+    def entalpia(T_col):
+        """Energia del oceano respecto al agua a punto de congelarse (J/m2);
+        0 en tierra. Solo tiene sentido con el hielo activado."""
+        if not hielo_on:
+            return np.zeros((FILAS, COLUMNAS))
+        return np.where(es_agua, SUPERFICIE[0] * (T_col[..., 0] - T_CONGELACION) - RHO_L_HIELO * HIELO["h"], 0.0)
 
     # ACELERACION DE LA CONVERGENCIA (solo con atmosfera con cuerpo).
     # Tras los primeros años, lo que queda por converger es casi siempre
@@ -362,13 +623,62 @@ def simular_fase2b(
     saltos = 0
 
     anos = max_anos
+    # temperatura real de la superficie: la del hielo donde lo hay
+    def temp_superficie(T_col):
+        if hielo_on:
+            return np.where(es_agua & (HIELO["h"] > 0), HIELO["Ts"], T_col[..., 0])
+        return T_col[..., 0]
+
     for ano in range(max_anos):
         Ts0, Tt0 = T_col[..., 0].copy(), T_tr.copy()
         estado0 = (T_col.copy(), T_cl.copy(), T_tr.copy())
+        E0 = entalpia(T_col)
+        Tsup0 = temp_superficie(T_col).copy()
+        h0 = HIELO["h"].copy()
+        conduccion_media = np.zeros((FILAS, COLUMNAS))
         for toa, decl, ang in datos_orbita:
-            s, a = luz(toa, decl, ang)
+            s, a = luz(toa, decl, ang, peso_hielo_actual())
             T_col, T_cl, T_tr = paso(T_col, T_cl, T_tr, s, a)
-        cambio = max(np.max(np.abs(T_col[..., 0] - Ts0)), np.max(np.abs(T_tr - Tt0)) if atm else 0.0)
+            if hielo_on:
+                conduccion_media += np.where(HIELO["h"] > 0, K_HIELO * (T_CONGELACION - HIELO["Ts"])
+                                             / np.maximum(HIELO["h"], ESPESOR_MINIMO_CONDUCCION), 0.0)
+        conduccion_media /= len(datos_orbita)
+        if hielo_on and acelerar and (ano + 1) in ANOS_SALTO_HIELO:
+            # ACELERACION DEL HIELO GRUESO (> 1 m). Sin verano, su espesor
+            # tiende a h_eq = k (Tf - Ts) / F_base (McKay 2000), pero se
+            # acerca muy despacio (decadas). Con lo medido este año se estima
+            # el calor que llega a la base, F_base = conduccion media -
+            # rho*L*dh/dt, y se salta a h_eq (limitado a x0.5-x2 del espesor
+            # actual). No es fisica nueva: solo acorta el camino; despues se
+            # siguen simulando años y el criterio de convergencia es el mismo.
+            h1 = HIELO["h"]
+            ritmo = (h1 - h0) / (len(datos_orbita) * paso_tiempo)          # m/s
+            f_base = conduccion_media - RHO_L_HIELO * ritmo
+            h_medio = 0.5 * (h0 + h1)
+            valido = es_agua & (h0 > 1.0) & (h1 > 1.0) & (f_base > 1.0) & (np.abs(h1 - h0) > 0.01)
+            h_eq = np.where(valido, conduccion_media * h_medio / np.where(valido, f_base, 1.0), h1)
+            HIELO["h"] = np.where(valido, np.clip(h_eq, 0.5 * h1, 2.0 * h1), h1)
+            historial_r = []
+            cambio_anterior = None
+            if DEPURAR and valido.any():
+                print(f"  -> salto del hielo grueso en {valido.sum()} celdas: espesor medio "
+                      f"{h1[valido].mean():.2f} -> {HIELO['h'][valido].mean():.2f} m", flush=True)
+        if hielo_on:
+            # Con hielo, el equilibrio se juzga por la temperatura REAL de la
+            # superficie (la del hielo donde lo hay) y, en el agua libre y el
+            # hielo FINO (< 1 m), por la entalpia expresada en grados de la
+            # capa de mezcla (1 cm de hielo = 0.015 C): asi la extension del
+            # hielo tambien tiene que estabilizarse. El ESPESOR del hielo
+            # grueso puede seguir creciendo unos cm/año durante siglos (en
+            # la noche polar casi permanente de P3N solo lo frena el calor que
+            # llega desde abajo), pero apenas cambia ya la temperatura:
+            # ver DISENO_FASE3.md, seccion 4.1.
+            dsup = np.abs(temp_superficie(T_col) - Tsup0)
+            fino = es_agua & ((HIELO["h"] < 1.0) | (h0 < 1.0))
+            dsup = np.where(fino, np.maximum(dsup, np.abs(entalpia(T_col) - E0) / SUPERFICIE[0]), dsup)
+        else:
+            dsup = np.abs(T_col[..., 0] - Ts0)
+        cambio = max(np.max(dsup), np.max(np.abs(T_tr - Tt0)) if atm else 0.0)
         if atm and acelerar and cambio >= tolerancia_convergencia:
             if cambio_anterior is not None:
                 historial_r.append(cambio / cambio_anterior)
@@ -376,16 +686,25 @@ def simular_fase2b(
             if len(historial_r) >= 3 and max(historial_r[-3:]) - min(historial_r[-3:]) < 0.03 and historial_r[-1] < 0.9:
                 r = historial_r[-1]
                 factor = r / (1 - r)
+                E1 = entalpia(T_col)
                 T_col = T_col + factor * (T_col - estado0[0])
                 T_cl = T_cl + factor * (T_cl - estado0[1])
                 T_tr = T_tr + factor * (T_tr - estado0[2])
+                if hielo_on:
+                    # en el oceano se extrapola la ENTALPIA (agua + hielo juntos)
+                    E = E1 + factor * (E1 - E0)
+                    C0s = SUPERFICIE[0]
+                    h_nuevo = np.where(es_agua, np.maximum(0.0, -E / RHO_L_HIELO), 0.0)
+                    HIELO["Ts"] = np.where((h_nuevo > 0) & (HIELO["h"] <= 0), T_CONGELACION, HIELO["Ts"])
+                    HIELO["h"] = h_nuevo
+                    T_col[..., 0] = np.where(es_agua, T_CONGELACION + np.maximum(E, 0.0) / C0s, T_col[..., 0])
                 saltos += 1
                 historial_r = []
                 cambio_anterior = None
                 if DEPURAR:
                     print(f"  -> salto con r={r:.3f} (factor {factor:.2f})", flush=True)
         if DEPURAR:
-            ds = np.abs(T_col[..., 0] - Ts0); dt_ = np.abs(T_tr - Tt0)
+            ds = dsup; dt_ = np.abs(T_tr - Tt0)
             i = np.unravel_index(np.argmax(ds), ds.shape); j = np.unravel_index(np.argmax(dt_), dt_.shape)
             print(f"  año {ano+1}: suelo {ds.max():.4f} en {i} ({'tierra' if es_tierra[i] else 'agua'}), TR {dt_.max():.4f} en {j}", flush=True)
         if cambio < tolerancia_convergencia:
@@ -395,10 +714,10 @@ def simular_fase2b(
     # ---- año final con registro ----
     pasos_dia = round(ROTACION_PERIODO / paso_tiempo)
     acum = {"abs": 0.0, "olr": 0.0}
-    reg = {k: [] for k in ("min", "media", "max", "s_min", "s_media", "s_max", "cl", "tr")}
+    reg = {k: [] for k in ("min", "media", "max", "s_min", "s_media", "s_max", "cl", "tr", "h")}
 
     def temp_referencia(T_col, T_cl):
-        Ts = T_col[..., 0]
+        Ts = temp_superficie(T_col)
         if I["calor_sensible"]:
             return Ts + fraccion_2m * (T_cl + desfase_theta - Ts)   # aire a 2 m
         return Ts
@@ -414,20 +733,23 @@ def simular_fase2b(
                     reg[clave].append(a_celsius(valor))
                 reg["media"].append(a_celsius(suma / cnt)); reg["s_media"].append(a_celsius(ssuma / cnt))
                 reg["cl"].append(cl_suma / cnt - 273.15); reg["tr"].append(tr_suma / cnt - 273.15)
+                reg["h"].append(h_suma / cnt)
             mn = np.full((FILAS, COLUMNAS), np.inf); mx = -mn; suma = np.zeros((FILAS, COLUMNAS))
             smn = mn.copy(); smx = mx.copy(); ssuma = suma.copy(); cl_suma = suma.copy(); tr_suma = suma.copy(); cnt = 0
-        s, a = luz(toa, decl, ang)
+            h_suma = suma.copy()
+        s, a = luz(toa, decl, ang, peso_hielo_actual())
         T_col, T_cl, T_tr = paso(T_col, T_cl, T_tr, s, a, acum)
         tref = temp_referencia(T_col, T_cl)
         mn = np.minimum(mn, tref); mx = np.maximum(mx, tref); suma = suma + tref
-        Ts = T_col[..., 0]
+        Ts = temp_superficie(T_col)
         smn = np.minimum(smn, Ts); smx = np.maximum(smx, Ts); ssuma = ssuma + Ts
-        cl_suma = cl_suma + T_cl; tr_suma = tr_suma + T_tr; cnt += 1
+        cl_suma = cl_suma + T_cl; tr_suma = tr_suma + T_tr; h_suma = h_suma + HIELO["h"]; cnt += 1
     if cnt == pasos_dia:
         for clave, valor in (("min", mn), ("max", mx), ("s_min", smn), ("s_max", smx)):
             reg[clave].append(a_celsius(valor))
         reg["media"].append(a_celsius(suma / cnt)); reg["s_media"].append(a_celsius(ssuma / cnt))
         reg["cl"].append(cl_suma / cnt - 273.15); reg["tr"].append(tr_suma / cnt - 273.15)
+        reg["h"].append(h_suma / cnt)
 
     return {
         "anos": anos, "saltos": saltos,
@@ -435,6 +757,8 @@ def simular_fase2b(
         "reg_min": np.array(reg["min"]), "reg_media": np.array(reg["media"]), "reg_max": np.array(reg["max"]),
         "suelo_min": np.array(reg["s_min"]), "suelo_media": np.array(reg["s_media"]), "suelo_max": np.array(reg["s_max"]),
         "cl_media": np.array(reg["cl"]), "tr_media": np.array(reg["tr"]),
+        "hielo_espesor": np.array(reg["h"]),
+        "nieve_permanente_posible": nieve_permanente_posible(np.array(reg["media"]), es_tierra),
         "energia": {"absorbido": acum["abs"], "olr": acum["olr"],
                     "diferencia_relativa": abs(acum["abs"] - acum["olr"]) / acum["abs"]},
     }
