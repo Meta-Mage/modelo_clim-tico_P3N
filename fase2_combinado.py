@@ -67,12 +67,69 @@ from rejilla import FILAS, COLUMNAS
 from fase1_geografia import (
     TIERRA, AGUA, correccion_altitud, estimar_T_inicial_equilibrio,
     irradiancia_absorbida_desde_toa_rejilla_con_albedo,
+    preparar_irradiancia_absorbida_rejilla,
 )
 from fase2_difusion import construir_matriz_difusion, D_DIFUSION_REFERENCIA
 from fase2_inercia_multicapa import (
     construir_columna_rejilla, paso_conduccion_implicito,
+    preparar_conduccion_implicita,
     K_DIFUSIVIDAD_TIERRA, N_CAPAS_DEFECTO,
 )
+
+# ================================================================
+# OPTIMIZACION (02/10/2026) -- medida antes de tocar nada (cProfile,
+# mapa prueba1, 17 años, ~10 min): conduccion vertical 41 %, difusion
+# horizontal 28 %, calculo de la luz 23 %. Cambios:
+#   1. Conduccion vertical pre-factorizada (preparar_conduccion_
+#      implicita): resultado IDENTICO bit a bit.
+#   2. Luz absorbida solo en las celdas de dia, con senos/cosenos fijos
+#      precalculados (preparar_irradiancia_absorbida_rejilla):
+#      resultado IDENTICO bit a bit.
+#   3. Arranque cercano al equilibrio (acelerar_convergencia=True): ver
+#      estimar_T_inicial_con_difusion() mas abajo. Cambia el punto de
+#      partida, no la fisica ni el criterio de convergencia (cambio
+#      entre dos años seguidos < tolerancia). En prueba1: de 16 años a
+#      5. Validado contra la version sin acelerar y contra una
+#      simulacion de referencia con tolerancia 30 veces mas estricta.
+#      (Se probo tambien extrapolar la deriva año a año, tipo Aitken:
+#      se descarto porque los saltos provocaban transitorios y
+#      convergia peor que el arranque mejorado solo.)
+# ================================================================
+
+def estimar_T_inicial_con_difusion(datos_orbita, calcular_absorbida, emisividad, L, iteraciones=30):
+    """
+    Punto de partida de la simulacion MUCHO mas cercano al equilibrio
+    que estimar_T_inicial_equilibrio() (Fase 1). Aquella resuelve cada
+    celda por separado, sin difusion: absorbido medio = emitido. En los
+    polos, que casi no reciben luz, da temperaturas absurdas (-221 C en
+    prueba1, cuando el equilibrio real es -18 C), y la simulacion tarda
+    muchos años en corregirlo (el oceano tiene mucha inercia).
+
+    Aqui se resuelve el MISMO balance medio anual pero incluyendo la
+    difusion horizontal, para toda la rejilla a la vez:
+        absorbido_medio - (1 - e/2)*sigma*T^4 + L @ T = 0
+    Es no lineal (T^4), asi que se resuelve con el metodo de Newton
+    (cada iteracion es un sistema lineal disperso, muy rapido). No es el
+    equilibrio exacto de la simulacion (ignora que la media de T^4 no es
+    la media de T elevada a 4, y el ciclo de dia/noche y estaciones),
+    pero queda a pocos grados de el, en vez de a cientos.
+    """
+    suma = np.zeros((FILAS, COLUMNAS))
+    for toa, decl, ang_h_lon0 in datos_orbita:
+        suma += calcular_absorbida(toa, decl, ang_h_lon0)
+    absorbido_medio = (suma / len(datos_orbita)).flatten()
+
+    k = (1 - emisividad / 2) * CONSTANTE_SB
+    T = np.maximum((absorbido_medio / k) ** 0.25, 150.0)  # sin difusion, como punto de arranque de Newton
+    for _ in range(iteraciones):
+        residuo = absorbido_medio - k * T**4 + L @ T
+        jacobiano = sp.diags(-4 * k * T**3) + L
+        correccion = splu(jacobiano.tocsc()).solve(-residuo)
+        T = T + correccion
+        if np.max(np.abs(correccion)) < 1e-6:
+            break
+    return T.reshape(FILAS, COLUMNAS)
+
 
 
 def simular_rejilla_combinada_con_registro(
@@ -84,7 +141,7 @@ def simular_rejilla_combinada_con_registro(
     # poco" la tolerancia para converger en algun año menos, sin
     # renunciar a una precision fina (sigue siendo un cambio de 0.015 C
     # entre un año y el siguiente, imperceptible en la practica).
-    verificar_energia=False,
+    verificar_energia=False, acelerar_convergencia=True,
 ):
     """
     Version de rejilla completa con registro diario (minima/media/
@@ -119,6 +176,9 @@ def simular_rejilla_combinada_con_registro(
     else:
         A_factorizada = None
 
+    resolver_conduccion = preparar_conduccion_implicita(capacidades, conductancias, paso_tiempo)
+    calcular_absorbida = preparar_irradiancia_absorbida_rejilla(albedo_grid, profundidad_optica)
+
     def paso_fisica(T_columna, abs_local):
         # ---- 1. radiativo, explicito, solo capa 0 ----
         emitido = (1 - emisividad / 2) * CONSTANTE_SB * T_columna[..., 0] ** 4
@@ -131,11 +191,14 @@ def simular_rejilla_combinada_con_registro(
             T_columna[..., 0] = A_factorizada.solve(lado_derecho).reshape(FILAS, COLUMNAS)
 
         # ---- 3. conduccion vertical, implicita, toda la columna ----
-        T_columna = paso_conduccion_implicito(T_columna, capacidades, conductancias, paso_tiempo)
+        T_columna = resolver_conduccion(T_columna)
 
         return T_columna
 
-    T_inicial = estimar_T_inicial_equilibrio(datos_orbita, albedo_grid, emisividad, profundidad_optica)
+    if acelerar_convergencia and tiene_difusion:
+        T_inicial = estimar_T_inicial_con_difusion(datos_orbita, calcular_absorbida, emisividad, L)
+    else:
+        T_inicial = estimar_T_inicial_equilibrio(datos_orbita, albedo_grid, emisividad, profundidad_optica)
     T_columna = np.zeros((FILAS, COLUMNAS, n_capas))
     for i in range(n_capas):
         T_columna[..., i] = T_inicial
@@ -143,9 +206,7 @@ def simular_rejilla_combinada_con_registro(
     for ano in range(max_anos):
         T_inicio_ano = T_columna[..., 0].copy()
         for toa, decl, ang_h_lon0 in datos_orbita:
-            abs_local = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
-                toa, decl, ang_h_lon0, albedo_grid, profundidad_optica
-            )
+            abs_local = calcular_absorbida(toa, decl, ang_h_lon0)
             T_columna = paso_fisica(T_columna, abs_local)
         diferencia_maxima = np.max(np.abs(T_columna[..., 0] - T_inicio_ano))
         if diferencia_maxima < tolerancia_convergencia:
@@ -181,9 +242,7 @@ def simular_rejilla_combinada_con_registro(
             suma_dia = np.zeros_like(T_sup)
             contador_dia = 0
 
-        abs_local = irradiancia_absorbida_desde_toa_rejilla_con_albedo(
-            toa, decl, ang_h_lon0, albedo_grid, profundidad_optica
-        )
+        abs_local = calcular_absorbida(toa, decl, ang_h_lon0)
 
         if verificar_energia:
             emitido_local = (1 - emisividad / 2) * CONSTANTE_SB * T_columna[..., 0] ** 4

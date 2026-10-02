@@ -96,6 +96,46 @@ def simular_rejilla_geografia(datos_orbita, tipo_superficie, altitud_metros, emi
     return correccion_altitud(T - 273.15, altitud_metros), max_anos
 
 
+def preparar_irradiancia_absorbida_rejilla(albedo_grid, profundidad_optica):
+    """
+    OPTIMIZACION (02/10/2026): version rapida de
+    irradiancia_absorbida_desde_toa_rejilla_con_albedo(), con el MISMO
+    resultado bit a bit. Lo que cambia:
+      - senos y cosenos de la latitud y la longitud se calculan una vez;
+      - la parte cara (masa de aire con potencia 1.1, seno, exponencial)
+        solo se evalua en las celdas de DIA, no en toda la rejilla --
+        la version original la evaluaba en todas y luego convertia la
+        noche (nan) en 0 con nan_to_num.
+    Las operaciones de cada celda de dia son exactamente las mismas, en
+    el mismo orden, que en las funciones originales (angulo_cenital_
+    rejilla, i_inst_rejilla, masa_aire_rejilla, trans_rejilla, i_atm,
+    i_abs). Devuelve una funcion absorbida(toa, decl, ang_h_lon0).
+    """
+    lat_rad = np.radians(LATITUDES_GRADOS).reshape(-1, 1)
+    sin_lat = np.sin(lat_rad)
+    cos_lat = np.cos(lat_rad)
+    lon_rad = np.radians(LONGITUDES_GRADOS)
+    uno_menos_albedo = 1 - albedo_grid
+
+    def absorbida(toa, declinacion, ang_h_lon0):
+        ang_h = (ang_h_lon0 + lon_rad).reshape(1, -1)
+        cos_cenital = sin_lat * np.sin(declinacion) + cos_lat * np.cos(declinacion) * np.cos(ang_h)
+        cos_cenital = np.clip(cos_cenital, -1.0, 1.0)
+        cenital = np.arccos(cos_cenital)
+        altura_solar = 90 - np.degrees(cenital)
+        dia = altura_solar > 0
+        resultado = np.zeros(cenital.shape)
+        if dia.any():
+            h = altura_solar[dia]
+            masa = 1 / np.sin(np.radians(h + 244 / (165 + 47 * h ** 1.1)))
+            transmitancia = np.exp(-masa * profundidad_optica)
+            inst = toa * np.cos(cenital[dia])
+            resultado[dia] = inst * transmitancia * uno_menos_albedo[dia]
+        return resultado
+
+    return absorbida
+
+
 def irradiancia_absorbida_desde_toa_rejilla_con_albedo(toa, declinacion, ang_h_lon0, albedo_grid, profundidad_optica):
     """
     Igual que irradiancia_absorbida_desde_toa_rejilla() (fase0_radiacion.py)

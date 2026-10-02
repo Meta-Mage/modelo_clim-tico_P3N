@@ -147,6 +147,7 @@ def simular_rejilla_combinada_cacheada(
     albedo_por_tipo, inercia_por_tipo, profundidad_optica, D_grid,
     K_difusividad=None, n_capas=None, paso_tiempo=None, max_anos=50,
     tolerancia_convergencia=None, verificar_energia=False, nombre_mapa="",
+    acelerar_convergencia=True,
 ):
     from fase2_combinado import simular_rejilla_combinada_con_registro
     from fase2_inercia_multicapa import K_DIFUSIVIDAD_TIERRA, N_CAPAS_DEFECTO
@@ -170,10 +171,13 @@ def simular_rejilla_combinada_cacheada(
     inercia_items = tuple(sorted(inercia_por_tipo.items()))
 
     clave = (
-        "simular_combinada_v1", datos_orbita, tipo_superficie, altitud_metros,
+        # v2 (02/10/2026): añade acelerar_convergencia (arranque cercano
+        # al equilibrio, ver fase2_combinado.py), que cambia ligeramente
+        # el resultado (centesimas de grado) frente a v1.
+        "simular_combinada_v2", datos_orbita, tipo_superficie, altitud_metros,
         emisividad, albedo_items, inercia_items, profundidad_optica, D_grid,
         K_difusividad, n_capas, paso_tiempo, max_anos, tolerancia_convergencia,
-        verificar_energia,
+        verificar_energia, acelerar_convergencia,
     )
     return cargar_o_calcular(
         "simulacion_combinada", clave,
@@ -183,6 +187,7 @@ def simular_rejilla_combinada_cacheada(
             K_difusividad=K_difusividad, n_capas=n_capas, paso_tiempo=paso_tiempo,
             max_anos=max_anos, tolerancia_convergencia=tolerancia_convergencia,
             verificar_energia=verificar_energia,
+            acelerar_convergencia=acelerar_convergencia,
         ),
         etiqueta=nombre_mapa,
     )

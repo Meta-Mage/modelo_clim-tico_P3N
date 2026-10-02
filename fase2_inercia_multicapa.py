@@ -227,6 +227,67 @@ def _resolver_tridiagonal_vectorizado(a, b, c, d):
     return T
 
 
+def preparar_conduccion_implicita(capacidades, conductancias, paso_tiempo):
+    """
+    OPTIMIZACION (02/10/2026): version "pre-factorizada" de
+    paso_conduccion_implicito(). Las capacidades, conductancias y el paso
+    de tiempo NO cambian durante la simulacion, asi que los coeficientes
+    a, b, c del sistema tridiagonal tampoco -- solo cambia el termino
+    independiente d (que depende de T). El algoritmo de Thomas tiene una
+    parte que solo depende de a, b, c (c_prima y los denominadores) y
+    otra que depende de d: aqui la primera se calcula UNA vez y cada
+    paso solo hace la segunda. Mismas operaciones, en el mismo orden,
+    que _resolver_tridiagonal_vectorizado(): el resultado es identico.
+
+    Devuelve una funcion resolver(T_columna) -> T_columna nueva.
+    """
+    N = capacidades.shape[-1]
+    if N == 1:
+        return lambda T_columna: T_columna.copy()
+
+    forma = capacidades.shape
+    a = np.zeros(forma)
+    b = np.zeros(forma)
+    c = np.zeros(forma)
+    C_sobre_dt = capacidades / paso_tiempo
+
+    g0 = conductancias[..., 0]
+    b[..., 0] = C_sobre_dt[..., 0] + g0
+    c[..., 0] = -g0
+    for i in range(1, N - 1):
+        g_arriba = conductancias[..., i - 1]
+        g_abajo = conductancias[..., i]
+        a[..., i] = -g_arriba
+        b[..., i] = C_sobre_dt[..., i] + g_arriba + g_abajo
+        c[..., i] = -g_abajo
+    g_ultima = conductancias[..., N - 2]
+    a[..., N - 1] = -g_ultima
+    b[..., N - 1] = C_sobre_dt[..., N - 1] + g_ultima
+
+    c_prima = np.empty(forma)
+    denominadores = np.empty(forma)
+    denominadores[..., 0] = b[..., 0]
+    c_prima[..., 0] = c[..., 0] / b[..., 0]
+    for i in range(1, N):
+        denominadores[..., i] = b[..., i] - a[..., i] * c_prima[..., i - 1]
+        if i < N - 1:
+            c_prima[..., i] = c[..., i] / denominadores[..., i]
+
+    def resolver(T_columna):
+        d = C_sobre_dt * T_columna
+        d_prima = np.empty(forma)
+        d_prima[..., 0] = d[..., 0] / denominadores[..., 0]
+        for i in range(1, N):
+            d_prima[..., i] = (d[..., i] - a[..., i] * d_prima[..., i - 1]) / denominadores[..., i]
+        T = np.empty(forma)
+        T[..., N - 1] = d_prima[..., N - 1]
+        for i in range(N - 2, -1, -1):
+            T[..., i] = d_prima[..., i] - c_prima[..., i] * T[..., i + 1]
+        return T
+
+    return resolver
+
+
 def paso_conduccion_implicito(T_columna, capacidades, conductancias, paso_tiempo):
     """
     Un paso de conduccion vertical implicita (backward Euler) sobre una
