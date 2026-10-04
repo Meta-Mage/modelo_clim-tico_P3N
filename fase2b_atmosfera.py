@@ -135,6 +135,10 @@ DEPURAR = False
 # total por la atmosfera. Segun Williams y Kasting (1997), D depende de
 # presion, composicion y rotacion, no del radio: el mismo valor vale
 # para P3N (1 bar, aire tipo Tierra, dia de 24 h).
+# OJO (v2.4.2): D depende de la rotacion, D proporcional a 1/Omega^2
+# (Williams y Kasting 1997). Estos valores valen para un dia de 24 h; si
+# cambia ROTACION_PERIODO hay que escalarlos (se hara en la Fase 5a, que
+# recalibra D; ver DISENO_FASE5A.md, seccion 9).
 #
 # RESULTADO DE LA CALIBRACION (02/10/2026, mapa terrestre a 5 grados,
 # sin nubes ni humedad):
@@ -333,7 +337,8 @@ def nieve_permanente_posible(registro_media_C, es_tierra, dias_mes=None):
     las celdas de tierra donde, SI nevara, la nieve no llegaria a
     fundirse nunca: el "mes" mas calido tiene media < 0 C, que es la
     definicion del clima de casquete glaciar (EF) de Koppen. El año de
-    P3N se divide en 12 "meses" iguales (270/12 = 22.5 dias).
+    P3N se divide en 12 "meses" iguales (con el dia de 24 h, 270/12 =
+    22.5 dias; v2.4.2: se calcula con el numero real de dias del año).
     """
     n = registro_media_C.shape[0]
     dias_mes = n / 12 if dias_mes is None else dias_mes
@@ -406,6 +411,9 @@ def simular_fase2b(
       atmosfera, año final).
     """
     I = dict(INTERRUPTORES_FASE2B if interruptores is None else interruptores)
+    if ROTACION_PERIODO % paso_tiempo != 0:
+        # v2.4.2: los registros diarios cortan el año en dias de pasos enteros
+        raise ValueError(f"El dia ({ROTACION_PERIODO} s) no es un multiplo exacto del paso de tiempo ({paso_tiempo} s)")
     atm = I["capacidad_atmosfera"]
     if not atm and (I["calor_sensible"] or I["capa_limite_radiativa"] or I["ajuste_convectivo"]):
         raise ValueError("calor_sensible, capa_limite_radiativa y ajuste_convectivo necesitan capacidad_atmosfera")
@@ -724,8 +732,9 @@ def simular_fase2b(
     # Fase 4 (v2.4): registro HORARIO del año final -- valor instantaneo a
     # cada hora en punto (hora del meridiano 0) del aire a 2 m y de la
     # superficie, en todas las celdas, para los dias completos del año.
-    # Solo si el paso de tiempo divide exactamente una hora.
-    pasos_hora = round(3600 / paso_tiempo) if 3600 % paso_tiempo == 0 else None
+    # Solo si el paso de tiempo divide exactamente una hora y el dia tiene
+    # un numero entero de horas (v2.4.2: antes se daba por hecho que 24).
+    pasos_hora = round(3600 / paso_tiempo) if (3600 % paso_tiempo == 0 and ROTACION_PERIODO % 3600 == 0) else None
     pasos_registro_horario = (len(datos_orbita) // pasos_dia) * pasos_dia
     horario_aire, horario_sup = [], []
 

@@ -12,8 +12,15 @@ def declinacion_solar(momento, inclinacion_axial_rad):
     return declinacion
 
 
+# v2.4.2: el angulo horario ya no supone un dia de 24 h. "hora" son horas
+# de 3600 s desde la medianoche del meridiano 0, y el sol da una vuelta
+# completa (2*PI) en ROTACION_PERIODO (el dia SOLAR de P3N). Con
+# ROTACION_PERIODO = 86400, MEDIO_DIA_H = 12.0 y la formula es exactamente
+# la de antes, bit a bit: (hora - 12) * PI / 12.
+MEDIO_DIA_H = ROTACION_PERIODO / 3600 / 2
+
 def angulo_horario(hora, longitud_grados=0):
-    angulo = (hora - 12) * PI / 12 + longitud_grados * PI / 180
+    angulo = (hora - MEDIO_DIA_H) * PI / MEDIO_DIA_H + longitud_grados * PI / 180
     return angulo
 
 def angulo_cenital(latitud, declinacion, angulo):

@@ -1,4 +1,4 @@
-# test_modelo.py -- pruebas rapidas del modelo actual (v2.4.1).
+# test_modelo.py -- pruebas rapidas del modelo actual (v2.4.2).
 #
 # Uso:  python -m pytest test_modelo.py      (unos segundos)
 #
@@ -134,3 +134,31 @@ def test_estacion_no_depende_de_donde_empiece_el_invierno(monkeypatch):
         monkeypatch.setattr(orbita, "AV_INVIERNO", inicio)
         nombres = [orbita.estacion((inicio + k * math.pi / 2 + 0.01) % (2 * math.pi)) for k in range(4)]
         assert nombres == ["Invierno", "Primavera", "Verano", "Otoño"]
+
+
+# ---- duracion del dia (v2.4.2) ----
+
+def test_angulo_horario_identico_con_dia_de_24h():
+    import geometria as G
+    for h in np.arange(0, 24, 0.25):
+        for lon in (-177.5, -0.5, 0.0, 92.5):
+            antes = (h - 12) * math.pi / 12 + lon * math.pi / 180   # formula de la v2.4.1
+            assert G.angulo_horario(h, lon) == antes                 # igualdad exacta, bit a bit
+
+
+@pytest.mark.parametrize("dia_s", [64800, 61200, 90000])   # 18 h, 17 h, 25 h
+def test_angulo_horario_da_una_vuelta_por_dia(monkeypatch, dia_s):
+    import geometria as G
+    monkeypatch.setattr(G, "MEDIO_DIA_H", dia_s / 3600 / 2)
+    horas = dia_s / 3600
+    assert G.angulo_horario(0.0) == pytest.approx(-math.pi)
+    assert G.angulo_horario(horas / 2) == pytest.approx(0.0)          # mediodia en el meridiano 0
+    assert G.angulo_horario(horas) == pytest.approx(math.pi)
+    # el sol avanza 360/horas grados por hora
+    assert G.angulo_horario(1.0) - G.angulo_horario(0.0) == pytest.approx(2 * math.pi / horas)
+
+
+def test_simulacion_rechaza_dia_que_no_es_multiplo_del_paso(monkeypatch):
+    monkeypatch.setattr(F, "ROTACION_PERIODO", 63360)   # 17,6 h: 70,4 pasos de 900 s
+    with pytest.raises(ValueError, match="multiplo exacto del paso"):
+        F.simular_fase2b(None, None, None, None, None, None, None, None, paso_tiempo=900)

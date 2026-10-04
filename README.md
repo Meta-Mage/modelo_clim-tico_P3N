@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `v2.4.1`** (Fase 4 y revisión general, octubre de 2026).
+**Versión actual: `v2.4.2`** (duración del día generalizada, octubre de 2026).
 
 ---
 
@@ -136,6 +136,7 @@ Las validaciones de cada fase que exigen simular un clima completo (por ejemplo,
 | v2.2b / v2.2c | Fase 2b: atmósfera de dos capas, aire a 2 m; auditoría y recalibración | ✅ |
 | v2.3 | Fase 3: hielo marino (retroalimentación hielo-albedo, calor latente de fusión) | ✅ |
 | v2.4 / v2.4.1 | Fase 4: exportación de datos estructurados; revisión general | ✅ |
+| v2.4.2 | Duración del día generalizada (sin "24 h" escondidas); diseño de la Fase 5a en borrador | ✅ |
 | v2.5 | Fase 5: humedad, evaporación, nubes, precipitación | ⏳ |
 | v2.6 / v2.7 | Fase 6 / 6b: circulación atmosférica / corrientes oceánicas | ⏳ |
 | v2.8 / v2.9 | Fase 7 / 7b: biomas / biomas → albedo e inercia | ⏳ |
@@ -146,6 +147,8 @@ Al terminar M3N está previsto un **barrido final de parámetros** (masa de la e
 ## Limitaciones conocidas
 
 Están documentadas para que nadie las tome por resultados:
+
+- **Duración del día (v2.4.2).** `ROTACION_PERIODO` (en `parametros.py`) es el día **solar** de P3N y ya se puede cambiar: la posición del sol, las capas del suelo, los registros y la exportación se adaptan solos. Condiciones: debe ser múltiplo exacto del paso de tiempo (900 s) y, para tener registro horario, de 3600 s. **Pendiente:** los coeficientes de difusión D están calibrados para un día de 24 h y dependen de la rotación (D ∝ 1/Ω², Williams y Kasting 1997); se escalarán en la Fase 5a. Los archivos históricos (`temperatura.py` en sus funciones de gráficas, `main.py`) siguen suponiendo 24 h y 270 días: no los usa el modelo actual.
 
 - **La superficie sale más caliente que el aire, sobre todo en el océano** (unos 13 °C en el ecuador). Falta la evaporación: en la Tierra, la superficie pierde unos 82 W/m² evaporando agua (Wild et al. 2019). Llega con la Fase 5.
 - **La presión no varía con la altitud** y el aire de la capa límite sobre las montañas se trata como si estuviera a nivel del mar en el infrarrojo y la convección. Pendiente.

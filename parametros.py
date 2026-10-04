@@ -60,6 +60,14 @@ def _anomalia_verdadera_inicio():
     return 2 * math.atan(factor * math.tan(ae / 2))
 
 DESFASE_SOLSTICIO_RAD = (3 * PI / 2 - _anomalia_verdadera_inicio()) % (2 * PI)
+# Duracion del DIA SOLAR de P3N en segundos (de mediodia a mediodia).
+# PROVISIONAL: Carlos y Ozan han fijado un intervalo de 16,5-18,7 h
+# (04/10/2026), con valor exacto por decidir. Requisitos (v2.4.2):
+#   - multiplo exacto del paso de tiempo (900 s) -> lo comprueba la simulacion;
+#   - multiplo de 3600 s para tener registro horario y exportacion a H3N.
+# El dia sideral (giro respecto a las estrellas) seria
+# 1 / (1/ROTACION_PERIODO + 1/ORBITA_PERIODO) para un giro en el mismo
+# sentido que la orbita.
 ROTACION_PERIODO = 86400
 
 #ATMÓSFERA Y SUPERFICIE
