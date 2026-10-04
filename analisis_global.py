@@ -354,7 +354,10 @@ if __name__ == "__main__":
 
     cabecera = [
         f"ANALISIS GLOBAL -- mapa '{nombre_mapa}' -- {date.today().isoformat()}",
-        f"Difusion: atmosfera D = {_F2B.D_ATMOSFERA}, oceano D = {_F2B.D_OCEANO} W/m2/K | convergencia: {anos_convergencia} año(s) | año de {num_dias} dias",
+        # v3.0: D_ATMOSFERA es el valor calibrado en la Tierra; la simulacion usa D x FACTOR_ROTACION_D
+        f"Difusion: atmosfera D = {_F2B.D_ATMOSFERA} (Tierra) x {FACTOR_ROTACION_D:.3f} (rotacion) = "
+        f"{_F2B.D_ATMOSFERA * FACTOR_ROTACION_D:.2f}, oceano D = {_F2B.D_OCEANO} W/m2/K | "
+        f"convergencia: {anos_convergencia} año(s) | año de {num_dias} dias",
     ]
     if anos_convergencia >= 50:
         cabecera.append("AVISO: se alcanzo el limite de 50 años sin confirmar convergencia -- puede no ser el equilibrio.")

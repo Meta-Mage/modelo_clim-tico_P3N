@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `v2.4.3`** (día de 19,84 h, octubre de 2026).
+**Versión actual: `v3.0-pre1`** (octubre de 2026). Es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 ya programada, pero **apagada** hasta calibrarla y validarla en modo Tierra (`DISENO_V3.0.md`, §13).
 
 ---
 
@@ -40,8 +40,10 @@ git clone https://github.com/Meta-Mage/modelo_clim-tico_P3N.git M3N
 cd M3N
 python3 -m venv venv
 source venv/bin/activate
-pip install numpy scipy matplotlib pytest
+pip install numpy scipy matplotlib pytest numba global-land-mask
 ```
+
+- `numba` compila el ajuste convectivo de la v3.0 (unas 20 veces más rápido; sin él funciona igual, más lento). `global-land-mask` da el mapa de la Tierra del modo Tierra.
 
 - `venv` es un entorno virtual: una carpeta con las librerías solo de este proyecto. **Cada vez que abras una terminal nueva**, actívalo con `source venv/bin/activate` (verás `(venv)` al principio de la línea).
 - Editor recomendado: **VSCodium** (`codium .` dentro de la carpeta).
@@ -92,7 +94,9 @@ Los resultados se guardan en `outputs/`, que **no se sube a GitHub**.
 | `fase1_geografia.py` | Tierra y agua: albedo, inercia, luz absorbida por celda |
 | `fase2_inercia_multicapa.py` | Columna de suelo de varias capas (conducción) |
 | `fase2_difusion.py` | Transporte horizontal de calor (difusión) |
-| `fase2b_atmosfera.py` | **Modelo actual**: atmósfera de dos capas, hielo marino y registro horario, con 9 interruptores |
+| `fase2b_atmosfera.py` | **Modelo actual**: atmósfera de dos capas, hielo marino y registro horario, con 10 interruptores (I10: atmósfera de N capas, apagado de momento) |
+| `fase30_multicapa.py` | v3.0: atmósfera de N capas en coordenada sigma (infrarrojo gris de dos flujos, ajuste convectivo exacto, diagnóstico del transporte) |
+| `modo_tierra.py` | v3.0: mapa de la Tierra para el **modo Tierra** (`M3N_MODO=tierra`, ver `parametros.py`) |
 | `fase2_combinado.py` | Modelo de la Fase 2 (sin atmósfera con cuerpo). Se conserva como referencia de validación |
 | `cache_simulacion.py` | Caché de resultados y punto de entrada de las herramientas |
 | `puente_c3n.py` | Lectura del mapa activo de C3N |
@@ -100,7 +104,7 @@ Los resultados se guardan en `outputs/`, que **no se sube a GitHub**.
 
 ### Herramientas
 
-`analisis_global.py`, `consulta_punto.py`, `analisis_latitudes.py`, `mapa_calor.py`, `exportar_clima.py`.
+`analisis_global.py`, `consulta_punto.py`, `analisis_latitudes.py`, `mapa_calor.py`, `exportar_clima.py`, `prueba_paso.py` (sensibilidad al paso de tiempo), `calibrar_v30.py` (v3.0: calibración de la difusión en modo Tierra y convergencia en el número de capas; se lanza con `M3N_MODO=tierra python calibrar_v30.py`).
 
 ### Pruebas
 
@@ -108,6 +112,7 @@ Los resultados se guardan en `outputs/`, que **no se sube a GitHub**.
 |---|---|---|
 | `test_modelo.py` | Formato de exportación, calendario y estaciones, clave de la caché, puente con C3N, conservación de la energía del océano profundo | Segundos |
 | `test_fase0.py` | La rejilla de la Fase 0 frente al modelo original de un punto | Medio minuto |
+| `test_v30.py` | v3.0: conservación de la energía del infrarrojo y del ajuste convectivo, estabilidad tras el ajuste, cierre del diagnóstico de transporte, I10 apagado, valores del modo Tierra | Segundos |
 
 Las validaciones de cada fase que exigen simular un clima completo (por ejemplo, "con todo apagado, el modelo da lo mismo que la versión anterior") están documentadas, con sus resultados, en los `DISENO_FASE*.md`.
 
@@ -119,6 +124,8 @@ Las validaciones de cada fase que exigen simular un clima completo (por ejemplo,
 | `DISENO_FASE2B.md` | Atmósfera de dos capas: diseño, fuentes, calibración, validación y **valores vigentes** (sección 13) |
 | `DISENO_FASE3.md` | Hielo marino: física, fuentes, validación |
 | `DISENO_FASE4.md` | Exportación de datos: formato `m3n-clima` y validación |
+| `DISENO_V3.0.md` | Atmósfera de N capas: diseño, pruebas, modo Tierra y estado de la calibración |
+| `DISENO_FASE5A.md` | Ciclo del agua (será la v3.1): decisiones tomadas y pendientes |
 
 ### Histórico
 
@@ -138,10 +145,10 @@ Las validaciones de cada fase que exigen simular un clima completo (por ejemplo,
 | v2.4 / v2.4.1 | Fase 4: exportación de datos estructurados; revisión general | ✅ |
 | v2.4.2 | Duración del día generalizada (sin "24 h" escondidas); diseño de la Fase 5a en borrador | ✅ |
 | v2.4.3 | Día solar de 19,84 h; hora de P3N = 1/24 del día; paso de 992 s; D de la atmósfera escalado con la rotación | ✅ |
-| v2.5 | Fase 5: humedad, evaporación, nubes, precipitación | ⏳ |
-| v2.6 / v2.7 | Fase 6 / 6b: circulación atmosférica / corrientes oceánicas | ⏳ |
-| v2.8 / v2.9 | Fase 7 / 7b: biomas / biomas → albedo e inercia | ⏳ |
-| v3.0 | Fase 8: atmósfera de varias capas | ⏳ |
+| v3.0 | Atmósfera de N capas (adelantada de la Fase 8, decisión del 04/10/2026), en seco | 🔧 programada; falta calibrar y validar |
+| v3.1 | Fase 5a: humedad, evaporación, precipitación (sobre las N capas) | ⏳ |
+| v3.2 | Fase 5b: nubes | ⏳ |
+| después | Fase 6 / 6b: circulación atmosférica / corrientes oceánicas; Fase 7 / 7b: biomas | ⏳ |
 
 Al terminar M3N está previsto un **barrido final de parámetros** (masa de la estrella, órbita, presión, emisividades) para fijar el mundo definitivo. Los valores actuales son provisionales.
 

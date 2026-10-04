@@ -17,6 +17,8 @@ if ffmpeg:   # v2.4.1: sin la ruta fija de un ordenador de Windows de la univers
 # 900 s (dia de 24 h). PENDIENTE: prueba de sensibilidad con la mitad (496 s),
 # como la de la Fase 0, para confirmar que el resultado no depende del paso.
 PASO_TIEMPO = 992
+if MODO_TIERRA:
+    PASO_TIEMPO = 900   # modo Tierra (v3.0): 96 pasos por dia de 24 h, 4 por hora
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 

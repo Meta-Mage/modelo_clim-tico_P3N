@@ -221,7 +221,7 @@ def simular_rejilla_combinada_cacheada(
 MODULOS_FISICA = (
     "fase2b_atmosfera.py", "fase2_inercia_multicapa.py", "fase2_difusion.py",
     "fase1_geografia.py", "rejilla.py", "parametros.py", "temperatura.py",
-    "orbita.py", "geometria.py",
+    "orbita.py", "geometria.py", "fase30_multicapa.py",
 )
 
 

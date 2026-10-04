@@ -93,6 +93,46 @@ EMISIVIDAD = 0.77
 INERCIA_TERMICA = 3500
 
 
+# ================================================================
+# MODO TIERRA (v3.0) -- SOLO PARA CALIBRAR Y VALIDAR
+# ================================================================
+# Con la variable de entorno M3N_MODO=tierra, el modelo simula la Tierra
+# en vez de P3N: Sol, orbita, eje, dia y gravedad terrestres. Sirve para
+# calibrar contra observaciones (los parametros etiquetados "(c)") y para
+# comprobar que la fisica nueva da una Tierra razonable antes de fiarse
+# de ella en P3N. Nunca se usa para el clima de P3N. El mapa de la Tierra
+# lo da modo_tierra.py. Valores (todos de referencia, J2000):
+#   - irradiancia a 1 UA: 1361 W/m2 (Kopp y Lean 2011);
+#   - año sideral 365,256363 dias; excentricidad 0,0167086;
+#   - longitud del perihelio 282,9373 grados (geocentrica) -> en el
+#     solsticio de diciembre (longitud del Sol 270) la anomalia media es
+#     347,486 grados: el dia 1 a las 0 h es el solsticio de invierno del
+#     norte, mismo criterio que el calendario de P3N;
+#   - oblicuidad 23,44 grados; dia solar 86 400 s; g = 9,80665 m/s2;
+#     radio medio 6 371 km.
+import os as _os
+MODO_TIERRA = _os.environ.get("M3N_MODO", "").strip().lower() == "tierra"
+if MODO_TIERRA:
+    UNIDAD_ASTRONOMICA = 1.495978707e11
+    IRRADIANCIA_TIERRA = 1361.0
+    SEMIEJE_MAYOR = UNIDAD_ASTRONOMICA
+    S3N_LUMINOSIDAD = IRRADIANCIA_TIERRA * 4 * PI * UNIDAD_ASTRONOMICA ** 2
+    S3N_TEMPERATURA = 5772
+    ORBITA_EXCENTRICIDAD = 0.0167086
+    ORBITA_PERIODO = 365.256363 * 86400
+    MOVIMIENTO_MEDIO = 360 / ORBITA_PERIODO
+    ANOMALIA_MEDIA_INICIO_GRADOS = 347.486184
+    DESFASE_SOLSTICIO_RAD = (3 * PI / 2 - _anomalia_verdadera_inicio()) % (2 * PI)
+    ROTACION_PERIODO = 86_400
+    DURACION_HORA = ROTACION_PERIODO / HORAS_POR_DIA
+    OMEGA_SIDERAL = 2 * PI * (1 / ROTACION_PERIODO + 1 / ORBITA_PERIODO)
+    FACTOR_ROTACION_D = (OMEGA_TIERRA_SIDERAL / OMEGA_SIDERAL) ** 2     # = 1 (por construccion)
+    P3N_RADIO = 6.371e6
+    P3N_GRAVEDAD = 9.80665
+    INCLINACION_AXIAL = 23.44
+    INCLINACION_AXIAL_RAD = INCLINACION_AXIAL * PI / 180
+
+
 # PRUEBA
 if __name__ == "__main__":
     print(f"S3N. Masa: {S3N_MASA}; Radio: {S3N_RADIO}; Temperatura: {S3N_TEMPERATURA}; Luminosidad: {S3N_LUMINOSIDAD}.")
