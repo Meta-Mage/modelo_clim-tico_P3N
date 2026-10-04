@@ -9,16 +9,19 @@ import matplotlib.pyplot as plt
 from parametros import *
 from orbita import info_estaciones
 from rejilla import LATITUDES_GRADOS, FILAS, COLUMNAS
-from fase1_geografia import TIERRA, mapa_falso_todo_tierra, ALBEDO_POR_TIPO, INERCIA_POR_TIPO
+from fase1_geografia import TIERRA, ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from fase2_difusion import D_DIFUSION_REFERENCIA
 from cache_simulacion import precalcular_orbita_cacheada, simular_modelo_cacheado
 
-# D de la difusion horizontal activa en esta herramienta. Pon esto a
-# np.zeros((FILAS, COLUMNAS)) para volver a la fisica de Fase 1 pura
-# (sin transporte de calor entre celdas), por ejemplo para comparar.
+# D de referencia: en la Fase 2b solo fija el estado inicial y forma parte
+# de la clave de la cache; el transporte real usa D_ATMOSFERA y D_OCEANO
+# (fase2b_atmosfera.py). Para apagar el transporte, usa el interruptor I6.
 D_GRID_ACTIVO = np.full((FILAS, COLUMNAS), D_DIFUSION_REFERENCIA)
 
-LATITUDES_REFERENCIA_GRADOS = [60, 30, 0, -30, -60]
+# v2.4.1: centros de fila de la rejilla, simetricos entre norte y sur.
+# Antes eran 60/30/0/-30/-60, que caen ENTRE dos filas: se tomaba la del
+# norte y la comparacion norte-sur quedaba descompensada.
+LATITUDES_REFERENCIA_GRADOS = [62.5, 32.5, 2.5, -2.5, -32.5, -62.5]
 CARPETA_TABLAS = os.path.join("outputs", "tablas_latitud")
 CARPETA_GRAFICOS = os.path.join("outputs", "evolucion_por_latitud")
 
@@ -41,8 +44,10 @@ def obtener_dias_especiales(num_dias):
         duracion = estacion["duracion"]
         dia_medio = dia_inicio + duracion / 2
 
-        indice_inicio = int(round(dia_inicio - 1)) % num_dias
-        indice_medio = int(round(dia_medio - 1)) % num_dias
+        # dia_inicio es un dia real (el dia 1 empieza en 1.0): el registro
+        # que lo contiene es floor(dia_inicio - 1)
+        indice_inicio = int(np.floor(dia_inicio - 1)) % num_dias
+        indice_medio = int(np.floor(dia_medio - 1)) % num_dias
 
         dias_especiales[f"Inicio de {nombre}"] = indice_inicio
         dias_especiales[f"Mitad de {nombre}"] = indice_medio
@@ -89,7 +94,7 @@ def generar_tabla(registro_minima, registro_media, registro_maxima, tipo_superfi
             media_vals, _ = estadisticas_fila(registro_media[indice_dia, fila, :], tipo_fila)
             maxima_vals, _ = estadisticas_fila(registro_maxima[indice_dia, fila, :], tipo_fila)
             lineas.append(
-                f"{latitud_objetivo:>8} | {nombre_dia:<20} | {tipo_usado:<7} | "
+                f"{latitud_objetivo:>8.1f} | {nombre_dia:<20} | {tipo_usado:<7} | "
                 f"{minima_vals.min():>11.2f} | {media_vals.mean():>10.2f} | {maxima_vals.max():>11.2f}"
             )
         lineas.append("-" * len(encabezado))
@@ -157,7 +162,7 @@ if __name__ == "__main__":
     dias_especiales = obtener_dias_especiales(registro_media.shape[0])
     print("Dias de referencia detectados:")
     for nombre, indice in dias_especiales.items():
-        print(f"  {nombre}: dia {indice}")
+        print(f"  {nombre}: dia {indice + 1}")
     print()
 
     generar_tabla(registro_minima, registro_media, registro_maxima, tipo_superficie, dias_especiales, nombre_mapa)

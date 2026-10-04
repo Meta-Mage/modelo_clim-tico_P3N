@@ -59,7 +59,9 @@ luz absorbida + infrarrojo que baja − σ·Ts⁴ − H(Ts) + (k_i / h)·(Tf −
 
 ### 2.3 Calor del océano profundo
 
-M3N solo tiene la capa de mezcla del océano. En la realidad, el agua profunda aporta calor bajo el hielo. Se representa con un flujo fijo de **4 W/m²** en la base del hielo (Wagner y Eisenman 2015; Maykut y Untersteiner 1971 usan ~2 W/m² en el Ártico central). **Se retira la misma cantidad total del océano libre**, repartida por área, como hace en la realidad la circulación profunda: el calor se redistribuye, no se crea.
+M3N solo tiene la capa de mezcla del océano. En la realidad, el agua profunda aporta calor bajo el hielo. Se representa con un flujo fijo de **4 W/m²** en la base del hielo (Wagner y Eisenman 2015; Maykut y Untersteiner 1971 usan ~2 W/m² en el Ártico central). **Se retira la misma cantidad total de todo el océano**, repartida por igual por área (hielo incluido): el calor se redistribuye, no se crea.
+
+**Corrección v2.4.1:** hasta la v2.4 se retiraba solo del océano **libre**. En el caso límite de un océano casi entero helado, las pocas celdas libres recibían retiradas de miles de W/m², y con el océano entero helado no se retiraba nada, así que se creaba energía. Repartirlo por todo el océano conserva la energía siempre (`test_modelo.py` lo comprueba) y no cambia el orden de magnitud del flujo neto bajo el hielo, que es 4 W/m² × (1 − fracción de océano helado).
 
 ### 2.4 Albedo del hielo
 
@@ -113,6 +115,7 @@ El tiempo para alcanzarlo es del orden de ρ_i·L_f·h_eq² / (k_i·ΔT), unos 5
 
 **Limitación conocida:** en la realidad, un hielo tan grueso fluye como un glaciar ("sea glaciers", Goodman y Pierrehumbert 2003; Pollard y Kasting 2005) y se adelgaza o se extiende hacia aguas más cálidas. M3N no tiene dinámica del hielo, solo termodinámica.
 - **Aceleración (1): salto geométrico** de la Fase 2b, aplicado a la entalpía (agua y hielo juntos).
+- **Corrección v2.4.1:** el año en que actúa el salto del hielo grueso nunca se da por convergido, porque el estado acaba de cambiar.
 - **Aceleración (2): salto del hielo grueso.** En los años 6, 12 y 18, para cada celda con más de 1 m de hielo se estima el calor que llega a su base con lo medido ese año (F_base = conducción media − ρ_i·L_f·dh/dt) y se lleva el espesor a su equilibrio h_eq = k_i·(T_f − T_s)/F_base, limitado a entre la mitad y el doble del espesor actual. No es física nueva: solo acorta el camino. Después se siguen simulando años y el criterio de convergencia es el mismo.
   - Sin este salto, P3N tardaba 42 años (33 minutos) en converger, con el hielo a 11,7 m de media y lejos aún de su equilibrio.
   - Con el salto, tarda 22 años (18 minutos), con 15,2 m de media. Clima global: 15,32 °C frente a 15,30 °C. Polos: −42,0 °C frente a −42,5 °C (con el hielo más cerca de su equilibrio, el polo es algo más frío, como predice la sección 4.1).
@@ -144,6 +147,8 @@ Si las dos acaban en el mismo estado, P3N tiene un solo clima posible con estos 
 ### 6.0 Clima de P3N con hielo y masa de S3N
 
 Con el hielo activado y la masa de S3N de la v2.2c (0,874 masas solares), el aire a 2 m medio global baja de 15,96 a **15,30 °C** (convergencia en 22 años, 18 minutos). El 8,7–9,1 % del océano está helado según la estación, con −42/−43 °C en los polos. Como 15,30 °C está dentro del rango sorteado (15–16 °C), **la masa no se recalibra** (decisión de Carlos, 02/10/2026). Como referencia de sensibilidad: 0,877 → 16,02 °C y 0,878 → 16,25 °C (unos 0,24 °C por cada milésima de masa solar).
+
+**Con las correcciones de la v2.4.1** (compensación del océano profundo repartida por todo el océano; ningún año con salto del hielo cuenta como convergido), mismo mapa `prueba1` (03/10/2026): **15,29 °C** (−0,004 °C respecto a la v2.4), océano helado 8,75–9,1 % (igual), polos −42,7 / −43,2 °C, ecuador 29,8 °C. Converge en **25 años** en vez de 22: los saltos del hielo grueso llegan en los años 6, 12 y 17, y el estado necesita unos años más para asentarse después del último. Desequilibrio de energía final: 1,2×10⁻⁵ W/m². Los resultados prácticamente no cambian; lo que cambia es que ahora el equilibrio está garantizado.
 
 ### 6.1 Modo Tierra con hielo
 

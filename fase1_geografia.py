@@ -158,32 +158,6 @@ def irradiancia_absorbida_desde_toa_rejilla_con_albedo(toa, declinacion, ang_h_l
     return np.nan_to_num(absorbida, nan=0.0)
 
 
-if __name__ == "__main__":
-    from parametros import EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA, INCLINACION_AXIAL_RAD, S3N_LUMINOSIDAD, SEMIEJE_MAYOR
-
-    print("Precalculando orbita...")
-    datos_orbita = precalcular_orbita(S3N_LUMINOSIDAD, INCLINACION_AXIAL_RAD, SEMIEJE_MAYOR)
-
-    print("Simulando con Fase 0 (sin geografia, referencia)...")
-    T_fase0, anos_fase0 = simular_rejilla(datos_orbita, EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA)
-
-    print("Simulando con Fase 1, mapa falso todo tierra a nivel del mar (mismos valores que Fase 0)...")
-    tipo_superficie, altitud_metros = mapa_falso_todo_tierra()
-    albedo_por_tipo = {TIERRA: ALBEDO, AGUA: ALBEDO}      # AGUA no se usa (mapa sin agua); mismo valor por seguridad
-    inercia_por_tipo = {TIERRA: INERCIA_TERMICA, AGUA: INERCIA_TERMICA}
-    T_fase1, anos_fase1 = simular_rejilla_geografia(
-        datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD, albedo_por_tipo, inercia_por_tipo, PROFUNDIDAD_OPTICA
-    )
-
-    diferencia = np.abs(T_fase0 - T_fase1)
-    print(f"Convergencia: {anos_fase0} año(s) (Fase 0) vs {anos_fase1} año(s) (Fase 1, mapa falso)")
-    print(f"Diferencia maxima entre Fase 0 y Fase 1 con mapa todo tierra: {diferencia.max():.2e} C")
-    if diferencia.max() < 1e-6:
-        print("OK: con mapa falso todo tierra a nivel del mar, la Fase 1 coincide EXACTA con la Fase 0.")
-    else:
-        print("AVISO: deberian coincidir exactas -- revisar antes de seguir.")
-
-
 # ============================================================================
 # VALORES DE REFERENCIA FIJADOS (Fase 1, 20/09/2026)
 # ============================================================================
@@ -314,6 +288,35 @@ def simular_rejilla_geografia_con_registro(
 
 
 if __name__ == "__main__":
+    # Comprobaciones de la Fase 1 (se ejecutan con: python fase1_geografia.py).
+    # v2.4.1: antes eran dos bloques __main__ separados y el primero se
+    # ejecutaba a mitad del archivo, antes de definirse el resto de funciones.
+    # 1) Fase 1 con un mapa todo tierra = Fase 0
+    from parametros import EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA, INCLINACION_AXIAL_RAD, S3N_LUMINOSIDAD, SEMIEJE_MAYOR
+
+    print("Precalculando orbita...")
+    datos_orbita = precalcular_orbita(S3N_LUMINOSIDAD, INCLINACION_AXIAL_RAD, SEMIEJE_MAYOR)
+
+    print("Simulando con Fase 0 (sin geografia, referencia)...")
+    T_fase0, anos_fase0 = simular_rejilla(datos_orbita, EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA)
+
+    print("Simulando con Fase 1, mapa falso todo tierra a nivel del mar (mismos valores que Fase 0)...")
+    tipo_superficie, altitud_metros = mapa_falso_todo_tierra()
+    albedo_por_tipo = {TIERRA: ALBEDO, AGUA: ALBEDO}      # AGUA no se usa (mapa sin agua); mismo valor por seguridad
+    inercia_por_tipo = {TIERRA: INERCIA_TERMICA, AGUA: INERCIA_TERMICA}
+    T_fase1, anos_fase1 = simular_rejilla_geografia(
+        datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD, albedo_por_tipo, inercia_por_tipo, PROFUNDIDAD_OPTICA
+    )
+
+    diferencia = np.abs(T_fase0 - T_fase1)
+    print(f"Convergencia: {anos_fase0} año(s) (Fase 0) vs {anos_fase1} año(s) (Fase 1, mapa falso)")
+    print(f"Diferencia maxima entre Fase 0 y Fase 1 con mapa todo tierra: {diferencia.max():.2e} C")
+    if diferencia.max() < 1e-6:
+        print("OK: con mapa falso todo tierra a nivel del mar, la Fase 1 coincide EXACTA con la Fase 0.")
+    else:
+        print("AVISO: deberian coincidir exactas -- revisar antes de seguir.")
+
+    # 2) Registro diario
     from temperatura import precalcular_orbita
     from parametros import ORBITA_PERIODO
 

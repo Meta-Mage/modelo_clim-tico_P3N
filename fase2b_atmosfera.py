@@ -15,7 +15,8 @@
 #   - Altitud dentro de la fisica (aire de referencia mas frio con la
 #     altura) y temperatura del aire a 2 m como temperatura de referencia.
 #
-# SIETE INTERRUPTORES (INTERRUPTORES_FASE2B). Con todos apagados, el
+# NUEVE INTERRUPTORES (INTERRUPTORES_FASE2B: I1-I7 de la Fase 2b, I8 de la
+# v2.2c, I9 del hielo marino de la Fase 3). Con todos apagados, el
 # modelo reproduce la Fase 2 (fase2_combinado.py, v2.2) -- es la
 # prueba V0 del diseño. Restriccion: sin capacidad de la atmosfera
 # (I2 apagado) la atmosfera es "instantanea" (modelo de una capa
@@ -65,9 +66,7 @@ CAPACIDAD_TR = PRESION_TECHO_CL / P3N_GRAVEDAD * CP_AIRE                        
 
 ALTURA_ESCALA = R_AIRE * 255.0 / P3N_GRAVEDAD                  # ~8.1 km
 Z_CENTRO_CL = ALTURA_ESCALA * math.log(1000 / 950)             # ~0.41 km
-Z_CENTRO_TR = ALTURA_ESCALA * math.log(1000 / 550)             # ~4.83 km
 GRADIENTE_ADIABATICO = P3N_GRAVEDAD / CP_AIRE                   # K/m, ~9.0 K/km
-GRADIENTE_CRITICO = 6.5e-3                                       # K/m (Manabe y Wetherald 1967)
 
 
 def diferencia_critica_cl_tr(gravedad, presion_superficie=PRESION_SUPERFICIE, presion_techo_cl=PRESION_TECHO_CL):
@@ -245,7 +244,7 @@ def construir_matriz_difusion_enmascarada(D, mascara):
 # ecuador y ~0.2 cerca de los polos, frente al 0.08 fijo de antes.
 N_AGUA = 1.34
 FRACCION_DIFUSA_CENIT = 0.10
-TAU_DIRECTO = -math.log((1 - FRACCION_DIFUSA_CENIT) * math.exp(-0.18))   # ~0.285 (TAU_NUEVO = 0.18)
+TAU_DIRECTO = -math.log((1 - FRACCION_DIFUSA_CENIT) * math.exp(-TAU_NUEVO))   # ~0.285 con TAU_NUEVO = 0.18
 ALBEDO_SUBSUPERFICIE = 0.006
 _tabla_albedo_directo = None
 
@@ -323,7 +322,7 @@ ESPESOR_ALBEDO_HIELO = 0.5       # m: por debajo, el hielo fino es mas oscuro (C
 ESPESOR_MINIMO_CONDUCCION = 0.01 # m: evita dividir por cero con hielo recien formado
 ANOS_SALTO_HIELO = (6, 12, 18)   # años en que se acelera el hielo grueso hacia su equilibrio (solo con acelerar=True)
 FLUJO_OCEANO_PROFUNDO = 4.0      # W/m2 hacia la base del hielo (Wagner y Eisenman 2015). Se RETIRA en igual
-                                 # cantidad del oceano libre (como hace en la realidad la circulacion profunda):
+                                 # cantidad, repartida por igual, de todo el oceano (v2.4.1; antes solo del libre):
                                  # redistribuye energia, no la crea.
 
 
@@ -441,8 +440,7 @@ def simular_fase2b(
         L_oc = construir_matriz_difusion_enmascarada(d_oc, ~es_tierra)
 
     def preparar_superficie(capacidades):
-        """Todo lo que depende de la capacidad de la superficie (cambia
-        durante el arranque rapido, ver mas abajo)."""
+        """Todo lo que depende de la capacidad de la superficie."""
         C0 = capacidades[..., 0]
         resolver = preparar_conduccion_implicita(capacidades, conductancias, paso_tiempo)
         L_sup = L_oc if I["difusion_reubicada"] else L_total
@@ -519,9 +517,13 @@ def simular_fase2b(
                     F0 = np.where(hay_hielo, sigma * T ** 4, F0)
                     F_superior = s_abs + dlr - F0 - flujo_h_hielo
                     T_cl = T_cl + (paso_tiempo / CAPACIDAD_CL) * flujo_h_hielo
-                    # flujo del oceano profundo a la base del hielo, retirado del oceano libre
-                    libre = es_agua & ~hay_hielo
-                    compensacion = FLUJO_OCEANO_PROFUNDO * (PESO * hay_hielo).sum() / max((PESO * libre).sum(), 1e-12)
+                    # Flujo del oceano profundo a la base del hielo. v2.4.1: la misma
+                    # cantidad total se retira de TODO el oceano por igual (hielo
+                    # incluido), no solo del libre: asi se conserva la energia
+                    # siempre, tambien con el oceano entero helado, y ninguna
+                    # celda libre recibe una retirada desproporcionada cuando
+                    # quedan pocas (antes: miles de W/m2 en ese caso limite).
+                    compensacion = FLUJO_OCEANO_PROFUNDO * (PESO * hay_hielo).sum() / max((PESO * es_agua).sum(), 1e-12)
                 else:
                     hay_hielo = None
             sube_cl = (1 - eps_b) * F0 + eps_b * Eb
@@ -529,7 +531,7 @@ def simular_fase2b(
             neto_s = s_abs + dlr - F0
             if hielo_on and hay_hielo is not None:
                 neto_s = np.where(hay_hielo, F_superior + FLUJO_OCEANO_PROFUNDO, neto_s)
-                neto_s = np.where(libre, neto_s - compensacion, neto_s)
+                neto_s = np.where(es_agua, neto_s - compensacion, neto_s)
             neto_b = eps_b * (F0 + baja_tr) - 2 * eps_b * Eb
             neto_t = eps_t * sube_cl - 2 * eps_t * Et + a_abs
             T_cl = T_cl + (paso_tiempo / CAPACIDAD_CL) * neto_b
@@ -643,6 +645,7 @@ def simular_fase2b(
                 conduccion_media += np.where(HIELO["h"] > 0, K_HIELO * (T_CONGELACION - HIELO["Ts"])
                                              / np.maximum(HIELO["h"], ESPESOR_MINIMO_CONDUCCION), 0.0)
         conduccion_media /= len(datos_orbita)
+        salto_hielo_este_ano = False
         if hielo_on and acelerar and (ano + 1) in ANOS_SALTO_HIELO:
             # ACELERACION DEL HIELO GRUESO (> 1 m). Sin verano, su espesor
             # tiende a h_eq = k (Tf - Ts) / F_base (McKay 2000), pero se
@@ -660,6 +663,7 @@ def simular_fase2b(
             HIELO["h"] = np.where(valido, np.clip(h_eq, 0.5 * h1, 2.0 * h1), h1)
             historial_r = []
             cambio_anterior = None
+            salto_hielo_este_ano = bool(valido.any())
             if DEPURAR and valido.any():
                 print(f"  -> salto del hielo grueso en {valido.sum()} celdas: espesor medio "
                       f"{h1[valido].mean():.2f} -> {HIELO['h'][valido].mean():.2f} m", flush=True)
@@ -707,7 +711,9 @@ def simular_fase2b(
             ds = dsup; dt_ = np.abs(T_tr - Tt0)
             i = np.unravel_index(np.argmax(ds), ds.shape); j = np.unravel_index(np.argmax(dt_), dt_.shape)
             print(f"  año {ano+1}: suelo {ds.max():.4f} en {i} ({'tierra' if es_tierra[i] else 'agua'}), TR {dt_.max():.4f} en {j}", flush=True)
-        if cambio < tolerancia_convergencia:
+        # v2.4.1: el año del salto del hielo no puede ser el ultimo (el estado
+        # acaba de cambiar y el cambio medido es de antes del salto).
+        if cambio < tolerancia_convergencia and not salto_hielo_este_ano:
             anos = ano + 1
             break
 
@@ -715,6 +721,13 @@ def simular_fase2b(
     pasos_dia = round(ROTACION_PERIODO / paso_tiempo)
     acum = {"abs": 0.0, "olr": 0.0}
     reg = {k: [] for k in ("min", "media", "max", "s_min", "s_media", "s_max", "cl", "tr", "h")}
+    # Fase 4 (v2.4): registro HORARIO del año final -- valor instantaneo a
+    # cada hora en punto (hora del meridiano 0) del aire a 2 m y de la
+    # superficie, en todas las celdas, para los dias completos del año.
+    # Solo si el paso de tiempo divide exactamente una hora.
+    pasos_hora = round(3600 / paso_tiempo) if 3600 % paso_tiempo == 0 else None
+    pasos_registro_horario = (len(datos_orbita) // pasos_dia) * pasos_dia
+    horario_aire, horario_sup = [], []
 
     def temp_referencia(T_col, T_cl):
         Ts = temp_superficie(T_col)
@@ -737,6 +750,9 @@ def simular_fase2b(
             mn = np.full((FILAS, COLUMNAS), np.inf); mx = -mn; suma = np.zeros((FILAS, COLUMNAS))
             smn = mn.copy(); smx = mx.copy(); ssuma = suma.copy(); cl_suma = suma.copy(); tr_suma = suma.copy(); cnt = 0
             h_suma = suma.copy()
+        if pasos_hora and p < pasos_registro_horario and p % pasos_hora == 0:
+            horario_aire.append(a_celsius(temp_referencia(T_col, T_cl)).astype(np.float32))
+            horario_sup.append(a_celsius(temp_superficie(T_col)).astype(np.float32))
         s, a = luz(toa, decl, ang, peso_hielo_actual())
         T_col, T_cl, T_tr = paso(T_col, T_cl, T_tr, s, a, acum)
         tref = temp_referencia(T_col, T_cl)
@@ -759,6 +775,9 @@ def simular_fase2b(
         "cl_media": np.array(reg["cl"]), "tr_media": np.array(reg["tr"]),
         "hielo_espesor": np.array(reg["h"]),
         "nieve_permanente_posible": nieve_permanente_posible(np.array(reg["media"]), es_tierra),
+        # (dia*24 + hora, FILAS, COLUMNAS), en C, instantaneo a la hora en punto del meridiano 0
+        "horario_aire2m": np.array(horario_aire) if pasos_hora else None,
+        "horario_superficie": np.array(horario_sup) if pasos_hora else None,
         "energia": {"absorbido": acum["abs"], "olr": acum["olr"],
                     "diferencia_relativa": abs(acum["abs"] - acum["olr"]) / acum["abs"]},
     }

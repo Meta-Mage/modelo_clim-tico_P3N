@@ -7,7 +7,7 @@ DIA = 98
 HORA = 16
 
 def anomalia_media(dia, hora):
-    tiempo_transcurrido = (dia -1) * 86400 + hora * 3600
+    tiempo_transcurrido = (dia -1) * ROTACION_PERIODO + hora * 3600
     AM_grados = (ANOMALIA_MEDIA_INICIO_GRADOS + tiempo_transcurrido * MOVIMIENTO_MEDIO) % 360
     AM_rad = AM_grados * PI/180
     return AM_rad
@@ -42,14 +42,11 @@ AV_VERANO = (AV_INVIERNO + PI) % (2*PI)
 AV_OTOÑO = (AV_INVIERNO + 3*PI/2) % (2*PI)
 
 def estacion(momento):
-    if momento >= AV_INVIERNO and momento < AV_PRIMAVERA:
-        return "Invierno"
-    elif momento >= AV_PRIMAVERA and momento < AV_VERANO:
-        return "Primavera"
-    elif momento >= AV_VERANO and momento < AV_OTOÑO:
-        return "Verano"
-    else:
-        return "Otoño"
+    # v2.4.1: se mide el angulo recorrido DESDE el inicio del invierno, asi
+    # que funciona sea cual sea ese inicio (la version anterior suponia
+    # AV_INVIERNO < 270 grados; con el valor actual, 20,9 grados, da lo mismo).
+    recorrido = (momento - AV_INVIERNO) % (2 * PI)
+    return ("Invierno", "Primavera", "Verano", "Otoño")[min(3, int(recorrido // (PI / 2)))]
 
 def info_estaciones():
     estaciones = ['Invierno', 'Primavera', 'Verano', 'Otoño']
@@ -71,7 +68,7 @@ def info_estaciones():
         t_desde_inicio = t_desde_perihelio - t_perihelio_a_inicio
         if t_desde_inicio < 0:
             t_desde_inicio += ORBITA_PERIODO
-        return t_desde_inicio / 86400 + 1
+        return t_desde_inicio / ROTACION_PERIODO + 1
 
     dias = [AV_a_dia(AV) for AV in limites_AV]
 
@@ -80,7 +77,7 @@ def info_estaciones():
         dia_inicio = dias[i]
         dia_fin = dias[(i + 1) % 4]
         if dia_fin < dia_inicio:
-            duracion = (ORBITA_PERIODO/86400 - dia_inicio + 1) + (dia_fin - 1)
+            duracion = (ORBITA_PERIODO/ROTACION_PERIODO - dia_inicio + 1) + (dia_fin - 1)
         else:
             duracion = dia_fin - dia_inicio
         resultados.append({

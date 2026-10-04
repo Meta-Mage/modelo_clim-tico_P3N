@@ -51,11 +51,9 @@ from orbita import info_estaciones, anomalia_media
 from rejilla import LATITUDES_GRADOS, FILAS, COLUMNAS
 from fase1_geografia import TIERRA, AGUA, ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from fase2_difusion import D_DIFUSION_REFERENCIA
-from cache_simulacion import precalcular_orbita_cacheada, simular_modelo_cacheado, simular_fase2b_cacheada
+from cache_simulacion import precalcular_orbita_cacheada, simular_fase2b_cacheada
 import fase2b_atmosfera as _F2B
 
-# D de la difusion horizontal (igual que en el resto de herramientas).
-D_GRID_ACTIVO = np.full((FILAS, COLUMNAS), D_DIFUSION_REFERENCIA)
 
 # Dias de referencia por estacion, repartidos por igual en el tiempo
 # real de cada estacion (inicio, y fracciones iguales a partir de ahi).
@@ -93,7 +91,7 @@ def obtener_dias_referencia(num_dias, dias_por_estacion=DIAS_POR_ESTACION):
     for est in info_estaciones():
         for k in range(dias_por_estacion):
             dia_real = est["dia_inicio"] + est["duracion"] * k / dias_por_estacion
-            indice = int(round(dia_real - 1)) % num_dias
+            indice = int(np.floor(dia_real - 1)) % num_dias   # el registro que contiene ese instante
             dias.append((f"{etiquetas[k]} de {est['estacion']}", indice))
     return dias
 
@@ -108,8 +106,8 @@ def dias_perihelio_afelio(num_dias):
     am_inicio = anomalia_media(1, 0)  # radianes
     t_perihelio = ((2 * PI - am_inicio) % (2 * PI)) / (2 * PI) * ORBITA_PERIODO
     t_afelio = ((PI - am_inicio) % (2 * PI)) / (2 * PI) * ORBITA_PERIODO
-    indice_perihelio = int(t_perihelio // 86400) % num_dias
-    indice_afelio = int(t_afelio // 86400) % num_dias
+    indice_perihelio = int(t_perihelio // ROTACION_PERIODO) % num_dias
+    indice_afelio = int(t_afelio // ROTACION_PERIODO) % num_dias
     return indice_perihelio, indice_afelio
 
 
@@ -341,11 +339,15 @@ if __name__ == "__main__":
     tipo_superficie, altitud_metros, nombre_mapa = cargar_mapa_activo_de_c3n()
 
     print(f"Simulando mapa '{nombre_mapa}' (si ya esta en cache, es instantaneo)...")
-    _, anos_convergencia, registro_minima, registro_media, registro_maxima = simular_modelo_cacheado(
+    # Una sola carga de la simulacion (v2.4.1: antes se cargaba dos veces).
+    # Temperaturas de las tablas: AIRE A 2 m.
+    completo = simular_fase2b_cacheada(
         datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD,
-        ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA, D_GRID_ACTIVO,
+        ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA, float(D_DIFUSION_REFERENCIA),
         nombre_mapa=nombre_mapa,
     )
+    anos_convergencia = completo["anos"]
+    registro_minima, registro_media, registro_maxima = completo["reg_min"], completo["reg_media"], completo["reg_max"]
     num_dias = registro_media.shape[0]
     dias_referencia = obtener_dias_referencia(num_dias)
     indice_perihelio, indice_afelio = dias_perihelio_afelio(num_dias)
@@ -357,14 +359,7 @@ if __name__ == "__main__":
     if anos_convergencia >= 50:
         cabecera.append("AVISO: se alcanzo el limite de 50 años sin confirmar convergencia -- puede no ser el equilibrio.")
 
-    # Fase 2b: la temperatura de las tablas es la del AIRE A 2 m. Datos
-    # complementarios del suelo y de las dos capas de aire (misma
-    # simulacion, ya en cache: no recalcula nada).
-    completo = simular_fase2b_cacheada(
-        datos_orbita, tipo_superficie, altitud_metros, EMISIVIDAD,
-        ALBEDO_POR_TIPO, INERCIA_POR_TIPO, PROFUNDIDAD_OPTICA, float(D_DIFUSION_REFERENCIA),
-        nombre_mapa=nombre_mapa,
-    )
+    # Datos complementarios del suelo y de las dos capas de aire.
     todo = np.ones_like(tipo_superficie, dtype=bool)
     es_tierra = tipo_superficie == TIERRA
     oscilacion_suelo = (completo["suelo_max"] - completo["suelo_min"]).mean(axis=0)

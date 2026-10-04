@@ -7,7 +7,7 @@ from temperatura import *
 import math
 
 # PARÁMETROS FIJOS
-MASA = 0.97
+MASA = 0.97   # HISTORICO (modelo de un punto). El valor vigente es S3N_MASAS_SOLARES en parametros.py
 
 # RANGOS DEL BARRIDO
 INCLINACIONES = [round(i * 1.0, 1) for i in range(46)]   # 0° a 45°

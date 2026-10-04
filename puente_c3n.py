@@ -28,6 +28,11 @@ def cargar_mapa_activo_de_c3n():
 
     tipo_superficie = np.array(datos["agua_tierra"], dtype=int).reshape(FILAS, COLUMNAS)
     altitud_metros = np.array(datos["altitud_metros"], dtype=float).reshape(FILAS, COLUMNAS)
+    # v2.4.1: una celda de agua esta a 0 m. C3N calcula la altitud de cada
+    # celda como media de sus pixeles, y hasta C3N v0.9.3 contaba tambien
+    # la altitud "oculta" de pixeles repintados como agua; aqui se anula
+    # por si el puente viene de una version anterior.
+    altitud_metros = np.where(tipo_superficie == TIERRA, altitud_metros, 0.0)
 
     valores_validos = {TIERRA, AGUA}
     if not set(np.unique(tipo_superficie)).issubset(valores_validos):

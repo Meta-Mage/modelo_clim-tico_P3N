@@ -10,10 +10,8 @@ from datetime import datetime
 
 import shutil
 ffmpeg = shutil.which('ffmpeg')
-if ffmpeg:
+if ffmpeg:   # v2.4.1: sin la ruta fija de un ordenador de Windows de la universidad
     matplotlib.rcParams['animation.ffmpeg_path'] = ffmpeg
-else:
-    matplotlib.rcParams['animation.ffmpeg_path'] = r'C:\Users\sala.AULASUC-214VNRO\ffmpeg\ffmpeg-master-latest-win64-gpl-shared\bin\ffmpeg.exe'
     
 PASO_TIEMPO = 900
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -47,8 +45,8 @@ def precalcular_orbita(luminosidad, inclinacion_axial_rad, semieje):
     datos = []
     for paso in range(pasos):
         t = paso * PASO_TIEMPO
-        dia = int(t / 86400) + 1
-        hora = (t % 86400) / 3600
+        dia = int(t / ROTACION_PERIODO) + 1
+        hora = (t % ROTACION_PERIODO) / 3600
         AM = anomalia_media(dia, hora)
         AE = anomalia_excentrica(AM)
         AV = anomalia_verdadera(AE)
@@ -133,7 +131,7 @@ def opcion_momento(datos):
 
     T_final, ciclo = simular(latitud_rad, datos, EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA)
 
-    pasos_por_dia = int(86400 / PASO_TIEMPO)
+    pasos_por_dia = int(ROTACION_PERIODO / PASO_TIEMPO)
     inicio_dia = (dia - 1) * pasos_por_dia
     paso_hora = int(hora * 3600 / PASO_TIEMPO)
     temp_momento = ciclo[inicio_dia + paso_hora]
@@ -263,10 +261,10 @@ def opcion_momento(datos):
     for i, lat in enumerate(lats):
         lat_rad = lat * PI / 180
         _, ciclo_lat = simular(lat_rad, datos, EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA)
-        inicio_dia_v = (dia - 1) * int(86400 / PASO_TIEMPO)
+        inicio_dia_v = (dia - 1) * int(ROTACION_PERIODO / PASO_TIEMPO)
         for j, lon in enumerate(lons):
             for h in range(24):
-                desfase = int(lon / 360 * 86400 / PASO_TIEMPO)
+                desfase = int(lon / 360 * ROTACION_PERIODO / PASO_TIEMPO)
                 paso = inicio_dia_v + hora_inicio_pasos + h * pasos_hora + desfase
                 paso = paso % len(ciclo_lat)
                 mapa[i, j, h] = ciclo_lat[paso]
@@ -308,7 +306,7 @@ def opcion_anual(datos):
     import numpy as np
 
     latitudes_consulta = list(range(-60, 65, 5))
-    pasos_por_dia = int(86400 / PASO_TIEMPO)
+    pasos_por_dia = int(ROTACION_PERIODO / PASO_TIEMPO)
 
     # Calcular ciclos para todas las latitudes
     print("Calculando ciclos para todas las latitudes...")
@@ -443,7 +441,7 @@ def opcion_anual(datos):
         lat_rad = lat * PI / 180
         _, ciclo_lat = simular(lat_rad, datos, EMISIVIDAD, INERCIA_TERMICA, ALBEDO, PROFUNDIDAD_OPTICA)
         for j, lon in enumerate(lons_v):
-            desfase = int(lon / 360 * 86400 / PASO_TIEMPO)
+            desfase = int(lon / 360 * ROTACION_PERIODO / PASO_TIEMPO)
             for d in range(270):
                 inicio = d * pasos_por_dia + desfase
                 inicio = inicio % len(ciclo_lat)

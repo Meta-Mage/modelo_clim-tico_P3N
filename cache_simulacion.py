@@ -40,7 +40,9 @@ import pickle
 
 import numpy as np
 
-CARPETA_CACHE = os.path.join("outputs", "cache")
+# v2.4.1: ruta absoluta (junto a este archivo), para que la cache sea la
+# misma aunque M3N se use desde otra carpeta (por ejemplo, desde H3N).
+CARPETA_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "cache")
 
 
 def _alimentar_hash(hasher, obj):
@@ -111,10 +113,12 @@ def cargar_o_calcular(nombre_funcion, parametros_clave, funcion_calculo, etiquet
 
 
 # ================================================================
-# ENVOLTORIOS CONCRETOS -- uno para precalcular_orbita(), otro para
-# simular_rejilla_combinada_con_registro(). Mismos argumentos y mismo
-# resultado que las funciones reales; la unica diferencia es que pasan
-# primero por la cache.
+# ENVOLTORIOS CONCRETOS -- para precalcular_orbita(), para el modelo de
+# la Fase 2 (simular_rejilla_combinada_con_registro, se conserva como
+# referencia), para el modelo actual (simular_fase2b) y el punto de
+# entrada de las herramientas (simular_modelo_cacheado). Mismos
+# argumentos y mismo resultado que las funciones reales; la unica
+# diferencia es que pasan primero por la cache.
 # ================================================================
 
 def precalcular_orbita_cacheada(luminosidad, inclinacion_axial_rad, semieje):
@@ -196,39 +200,76 @@ def simular_rejilla_combinada_cacheada(
 
 # ================================================================
 # FASE 2b (02/10/2026): simulacion con atmosfera de dos capas
-# (fase2b_atmosfera.py). La clave incluye TODAS las constantes en
-# mayusculas de ese modulo (interruptores, capacidades, emisividades,
-# viento, rugosidades, fraccion oceanica...), asi que cambiar cualquiera
-# invalida la cache sola, sin tener que acordarse de añadirla aqui.
+# (fase2b_atmosfera.py). La clave incluye:
+#   - todas las constantes en mayusculas de ese modulo (interruptores,
+#     capacidades, emisividades, viento, rugosidades...), menos DEPURAR,
+#     que solo cambia lo que se imprime;
+#   - v2.4.1: la HUELLA DEL CODIGO FUENTE de los modulos que hacen la
+#     fisica. Antes, una correccion de la fisica que no cambiara ninguna
+#     constante seguia sirviendo resultados antiguos de la cache;
+#   - los argumentos de la simulacion, tambien los que tienen valor por
+#     defecto (max_anos, acelerar, estado_inicial).
+# Asi, cambiar CUALQUIER cosa que afecte al resultado invalida la cache
+# sola, sin tener que acordarse de nada.
 # ================================================================
+
+MODULOS_FISICA = (
+    "fase2b_atmosfera.py", "fase2_inercia_multicapa.py", "fase2_difusion.py",
+    "fase1_geografia.py", "rejilla.py", "parametros.py", "temperatura.py",
+    "orbita.py", "geometria.py",
+)
+
+
+def huella_codigo(modulos=MODULOS_FISICA):
+    """SHA-256 del codigo fuente de los modulos de la fisica."""
+    carpeta = os.path.dirname(os.path.abspath(__file__))
+    h = hashlib.sha256()
+    for nombre in modulos:
+        with open(os.path.join(carpeta, nombre), "rb") as f:
+            h.update(nombre.encode())
+            h.update(f.read())
+    return h.hexdigest()[:24]
+
+
+def clave_fase2b(datos_orbita, tipo_superficie, altitud_metros, emisividad,
+                 albedo_por_tipo, inercia_por_tipo, profundidad_optica, D,
+                 paso_tiempo, tolerancia_convergencia, max_anos, acelerar, estado_inicial):
+    import fase2b_atmosfera as F
+    from fase2_inercia_multicapa import K_DIFUSIVIDAD_TIERRA, N_CAPAS_DEFECTO
+    constantes = tuple(sorted(
+        (nombre, repr(valor)) for nombre, valor in vars(F).items()
+        if nombre.isupper() and nombre != "DEPURAR" and isinstance(valor, (int, float, dict, tuple))
+    ))
+    return (
+        # v3 (v2.4.1): la clave incluye la huella del codigo fuente
+        "simular_fase2b_v3", datos_orbita, tipo_superficie, altitud_metros, emisividad,
+        tuple(sorted(albedo_por_tipo.items())), tuple(sorted(inercia_por_tipo.items())),
+        profundidad_optica, D, K_DIFUSIVIDAD_TIERRA, N_CAPAS_DEFECTO, paso_tiempo,
+        tolerancia_convergencia, max_anos, acelerar, estado_inicial, constantes, huella_codigo(),
+    )
+
 
 def simular_fase2b_cacheada(
     datos_orbita, tipo_superficie, altitud_metros, emisividad,
     albedo_por_tipo, inercia_por_tipo, profundidad_optica, D,
     nombre_mapa="", paso_tiempo=None, tolerancia_convergencia=0.015,
+    max_anos=50, acelerar=True, estado_inicial="libre",
 ):
     """Devuelve el dict completo de simular_fase2b()."""
     import fase2b_atmosfera as F
-    from fase2_inercia_multicapa import K_DIFUSIVIDAD_TIERRA, N_CAPAS_DEFECTO
     from temperatura import PASO_TIEMPO as PASO_TIEMPO_DEFECTO
     if paso_tiempo is None:
         paso_tiempo = PASO_TIEMPO_DEFECTO
-    constantes = tuple(sorted(
-        (nombre, repr(valor)) for nombre, valor in vars(F).items()
-        if nombre.isupper() and isinstance(valor, (int, float, dict, tuple))
-    ))
-    clave = (
-        "simular_fase2b_v1", datos_orbita, tipo_superficie, altitud_metros, emisividad,
-        tuple(sorted(albedo_por_tipo.items())), tuple(sorted(inercia_por_tipo.items())),
-        profundidad_optica, D, K_DIFUSIVIDAD_TIERRA, N_CAPAS_DEFECTO, paso_tiempo,
-        tolerancia_convergencia, constantes,
-    )
+    clave = clave_fase2b(datos_orbita, tipo_superficie, altitud_metros, emisividad,
+                         albedo_por_tipo, inercia_por_tipo, profundidad_optica, D,
+                         paso_tiempo, tolerancia_convergencia, max_anos, acelerar, estado_inicial)
     return cargar_o_calcular(
         "simulacion_fase2b", clave,
         lambda: F.simular_fase2b(
             datos_orbita, tipo_superficie, altitud_metros, emisividad,
             albedo_por_tipo, inercia_por_tipo, profundidad_optica, D,
-            paso_tiempo=paso_tiempo, tolerancia_convergencia=tolerancia_convergencia,
+            paso_tiempo=paso_tiempo, max_anos=max_anos, tolerancia_convergencia=tolerancia_convergencia,
+            acelerar=acelerar, estado_inicial=estado_inicial,
         ),
         etiqueta=nombre_mapa,
     )

@@ -1,6 +1,8 @@
 # M3N — Diseño de la Fase 2b: atmósfera con cuerpo
 
 **Estado:** aprobado por Carlos (02/10/2026) e **implementado** en `fase2b_atmosfera.py` (02/10/2026). La sección 11 recoge lo que cambió al implementarlo y los resultados de la validación, y la sección 12 las correcciones de la versión v2.2c.
+
+> **Cómo leer este documento (v2.4.1).** Las secciones 0–10 son el **diseño original**, escrito antes de implementar. Se conservan como registro de cómo se razonó, pero varios valores y detalles cambiaron después (secciones 11 y 12). **Los valores vigentes están en la sección 13**; si algo de las secciones 0–10 la contradice, prevalece la 13.
 **Fecha:** 01/10/2026 · **Versión prevista:** `v2.2b` · **Parte de:** `v2.2` (commit `a0b5059` + arreglo del solsticio)
 
 ---
@@ -204,6 +206,8 @@ Diagnóstico: se interpola entre la superficie (`T_s`) y el aire de la CL con el
 ---
 
 ## 3. Parámetros
+
+> **Histórico:** tabla del diseño original. Los valores vigentes están en la **sección 13**.
 
 | Parámetro | Valor | Fuente / criterio | Estado |
 |---|---|---|---|
@@ -434,6 +438,35 @@ Polos unos 12 °C más templados; latitudes medias y trópicos casi iguales.
 
 - V0: con todos los interruptores apagados, idéntico bit a bit a v2.2.
 - Energía: diferencia de 2×10⁻⁴ en lo alto de la atmósfera.
+
+---
+
+## 13. Valores vigentes (v2.4.1, 03/10/2026)
+
+Resumen de lo que hace **hoy** el código (`fase2b_atmosfera.py` y `parametros.py`), para no tener que reconstruirlo a partir de las secciones históricas.
+
+| Concepto | Valor vigente | Dónde se decidió |
+|---|---|---|
+| Presión en superficie | 1 bar, **igual en todas las altitudes** (limitación conocida) | §10 |
+| Capas | CL 1000–900 hPa (1,11×10⁶ J/m²/K) y TR 900–0 hPa (9,98×10⁶ J/m²/K) | §2 |
+| Luz | τ = 0,18; del atenuado, 73 % absorbido por la atmósfera y 27 % al espacio | §11 |
+| Emisividades | `ε_b` = 0,740 (CL), `ε_t` = 0,661 (TR) | §11 (calibradas con Wild et al. 2019 y la Atmósfera Estándar) |
+| Albedo del océano | Fresnel (n = 1,34) + Cox-Munk según la altura del sol, más difuso 0,0675 y subsuperficie 0,006; fracción difusa con τ_directo ≈ 0,285 (interruptor I8) | §12.2 |
+| Calor sensible | Fórmula bulk, viento 5 m/s, `C_HN` océano 1,1×10⁻³, rugosidad `z0m` tierra 0,01 m y agua 2×10⁻⁴ m; estabilidad de **Louis, Tiedtke y Geleyn (1982)** con b = c = d = 5; implícito 2×2 | §11, §12.4 |
+| Ajuste convectivo | Umbral CL−TR = 40,5 K en P3N (medias ponderadas en masa, Atmósfera Estándar; 39,0 K en la Tierra) | §12.1 |
+| Transporte | Difusión atmosférica en la TR, `D_atm` = 2,4 W/m²/K, y oceánica en la capa de mezcla, `D_oc` = 0,12 W/m²/K, independientes | §12.3 (calibradas en modo Tierra) |
+| Aire a 2 m | Interpolación logarítmica entre la superficie y la CL, **perfil neutro** (sin estabilidad; limitación conocida, a diferencia de lo previsto en §2.7) | §11 |
+| Hielo marino | Fase 3 (interruptor I9), ver `DISENO_FASE3.md` | — |
+| Registro | Diario (mín., media y máx.) y horario (Fase 4), ver `DISENO_FASE4.md` | — |
+| Masa de S3N | 0,874 M☉: 15,94 °C sin hielo y 15,30 °C con hielo (Carlos: no se recalibra) | §12.5, `DISENO_FASE3.md` §6.0 |
+| Interruptores | 9: I1–I7 de la Fase 2b, I8 del albedo del océano, I9 del hielo marino | — |
+| Paso de tiempo | 900 s | §4 |
+| Convergencia | Cambio anual < 0,015 K en la superficie y la TR, con aceleración geométrica y, con hielo, el salto del hielo grueso | §5, `DISENO_FASE3.md` §4 |
+
+**Limitaciones conocidas** (para no tomarlas por resultados):
+- Sin evaporación (Fase 5), la superficie, sobre todo el océano, sale bastante más caliente que el aire.
+- La presión no varía con la altitud, y sobre las montañas la CL emite y convecciona como si estuviera a nivel del mar.
+- El aire a 2 m usa un perfil neutro.
 
 ---
 
