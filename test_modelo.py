@@ -1,4 +1,4 @@
-# test_modelo.py -- pruebas rapidas del modelo actual (v2.4.2).
+# test_modelo.py -- pruebas rapidas del modelo actual (v2.4.3).
 #
 # Uso:  python -m pytest test_modelo.py      (unos segundos)
 #
@@ -138,8 +138,9 @@ def test_estacion_no_depende_de_donde_empiece_el_invierno(monkeypatch):
 
 # ---- duracion del dia (v2.4.2) ----
 
-def test_angulo_horario_identico_con_dia_de_24h():
+def test_angulo_horario_identico_con_dia_de_24h(monkeypatch):
     import geometria as G
+    monkeypatch.setattr(G, "MEDIO_DIA_H", 86400 / 3600 / 2)   # dia de 24 h, como en la v2.4.1
     for h in np.arange(0, 24, 0.25):
         for lon in (-177.5, -0.5, 0.0, 92.5):
             antes = (h - 12) * math.pi / 12 + lon * math.pi / 180   # formula de la v2.4.1
@@ -162,3 +163,23 @@ def test_simulacion_rechaza_dia_que_no_es_multiplo_del_paso(monkeypatch):
     monkeypatch.setattr(F, "ROTACION_PERIODO", 63360)   # 17,6 h: 70,4 pasos de 900 s
     with pytest.raises(ValueError, match="multiplo exacto del paso"):
         F.simular_fase2b(None, None, None, None, None, None, None, None, paso_tiempo=900)
+
+
+# ---- dia de 19,84 h, hora de P3N y paso de 992 s (v2.4.3) ----
+
+def test_dia_hora_y_paso_encajan():
+    import parametros as P
+    from temperatura import PASO_TIEMPO
+    assert P.ROTACION_PERIODO == 71424                     # 19,84 h
+    assert P.ROTACION_PERIODO % PASO_TIEMPO == 0           # 72 pasos por dia
+    assert P.DURACION_HORA % PASO_TIEMPO == 0              # 3 pasos por hora de P3N
+    assert P.ROTACION_PERIODO / PASO_TIEMPO == 72
+    assert P.DURACION_HORA == 2976
+
+
+def test_factor_de_rotacion_de_D():
+    import parametros as P
+    p_sid = 2 * math.pi / P.OMEGA_SIDERAL
+    assert p_sid == pytest.approx(71206.1, abs=0.5)        # dia sideral: 19 h 46 min 46 s
+    assert P.FACTOR_ROTACION_D == pytest.approx((p_sid / 86164.09) ** 2, rel=1e-5)
+    assert 0.68 < P.FACTOR_ROTACION_D < 0.69

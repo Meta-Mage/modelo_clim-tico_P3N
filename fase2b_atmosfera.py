@@ -27,7 +27,7 @@ import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg import splu
 
-from parametros import CONSTANTE_SB, ROTACION_PERIODO, P3N_GRAVEDAD
+from parametros import CONSTANTE_SB, ROTACION_PERIODO, P3N_GRAVEDAD, DURACION_HORA, FACTOR_ROTACION_D
 from temperatura import PASO_TIEMPO as PASO_TIEMPO_POR_DEFECTO
 from rejilla import FILAS, COLUMNAS, LATITUDES_GRADOS, LONGITUDES_GRADOS
 from fase1_geografia import TIERRA, AGUA, correccion_altitud, GRADIENTE_TERMICO
@@ -135,10 +135,10 @@ DEPURAR = False
 # total por la atmosfera. Segun Williams y Kasting (1997), D depende de
 # presion, composicion y rotacion, no del radio: el mismo valor vale
 # para P3N (1 bar, aire tipo Tierra, dia de 24 h).
-# OJO (v2.4.2): D depende de la rotacion, D proporcional a 1/Omega^2
-# (Williams y Kasting 1997). Estos valores valen para un dia de 24 h; si
-# cambia ROTACION_PERIODO hay que escalarlos (se hara en la Fase 5a, que
-# recalibra D; ver DISENO_FASE5A.md, seccion 9).
+# v2.4.3: D depende de la rotacion, D proporcional a 1/Omega^2 (Williams y
+# Kasting 1997). D_ATMOSFERA es el valor de la Tierra (24 h); la simulacion
+# lo multiplica por parametros.FACTOR_ROTACION_D. D_OCEANO no se escala (el
+# escalado de Williams y Kasting es para la atmosfera); pendiente de revisar.
 #
 # RESULTADO DE LA CALIBRACION (02/10/2026, mapa terrestre a 5 grados,
 # sin nubes ni humedad):
@@ -441,7 +441,8 @@ def simular_fase2b(
     D_grid = np.full((FILAS, COLUMNAS), D)
     L_total = construir_matriz_difusion(D_grid)
     if I["difusion_reubicada"]:
-        d_atm = D_ATMOSFERA if d_atmosfera is None else d_atmosfera
+        # v2.4.3: D_ATMOSFERA esta calibrado en la Tierra (24 h); se escala con la rotacion de P3N
+        d_atm = D_ATMOSFERA * FACTOR_ROTACION_D if d_atmosfera is None else d_atmosfera
         d_oc = D_OCEANO if d_oceano is None else d_oceano
         L_tr = construir_matriz_difusion(np.full((FILAS, COLUMNAS), d_atm))
         fact_tr = splu((sp.diags(np.full(FILAS * COLUMNAS, CAPACIDAD_TR / paso_tiempo)) - L_tr).tocsc())
@@ -732,9 +733,9 @@ def simular_fase2b(
     # Fase 4 (v2.4): registro HORARIO del año final -- valor instantaneo a
     # cada hora en punto (hora del meridiano 0) del aire a 2 m y de la
     # superficie, en todas las celdas, para los dias completos del año.
-    # Solo si el paso de tiempo divide exactamente una hora y el dia tiene
-    # un numero entero de horas (v2.4.2: antes se daba por hecho que 24).
-    pasos_hora = round(3600 / paso_tiempo) if (3600 % paso_tiempo == 0 and ROTACION_PERIODO % 3600 == 0) else None
+    # Solo si el paso de tiempo divide exactamente una HORA DE P3N (v2.4.3:
+    # 1/24 del dia, parametros.DURACION_HORA; antes, 3600 s).
+    pasos_hora = round(DURACION_HORA / paso_tiempo) if DURACION_HORA % paso_tiempo == 0 else None
     pasos_registro_horario = (len(datos_orbita) // pasos_dia) * pasos_dia
     horario_aire, horario_sup = [], []
 

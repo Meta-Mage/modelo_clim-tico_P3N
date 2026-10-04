@@ -282,7 +282,11 @@ Precipitación (total y nieve), evaporación, humedad del aire a 2 m o punto de 
 
 ---
 
-## 9. Dependencia de la rotación (pendiente de Carlos y Ozan)
+## 9. Dependencia de la rotación — DECIDIDA (Carlos y Ozan, 04/10/2026)
+
+**Día solar de 19,84 h** (71 424 s), aplicado en la v2.4.3: hora de P3N = 1/24 del día (2976 s), paso de 992 s, año de 326,75 días y día sideral de 19 h 46 min 46 s. Equivale en circulación (Ω·a) a un día terrestre de ~27,0 h. D de la atmósfera escalado por (Ω_Tierra/Ω_P3N)² = 0,684. Pendiente: prueba de sensibilidad del paso (`prueba_paso.py`).
+
+Notas originales:
 
 - Con la v2.4.2 el código acepta cualquier día que cumpla dos condiciones: **múltiplo exacto del paso de 900 s** y, para tener registro horario (y exportación a H3N), **número entero de horas de 3600 s**. Dentro del intervalo de Carlos y Ozan (16,5–18,7 h) eso deja **17 h o 18 h**. Otros valores (p. ej. 17,6 h = 63 360 s, que no es múltiplo de 900 s) exigirían cambiar el paso de tiempo o redefinir la "hora" de P3N.
 - **Fijarlo antes de la calibración de la 5a** evita calibrar dos veces.

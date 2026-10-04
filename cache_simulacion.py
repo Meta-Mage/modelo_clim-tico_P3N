@@ -124,7 +124,7 @@ def cargar_o_calcular(nombre_funcion, parametros_clave, funcion_calculo, etiquet
 def precalcular_orbita_cacheada(luminosidad, inclinacion_axial_rad, semieje):
     from parametros import (
         ORBITA_PERIODO, ORBITA_EXCENTRICIDAD,
-        ANOMALIA_MEDIA_INICIO_GRADOS, DESFASE_SOLSTICIO_RAD,
+        ANOMALIA_MEDIA_INICIO_GRADOS, DESFASE_SOLSTICIO_RAD, ROTACION_PERIODO,
     )
     from temperatura import precalcular_orbita, PASO_TIEMPO
 
@@ -135,10 +135,15 @@ def precalcular_orbita_cacheada(luminosidad, inclinacion_axial_rad, semieje):
     # en cualquiera de ellos no se detectaria. v2 (01/10/2026): se añaden
     # excentricidad, anomalia media inicial y desfase del solsticio, que
     # faltaban en v1.
+    # v3 (v2.4.3): CORRIGE que la clave no incluyera la duracion del dia
+    # (ROTACION_PERIODO): al cambiarla sin cambiar el paso de tiempo se habria
+    # reutilizado una orbita con el sol en la posicion del dia antiguo. Se
+    # añade tambien la huella del codigo de la fisica, como en la simulacion.
     clave = (
-        "precalcular_orbita_v2", luminosidad, inclinacion_axial_rad, semieje,
-        ORBITA_PERIODO, PASO_TIEMPO,
+        "precalcular_orbita_v3", luminosidad, inclinacion_axial_rad, semieje,
+        ORBITA_PERIODO, PASO_TIEMPO, ROTACION_PERIODO,
         ORBITA_EXCENTRICIDAD, ANOMALIA_MEDIA_INICIO_GRADOS, DESFASE_SOLSTICIO_RAD,
+        huella_codigo(),
     )
     return cargar_o_calcular(
         "orbita", clave,

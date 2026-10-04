@@ -24,9 +24,9 @@
 #
 # Indices: fila 0 = la mas al norte (87.5 N), columna 0 = 177.5 O (igual
 # que la rejilla de M3N). Dia d = indice 0..269 (dia d+1 del año).
-# Hora k = dia*H + hora, instantanea a la hora en punto del MERIDIANO 0,
-# con H = horas_por_dia (24 con el dia de 24 h; v2.4.2: sale del dia real).
-# Hora solar local de una celda = hora del meridiano 0 + longitud/(360/H).
+# Hora k = dia*24 + hora, instantanea a la hora en punto del MERIDIANO 0.
+# v2.4.3: son HORAS DE P3N (1/24 del dia solar, DURACION_HORA s).
+# Hora solar local de una celda = hora del meridiano 0 + longitud/15.
 #
 # La documentacion completa del formato esta en DISENO_FASE4.md.
 
@@ -130,9 +130,8 @@ def fechas_clave(num_dias):
 def construir_exportacion(r, tipo, altitud, nombre_mapa, datos_orbita, paso_tiempo):
     num_dias = r["reg_media"].shape[0]
     if r.get("horario_aire2m") is None:
-        raise ValueError("La simulacion no tiene registro horario (paso de tiempo que no divide una hora, "
-                         "o dia que no tiene un numero entero de horas)")
-    horas_dia = ROTACION_PERIODO // 3600            # v2.4.2: antes, 24 fijo
+        raise ValueError("La simulacion no tiene registro horario (el paso de tiempo no divide una hora de P3N)")
+    horas_dia = HORAS_POR_DIA                       # v2.4.3: horas de P3N (1/24 del dia)
     grados_hora = 360 / horas_dia
     decl, flujo, dist = astronomia_diaria(datos_orbita, num_dias, paso_tiempo)
     interruptores = {k: bool(v) for k, v in F2B.INTERRUPTORES_FASE2B.items()}
@@ -150,7 +149,8 @@ def construir_exportacion(r, tipo, altitud, nombre_mapa, datos_orbita, paso_tiem
         },
         "tiempo": {
             "dias": num_dias, "horas_por_dia": horas_dia,
-            "duracion_dia_s": ROTACION_PERIODO, "duracion_año_dias": ORBITA_PERIODO / ROTACION_PERIODO,
+            "duracion_dia_s": ROTACION_PERIODO, "duracion_hora_s": DURACION_HORA,
+            "duracion_año_dias": ORBITA_PERIODO / ROTACION_PERIODO,
             "referencia_hora": f"meridiano 0 (hora solar local = hora + longitud/{grados_hora:g})",
             "fechas_clave": fechas_clave(num_dias),
         },

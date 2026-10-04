@@ -13,7 +13,10 @@ ffmpeg = shutil.which('ffmpeg')
 if ffmpeg:   # v2.4.1: sin la ruta fija de un ordenador de Windows de la universidad
     matplotlib.rcParams['animation.ffmpeg_path'] = ffmpeg
     
-PASO_TIEMPO = 900
+# v2.4.3: 992 s = 1/72 del dia de 19,84 h (3 pasos por hora de P3N). Antes
+# 900 s (dia de 24 h). PENDIENTE: prueba de sensibilidad con la mitad (496 s),
+# como la de la Fase 0, para confirmar que el resultado no depende del paso.
+PASO_TIEMPO = 992
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 

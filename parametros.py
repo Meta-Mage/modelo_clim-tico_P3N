@@ -61,14 +61,28 @@ def _anomalia_verdadera_inicio():
 
 DESFASE_SOLSTICIO_RAD = (3 * PI / 2 - _anomalia_verdadera_inicio()) % (2 * PI)
 # Duracion del DIA SOLAR de P3N en segundos (de mediodia a mediodia).
-# PROVISIONAL: Carlos y Ozan han fijado un intervalo de 16,5-18,7 h
-# (04/10/2026), con valor exacto por decidir. Requisitos (v2.4.2):
-#   - multiplo exacto del paso de tiempo (900 s) -> lo comprueba la simulacion;
-#   - multiplo de 3600 s para tener registro horario y exportacion a H3N.
-# El dia sideral (giro respecto a las estrellas) seria
-# 1 / (1/ROTACION_PERIODO + 1/ORBITA_PERIODO) para un giro en el mismo
-# sentido que la orbita.
-ROTACION_PERIODO = 86400
+# v2.4.3: 19,84 h (decision de Carlos y Ozan, 04/10/2026; antes 24 h
+# provisionales). Es el dia SOLAR, el que viven los habitantes; el dia
+# sideral (giro respecto a las estrellas), para un giro en el mismo
+# sentido que la orbita, es 1 / (1/ROTACION_PERIODO + 1/ORBITA_PERIODO)
+# = 71 206 s (19 h 46 min 46 s). Año: 326,75 dias solares.
+# Requisito: multiplo exacto del paso de tiempo (temperatura.PASO_TIEMPO)
+# -> lo comprueba la simulacion.
+ROTACION_PERIODO = 71_424
+
+# HORA DE P3N (v2.4.3, decision de Carlos 04/10/2026): 1/24 del dia solar,
+# 2976 s (unos 49,6 min terrestres). El registro horario y la exportacion
+# a H3N van en horas de P3N: 24 por dia.
+HORAS_POR_DIA = 24
+DURACION_HORA = ROTACION_PERIODO / HORAS_POR_DIA
+
+# Rotacion y transporte de calor (v2.4.3): los coeficientes de difusion de
+# la atmosfera estan calibrados en la Tierra; la difusividad de los
+# remolinos escala como 1/Omega^2 (Williams y Kasting 1997), con Omega la
+# velocidad de giro SIDERAL. FACTOR_ROTACION_D = (Omega_Tierra/Omega_P3N)^2.
+OMEGA_TIERRA_SIDERAL = 7.2921159e-5      # rad/s
+OMEGA_SIDERAL = 2 * PI * (1 / ROTACION_PERIODO + 1 / ORBITA_PERIODO)
+FACTOR_ROTACION_D = (OMEGA_TIERRA_SIDERAL / OMEGA_SIDERAL) ** 2
 
 #ATMÓSFERA Y SUPERFICIE
 INCLINACION_AXIAL = 1.7
