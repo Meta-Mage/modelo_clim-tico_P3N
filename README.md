@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `v3.1-pre3`** (octubre de 2026). Igual que la v3.1-pre2 más el **núcleo dinámico propio de la Fase 6 en desarrollo** (módulos `fase6_*.py`, todavía sin conectar al modelo: no cambia el clima). La v3.1-pre2 es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 (calibrada en modo Tierra: D_atm = 1,55, D_oc = 0,27) y el ciclo del agua de la v3.1 (Fase 5a), programado y probado, con un prototipo de vapor radiativo (I15). Todo sigue **apagado** (I10–I15) hasta validarlas: el clima exportado es el de la v2.4.3, con la corrección de la capa de mezcla (`DISENO_V3.0.md` §14, `DISENO_V3.1.md`).
+**Versión actual: `v3.1-pre4`** (octubre de 2026). Igual que la v3.1-pre2 más el **núcleo dinámico propio de la Fase 6 en desarrollo** (módulos `fase6_*.py`, todavía sin conectar al modelo: no cambia el clima). La v3.1-pre2 es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 (calibrada en modo Tierra: D_atm = 1,55, D_oc = 0,27) y el ciclo del agua de la v3.1 (Fase 5a), programado y probado, con un prototipo de vapor radiativo (I15). Todo sigue **apagado** (I10–I15) hasta validarlas: el clima exportado es el de la v2.4.3, con la corrección de la capa de mezcla (`DISENO_V3.0.md` §14, `DISENO_V3.1.md`).
 
 ---
 

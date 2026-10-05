@@ -394,3 +394,33 @@ Media de los días 200 a 1200, con 100 muestras (una cada 10 días). Estable los
 **Para cerrar la prueba (en el PC de Carlos, con `held_suarez.py`):**
 1. la repetición con muestreo diario y la incertidumbre entre las dos mitades;
 2. la sensibilidad a la difusión (τ = 2 días). Si el chorro se desplaza claramente hacia el polo, queda demostrado que la diferencia es de disipación y resolución, no del núcleo.
+
+### Prueba 6 (Held y Suarez): resultado DEFINITIVO en el PC de Carlos (05/10, `held_suarez.py` + `analizar_held_suarez.py`)
+
+1200 días, media diaria de los días 200 a 1200 (1000 muestras). Cada simulación tardó unos 25 minutos en el PC de Carlos. **El día 1200 de la corrida con τ = 0,5 coincide al dígito con la del entorno de la IA:** el núcleo es reproducible en dos máquinas distintas.
+
+| | τ = 0,5 días (CESM) | τ = 2 días (difusión 4 veces más débil) |
+|---|---|---|
+| Chorro N | 37,3 m/s en 28,9°, σ = 0,22 | 40,6 m/s en 31,5°, σ = 0,22 |
+| Chorro S | 37,2 m/s en 29,0° | 40,4 m/s en 31,3° |
+| Incertidumbre (1.ª mitad / 2.ª mitad) | ±0,3 m/s, ±0,2° | ±0,2 m/s, ±0,1° |
+| Viento del oeste en superficie | 3,3–3,5 m/s en 33,5° | 4,6–4,7 m/s en 35,3° |
+| Calor por remolinos (máx.) | 33,1° | 33,5° |
+| Momento por remolinos hacia el polo (máx.) | 33,7–35,0 m²/s² en 24° | 33,3–36,0 m²/s² en 25,3° |
+
+- **Estabilidad:** las dos son estables durante 1200 días. Con τ = 2, T sigue entre 186 y 311 K y no aparece ruido.
+
+**Conclusiones**
+1. **El núcleo es correcto en lo que se puede comprobar exactamente** (pruebas 1 a 5). En Held y Suarez es estable, simétrico y reproducible, y produce chorros, borrascas, alisios y vientos del oeste en superficie.
+2. **La incertidumbre estadística es despreciable** (±0,2°). La diferencia con HS94 (~45° ⚠️) es sistemática.
+3. **Con 4 veces menos difusión, todo se desplaza ~2,4° hacia el polo y se refuerza ~3 m/s.** Es la dirección que predicen Lu et al. (2015) ✅, de modo que **la disipación explica una parte**.
+4. **Lo que queda** (~13°) es coherente con la resolución de 5°, que equivale más o menos a T21, donde las borrascas apenas se resuelven. Lu et al. hablan de convergencia hacia ~50 km.
+5. **Para demostrarlo del todo haría falta repetirla a 2,5°.** Costaría unas 8 veces más por día simulado (~3,5 h en el PC de Carlos) y exige que `held_suarez.py` acepte la resolución como opción (cambio pequeño). Queda como opcional.
+
+**Decisión de diseño 🔶 que sale de aquí:** τ = 0,5 días es el valor conservador. La simulación con τ = 2 es estable y menos disipativa, y para la 6.3 conviene usar **la difusión más débil que siga siendo estable con la física completa**, medida y no supuesta.
+
+**Figuras (PC de Carlos, `hs_tau0.5.png` y `hs_tau2.png`):**
+- **Estructura cualitativa como la de HS94:** dos chorros simétricos en la troposfera alta (σ ≈ 0,2–0,3) que bajan hasta la superficie como vientos del oeste; vientos del este en superficie en los trópicos y en latitudes altas; vientos débiles del este sobre el ecuador en altura; y una tropopausa tropical fría (~190 K).
+- **Con τ = 2** los chorros quedan algo más altos de latitud y más intensos.
+
+**v3.1-pre4:** `held_suarez.py` acepta `--filas 72` (2,5°, dt = 225 s, misma τ en la onda más corta de esa rejilla), para la prueba de resolución. En el entorno de la IA va a ~1 día simulado por minuto; en el PC de Carlos se esperan ~3–4 h para 1200 días ⚠️.

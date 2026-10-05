@@ -38,14 +38,18 @@ def main():
     for f in archivos:
         d = np.load(f)
         lat, sig = d["lat"], d["sigma"]
-        print(f"\n=== {os.path.basename(f)}: tau = {float(d['tau']):g} dias, {int(d['dias'])} dias simulados, "
+        res = f"{180 / int(d['filas']):g} grados, " if "filas" in d.files else "5 grados, "
+        print(f"\n=== {os.path.basename(f)}: {res}tau = {float(d['tau']):g} dias, {int(d['dias'])} dias simulados, "
               f"media de {int(d['n_medias'])} dias ===")
         ks = int(np.argmax(sig))                                                   # capa mas baja
         k25 = int(np.argmin(abs(sig - 0.25))); k85 = int(np.argmin(abs(sig - 0.85)))
         for h in ("N", "S"):
             v, l, s = chorro(d["u"], lat, sig, h)
-            v1, l1, _ = chorro(d["u1"], lat, sig, h)
-            v2, l2, _ = chorro(d["u2"], lat, sig, h)
+            if d["u1"].ndim == 2 and d["u2"].ndim == 2:
+                v1, l1, _ = chorro(d["u1"], lat, sig, h)
+                v2, l2, _ = chorro(d["u2"], lat, sig, h)
+            else:                                   # simulacion demasiado corta para partirla en dos mitades
+                v1 = l1 = v2 = l2 = float("nan")
             sel = lat > 0 if h == "N" else lat < 0
             us, ls = max_parabola(d["u"][ks, sel], lat[sel])
             sgn = 1 if h == "N" else -1

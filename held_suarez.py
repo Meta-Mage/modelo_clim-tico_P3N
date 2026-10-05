@@ -4,6 +4,7 @@
 #     python held_suarez.py                 # tau = 0,5 dias (el de CESM), 1200 dias
 #     python held_suarez.py --tau 2         # sensibilidad: hiperdifusion 4 veces mas debil
 #     python held_suarez.py --dias 300      # mas corto (solo para probar)
+#     python held_suarez.py --filas 72      # rejilla de 2,5 grados (144 x 72): ~8 veces mas lenta por dia
 #
 # Configuracion (DISENO_FASE6_2.md §5 y §10): Tierra (Williamson/HS94: a = 6,37122e6 m, Omega = 7,292e-5,
 # g = 9,80616, R = 287, cp = 1004), rejilla de M3N (72 x 36, 5 grados), 20 capas sigma IGUALES (la
@@ -29,7 +30,7 @@ from fase6_nucleo import NucleoSeco
 from fase6_forzamientos import HeldSuarez, sigma_capas
 from fase6_aguas_someras import A_TIERRA, OMEGA_TIERRA, G_TIERRA
 
-DT = 450.0
+DT_5GRADOS = 450.0         # s; se escala con la resolucion (dt = 450 * 36 / filas)
 DIA_INICIO_MEDIA = 200
 CADA_LINEA = 20            # dias entre lineas del registro y puntos de control
 
@@ -38,16 +39,18 @@ def main():
     ap = argparse.ArgumentParser(description="Prueba de Held y Suarez (1994) con el nucleo de la Fase 6")
     ap.add_argument("--tau", type=float, default=0.5, help="hiperdifusion: dias de amortiguamiento de la onda mas corta")
     ap.add_argument("--dias", type=int, default=1200)
+    ap.add_argument("--filas", type=int, default=36, help="filas de la rejilla: 36 = 5 grados (la de M3N), 72 = 2,5 grados")
     a = ap.parse_args()
+    DT = DT_5GRADOS * 36 / a.filas
 
     carpeta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "held_suarez")
     os.makedirs(carpeta, exist_ok=True)
-    nombre = f"hs_tau{a.tau:g}"
+    nombre = f"hs_tau{a.tau:g}" + ("" if a.filas == 36 else f"_f{a.filas}")
     f_estado = os.path.join(carpeta, nombre + "_estado.npz")
     f_medias = os.path.join(carpeta, nombre + "_medias.npz")
     f_log = os.path.join(carpeta, nombre + ".log")
 
-    m = NucleoSeco(A_TIERRA, OMEGA_TIERRA, G_TIERRA, 287.0, 1004.0, np.linspace(0, 1, 21))
+    m = NucleoSeco(A_TIERRA, OMEGA_TIERRA, G_TIERRA, 287.0, 1004.0, np.linspace(0, 1, 21), filas=a.filas)
     hs = HeldSuarez(m)
     N, Rj = m.N, m.Rj
     sig = sigma_capas(m)
@@ -74,7 +77,7 @@ def main():
         n_med = 0; n1 = 0
         reanudar = None
         n0 = 1
-    print(f"Held y Suarez | tau = {a.tau:g} dias | {a.dias} dias = {total} pasos de {DT:.0f} s | "
+    print(f"Held y Suarez | {180 / a.filas:g} grados | tau = {a.tau:g} dias | {a.dias} dias = {total} pasos de {DT:.0f} s | "
           f"media desde el dia {DIA_INICIO_MEDIA}")
 
     t0 = time.time()
@@ -143,7 +146,7 @@ def main():
     n2 = estado["n_med"] - estado["n1"]
     med["u2"] = (np.asarray(acum["u"]) - np.asarray(acum["u1"])) / max(n2, 1)
     np.savez(f_medias, **med, n_medias=estado["n_med"],
-             sigma=sig, lat=np.degrees(Rj.phi_c), tau=a.tau, dias=a.dias)
+             sigma=sig, lat=np.degrees(Rj.phi_c), tau=a.tau, dias=a.dias, filas=a.filas)
     print(f"\nTerminado en {(time.time() - t0) / 60:.0f} min. Medias de {estado['n_med']} dias en {f_medias}")
     print("Siguiente paso: python analizar_held_suarez.py")
 
