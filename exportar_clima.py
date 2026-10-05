@@ -23,7 +23,7 @@
 #      en el caso del hielo). El valor -32768 significa "sin dato".
 #
 # Indices: fila 0 = la mas al norte (87.5 N), columna 0 = 177.5 O (igual
-# que la rejilla de M3N). Dia d = indice 0..269 (dia d+1 del año).
+# que la rejilla de M3N). Dia d = indice 0..num_dias-1 (dia d+1 del año; 326 dias con el dia de 19,84 h).
 # Hora k = dia*24 + hora, instantanea a la hora en punto del MERIDIANO 0.
 # v2.4.3: son HORAS DE P3N (1/24 del dia solar, DURACION_HORA s).
 # Hora solar local de una celda = hora del meridiano 0 + longitud/15.
@@ -165,7 +165,10 @@ def construir_exportacion(r, tipo, altitud, nombre_mapa, datos_orbita, paso_tiem
             "masa_S3N_soles": S3N_MASAS_SOLARES, "luminosidad_W": S3N_LUMINOSIDAD,
             "semieje_m": SEMIEJE_MAYOR, "excentricidad": ORBITA_EXCENTRICIDAD,
             "inclinacion_axial_grados": INCLINACION_AXIAL,
-            "D_atmosfera": F2B.D_ATMOSFERA, "D_oceano": F2B.D_OCEANO,
+            # v3.1: los D que ha usado de verdad la simulacion (escalados con la rotacion)
+            "D_atmosfera": r.get("D_usados", {}).get("atmosfera", F2B.D_ATMOSFERA),
+            "D_oceano": r.get("D_usados", {}).get("oceano", F2B.D_OCEANO),
+            "D_esquema": r.get("D_usados", {}).get("esquema", "desconocido"),
         },
         "simulacion": {
             "anos_hasta_convergencia": int(r["anos"]), "saltos": int(r["saltos"]),

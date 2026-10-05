@@ -354,12 +354,13 @@ if __name__ == "__main__":
 
     cabecera = [
         f"ANALISIS GLOBAL -- mapa '{nombre_mapa}' -- {date.today().isoformat()}",
-        # v3.0: D_ATMOSFERA es el valor calibrado en la Tierra; la simulacion usa D x FACTOR_ROTACION_D
-        f"Difusion: atmosfera D = {_F2B.D_ATMOSFERA} (Tierra) x {FACTOR_ROTACION_D:.3f} (rotacion) = "
-        f"{_F2B.D_ATMOSFERA * FACTOR_ROTACION_D:.2f}, oceano D = {_F2B.D_OCEANO} W/m2/K | "
+        # v3.1: los D que ha usado de verdad la simulacion (el de la atmosfera, ya escalado con la rotacion)
+        f"Difusion ({completo.get('D_usados', {}).get('esquema', '?')}): atmosfera D = "
+        f"{completo.get('D_usados', {}).get('atmosfera', float('nan')):.3f} (incluye el factor de rotacion "
+        f"{FACTOR_ROTACION_D:.3f}), oceano D = {completo.get('D_usados', {}).get('oceano', float('nan')):.3f} W/m2/K | "
         f"convergencia: {anos_convergencia} año(s) | año de {num_dias} dias",
     ]
-    if anos_convergencia >= 50:
+    if not completo.get("convergido", anos_convergencia < 50):   # v3.1: indicador explicito
         cabecera.append("AVISO: se alcanzo el limite de 50 años sin confirmar convergencia -- puede no ser el equilibrio.")
 
     # Datos complementarios del suelo y de las dos capas de aire.

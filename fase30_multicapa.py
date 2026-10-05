@@ -53,10 +53,13 @@ EXP_VAPOR_SW = 4.0             # (c) forma de Isca (solar_exponent = 4)
 
 # ---- conveccion (seccion 4) ----
 GRADIENTE_CRITICO = 0.0065     # K/m (c) PROVISIONAL: en la v3.1, gradiente adiabatico humedo de P3N
-MAX_PASADAS_AJUSTE = 60
 
 # ---- transporte horizontal (seccion 6) ----
-SIGMA_TOPE_TRANSPORTE = 0.25   # PROVISIONAL: lo que llega se reparte en las capas con sigma >= este valor
+SIGMA_TOPE_TRANSPORTE = 0.25
+
+# v3.1 (optimizacion): infrarrojo con kernels compilados (numba) cuando esta disponible; mismo
+# resultado que la version numpy salvo redondeo (diferencia maxima medida ~1e-13 W/m2)
+USAR_KERNELS_IR = True   # PROVISIONAL: lo que llega se reparte en las capas con sigma >= este valor
 
 
 def sigma_seminiveles(n=N_CAPAS_ATM):
@@ -94,15 +97,78 @@ def _pav_columnas(th, w):
     return th
 
 
+def _pav_columnas_vapor(th, w, qv, wq):
+    """Como _pav_columnas, y ademas mezcla el vapor qv (ponderado con la masa wq) dentro de cada
+    tramo de capas que el ajuste ha mezclado: la conveccion seca mezcla el aire entero, con su vapor
+    (v3.1). Modifica th y qv."""
+    n, m = th.shape
+    val = np.empty(n); pes = np.empty(n); lon = np.empty(n, dtype=np.int64)
+    for c in range(m):
+        nb = 0
+        for k in range(n):
+            val[nb] = th[k, c]; pes[nb] = w[k, c]; lon[nb] = 1; nb += 1
+            while nb > 1 and val[nb - 2] > val[nb - 1]:
+                pt = pes[nb - 2] + pes[nb - 1]
+                val[nb - 2] = (val[nb - 2] * pes[nb - 2] + val[nb - 1] * pes[nb - 1]) / pt
+                pes[nb - 2] = pt; lon[nb - 2] += lon[nb - 1]; nb -= 1
+        k = 0
+        for b in range(nb):
+            if lon[b] > 1:
+                sq = 0.0; sw = 0.0
+                for j in range(k, k + lon[b]):
+                    sq += qv[j, c] * wq[j, c]; sw += wq[j, c]
+                for j in range(k, k + lon[b]):
+                    qv[j, c] = sq / sw
+            for _ in range(lon[b]):
+                th[k, c] = val[b]; k += 1
+    return th, qv
+
+
+def _ir_bajada(T, T_aire, peso, tr, g1, sb):
+    """Kernel del infrarrojo descendente (v3.1, optimizacion): mismas operaciones, en el mismo orden,
+    que la version numpy de Columna.infrarrojo_bajada, columna a columna. Arrays (n, M)."""
+    n, m = T.shape
+    Bh = np.empty((n + 1, m)); D = np.empty((n + 1, m))
+    for c in range(m):
+        t = T[0, c]
+        Bh[0, c] = sb * t ** 4
+        for k in range(1, n):
+            t = T[k - 1, c] + peso[k - 1, c] * (T[k, c] - T[k - 1, c])
+            Bh[k, c] = sb * t ** 4
+        t = T_aire[c]
+        Bh[n, c] = sb * t ** 4
+        D[0, c] = 0.0
+        for k in range(n):
+            D[k + 1, c] = D[k, c] * tr[k, c] + Bh[k + 1, c] * (1 - tr[k, c]) - (Bh[k + 1, c] - Bh[k, c]) * g1[k, c]
+    return D, Bh
+
+
+def _ir_subida(Bh, emision, tr, g1):
+    n1, m = Bh.shape
+    n = n1 - 1
+    U = np.empty((n1, m))
+    for c in range(m):
+        U[n, c] = emision[c]
+        for k in range(n - 1, -1, -1):
+            U[k, c] = U[k + 1, c] * tr[k, c] + Bh[k, c] * (1 - tr[k, c]) + (Bh[k + 1, c] - Bh[k, c]) * g1[k, c]
+    return U
+
+
 if HAY_NUMBA:
     _pav_columnas = njit(cache=True)(_pav_columnas)
+    _ir_bajada = njit(cache=True)(_ir_bajada)
+    _ir_subida = njit(cache=True)(_ir_subida)
+    _pav_columnas_vapor = njit(cache=True)(_pav_columnas_vapor)
 
 
 class Columna:
     """Geometria vertical de todas las celdas (fija en el tiempo)."""
 
-    def __init__(self, altitud_metros, gravedad=P3N_GRAVEDAD, n=N_CAPAS_ATM):
+    def __init__(self, altitud_metros, gravedad=P3N_GRAVEDAD, n=N_CAPAS_ATM, gradiente=GRADIENTE_CRITICO):
+        # gradiente (K/m): el del ajuste convectivo SECO. v3.0: 6,5 K/km provisional; v3.1 con la
+        # conveccion humeda (I13): el adiabatico seco g/cp de cada planeta (fisica, a)
         self.n = n
+        self.gradiente = gradiente
         self.g = gravedad
         self.forma = altitud_metros.shape
         self.ps = presion_superficie(altitud_metros, gravedad)                  # (F, C)
@@ -126,18 +192,31 @@ class Columna:
         w = np.diff((self.ph / P0) ** EXP_VAPOR_SW, axis=0)
         self.peso_sw = w / w.sum(axis=0, keepdims=True)
         # ajuste convectivo: T_arriba >= T_abajo * (p_arriba/p_abajo)^(R*Gamma/g)
-        self.r_ajuste = (self.pm[:-1] / self.pm[1:]) ** (R_AIRE * GRADIENTE_CRITICO / gravedad)
         # PI_k: temperatura de un perfil critico relativa a la capa mas baja (PI = 1 abajo)
-        self.pi_ajuste = (self.pm / self.pm[-1][None]) ** (R_AIRE * GRADIENTE_CRITICO / gravedad)
+        self.pi_ajuste = (self.pm / self.pm[-1][None]) ** (R_AIRE * gradiente / gravedad)
         # extrapolacion adiabatica seca de la capa mas baja a la superficie
         self.factor_superficie = (self.ps / self.pm[-1]) ** KAPPA
         # transporte horizontal: capas que reciben lo que llega
         self.capas_transporte = self.sigma_media >= SIGMA_TOPE_TRANSPORTE
         self.cap_transporte = self.cap[self.capas_transporte].sum(axis=0)          # (F, C)
-        # altura del centro de cada capa sobre el suelo (para diagnosticos), con T_ALTURA_ESCALA
-        self.z_centro = R_AIRE * T_ALTURA_ESCALA / gravedad * np.log(self.ps[None] / self.pm)
+        # copias contiguas (n, celdas) para los kernels compilados del infrarrojo
+        self._peso_2d = np.ascontiguousarray(self.peso_interp.reshape(n - 1, -1)) if n > 1 else np.zeros((1, 1))
+        self._tr_2d = np.ascontiguousarray(self.trans.reshape(n, -1))
+        self._g1_2d = np.ascontiguousarray(self.g1.reshape(n, -1))
 
     # ------------------------------------------------------------------
+    def actualizar_tau_vapor(self, q, a, b):
+        """v3.1 (I15, prototipo): espesor optico infrarrojo de cada capa segun el vapor de la propia
+        capa, d(tau) = (a + b*q) * dp / P0 (forma de Byrne y O'Gorman 2013, la del codigo de Isca),
+        con a (aire seco: CO2 y demas) y b (vapor) calibrados para M3N (fase31_agua). Recalcula las
+        transmisiones de cada capa; el resto del esquema (dos flujos, fuente lineal) no cambia."""
+        dt = np.maximum((a + b * np.maximum(q, 0.0)) * self.dp / P0, 1e-12)
+        self.trans = np.exp(-dt)
+        self.g1 = (1 - self.trans * (1 + dt)) / dt
+        n = self.n
+        self._tr_2d = np.ascontiguousarray(self.trans.reshape(n, -1))
+        self._g1_2d = np.ascontiguousarray(self.g1.reshape(n, -1))
+
     def temperatura_seminiveles(self, T, T_aire_superficie):
         Th = np.empty((self.n + 1,) + self.forma)
         Th[0] = T[0]
@@ -147,6 +226,11 @@ class Columna:
 
     def infrarrojo_bajada(self, T, T_aire_superficie):
         """Flujo descendente en los seminiveles. D[-1] = infrarrojo que llega al suelo."""
+        if HAY_NUMBA and USAR_KERNELS_IR:
+            n = self.n
+            D, Bh = _ir_bajada(np.ascontiguousarray(T.reshape(n, -1)), np.ascontiguousarray(T_aire_superficie.reshape(-1)),
+                               self._peso_2d, self._tr_2d, self._g1_2d, CONSTANTE_SB)
+            return D.reshape((n + 1,) + self.forma), Bh.reshape((n + 1,) + self.forma)
         Bh = CONSTANTE_SB * self.temperatura_seminiveles(T, T_aire_superficie) ** 4
         D = np.zeros_like(Bh)
         tr, g1 = self.trans, self.g1
@@ -156,6 +240,12 @@ class Columna:
 
     def infrarrojo_subida(self, Bh, emision_superficie):
         """Flujo ascendente en los seminiveles. U[0] = infrarrojo que sale al espacio."""
+        if HAY_NUMBA and USAR_KERNELS_IR:
+            n = self.n
+            U = _ir_subida(np.ascontiguousarray(Bh.reshape(n + 1, -1)),
+                           np.ascontiguousarray(np.broadcast_to(emision_superficie, self.forma).reshape(-1)),
+                           self._tr_2d, self._g1_2d)
+            return U.reshape((n + 1,) + self.forma)
         U = np.empty_like(Bh)
         U[-1] = emision_superficie
         tr, g1 = self.trans, self.g1
@@ -209,6 +299,23 @@ class Columna:
         th_aj = A.max(axis=0)                             # max_{j <= i}
         return np.where(inestable[None], th_aj[::-1] * self.pi_ajuste, T)
 
+    def ajuste_convectivo_vapor(self, T, q):
+        """v3.1: ajuste convectivo seco (el mismo que ajuste_convectivo) que ademas mezcla el vapor
+        en los tramos mezclados, conservando su masa. Devuelve copias (T, q)."""
+        thc = T / self.pi_ajuste
+        inestable = (thc[:-1] < thc[1:]).any(axis=0)
+        T = T.copy(); q = q.copy()
+        if not inestable.any():
+            return T, q
+        th = np.ascontiguousarray(thc[::-1][:, inestable])
+        w = np.ascontiguousarray((self.cap * self.pi_ajuste)[::-1][:, inestable])
+        qv = np.ascontiguousarray(q[::-1][:, inestable])
+        wq = np.ascontiguousarray(self.dp[::-1][:, inestable])
+        th, qv = _pav_columnas_vapor(th, w, qv, wq)
+        T[:, inestable] = th[::-1] * self.pi_ajuste[:, inestable]
+        q[:, inestable] = qv[::-1]
+        return T, q
+
     def aire_superficie(self, T):
         """Temperatura del aire junto a la superficie: extrapolacion adiabatica
         seca desde la capa mas baja (equivale a conservar s = cp*T + g*z)."""
@@ -217,7 +324,7 @@ class Columna:
     def perfil_inicial(self, T_superficie):
         # estado inicial: gradiente critico desde la superficie, con un suelo de 200 K
         # en lo alto (la estratosfera se ajusta sola en pocas semanas de simulacion)
-        T = T_superficie[None] * (self.pm / self.ps[None]) ** (R_AIRE * GRADIENTE_CRITICO / self.g)
+        T = T_superficie[None] * (self.pm / self.ps[None]) ** (R_AIRE * min(self.gradiente, GRADIENTE_CRITICO) / self.g)
         return np.maximum(T, 200.0)
 
     def media_masa(self, T, mascara_capas=None):
@@ -234,7 +341,7 @@ def transporte_meridional(convergencia, radio):
     Transporte de calor hacia el norte (PW) a traves de cada borde entre
     filas, a partir de la convergencia media anual del transporte (W/m2,
     FILAS x COLUMNAS; positiva = la celda recibe). Se integra desde el
-    polo norte: lo que cruza el borde sur de la fila i es menos lo que
+    polo norte: lo que cruza el borde sur de la fila i (hacia el norte) es lo que
     han recibido todas las filas de i hacia el norte. El area de cada
     celda es la del operador de difusion (radio^2 cos(lat) dlat dlon), con
     la que la difusion conserva exactamente la energia: asi el transporte

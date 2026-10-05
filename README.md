@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `v3.0-pre1`** (octubre de 2026). Es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 ya programada, pero **apagada** hasta calibrarla y validarla en modo Tierra (`DISENO_V3.0.md`, §13).
+**Versión actual: `v3.1-pre3`** (octubre de 2026). Igual que la v3.1-pre2 más el **núcleo dinámico propio de la Fase 6 en desarrollo** (módulos `fase6_*.py`, todavía sin conectar al modelo: no cambia el clima). La v3.1-pre2 es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 (calibrada en modo Tierra: D_atm = 1,55, D_oc = 0,27) y el ciclo del agua de la v3.1 (Fase 5a), programado y probado, con un prototipo de vapor radiativo (I15). Todo sigue **apagado** (I10–I15) hasta validarlas: el clima exportado es el de la v2.4.3, con la corrección de la capa de mezcla (`DISENO_V3.0.md` §14, `DISENO_V3.1.md`).
 
 ---
 
@@ -96,15 +96,20 @@ Los resultados se guardan en `outputs/`, que **no se sube a GitHub**.
 | `fase2_difusion.py` | Transporte horizontal de calor (difusión) |
 | `fase2b_atmosfera.py` | **Modelo actual**: atmósfera de dos capas, hielo marino y registro horario, con 10 interruptores (I10: atmósfera de N capas, apagado de momento) |
 | `fase30_multicapa.py` | v3.0: atmósfera de N capas en coordenada sigma (infrarrojo gris de dos flujos, ajuste convectivo exacto, diagnóstico del transporte) |
+| `fase31_agua.py` | v3.1: física del agua (saturación, convección húmeda de Betts-Miller, condensación, lluvia/nieve, albedo según la estrella, suelo según su agua) |
 | `modo_tierra.py` | v3.0: mapa de la Tierra para el **modo Tierra** (`M3N_MODO=tierra`, ver `parametros.py`) |
 | `fase2_combinado.py` | Modelo de la Fase 2 (sin atmósfera con cuerpo). Se conserva como referencia de validación |
 | `cache_simulacion.py` | Caché de resultados y punto de entrada de las herramientas |
 | `puente_c3n.py` | Lectura del mapa activo de C3N |
 | `exportar_clima.py` | Exportación del clima para H3N (formato `m3n-clima`, ver `DISENO_FASE4.md`) |
+| `fase6_aguas_someras.py` | Fase 6.1: aguas someras en la esfera (rejilla C, filtro polar, leapfrog + RAW) y casos de Williamson et al. (1992) |
+| `fase6_nucleo.py` | Fase 6.2: núcleo dinámico seco de 20 capas (Simmons y Burridge, semiimplícito, hiperdifusión, puntos de control). Aún sin conectar a la física |
+| `fase6_forzamientos.py` | Fase 6.2: estado de Jablonowski y Williamson (2006) y forzamiento de Held y Suarez (1994) |
+| `fase6_trazadores.py` | Fase 6.3: transporte del vapor positivo y conservativo (forma de flujo, Courant zonal arbitrario) |
 
 ### Herramientas
 
-`analisis_global.py`, `consulta_punto.py`, `analisis_latitudes.py`, `mapa_calor.py`, `exportar_clima.py`, `prueba_paso.py` (sensibilidad al paso de tiempo), `calibrar_v30.py` (v3.0: calibración de la difusión en modo Tierra y convergencia en el número de capas; se lanza con `M3N_MODO=tierra python calibrar_v30.py`).
+`analisis_global.py`, `consulta_punto.py`, `analisis_latitudes.py`, `mapa_calor.py`, `exportar_clima.py`, `prueba_paso.py` (sensibilidad al paso de tiempo), `calibrar_v30.py` (v3.0: calibración de la difusión en modo Tierra y convergencia en el número de capas; se lanza con `M3N_MODO=tierra python calibrar_v30.py`), `validar_v30.py` (v3.0: validación en modo Tierra frente a observaciones, o en P3N frente a la v2.4.3; con `--v31`, la v3.1 con el ciclo del agua). `calibrar_v30.py` acepta `--d-atm`, `--d-oc` y `--v31`. `calibrar_tau_vapor.py` (v3.1, prototipo I15: calibración del infrarrojo con vapor; necesita `pip install pyrtlib`). `validar_fase6_1.py` (Fase 6.1: casos de Williamson; unos minutos, `--rapido` sin el estudio de convergencia).
 
 ### Pruebas
 
@@ -113,6 +118,10 @@ Los resultados se guardan en `outputs/`, que **no se sube a GitHub**.
 | `test_modelo.py` | Formato de exportación, calendario y estaciones, clave de la caché, puente con C3N, conservación de la energía del océano profundo | Segundos |
 | `test_fase0.py` | La rejilla de la Fase 0 frente al modelo original de un punto | Medio minuto |
 | `test_v30.py` | v3.0: conservación de la energía del infrarrojo y del ajuste convectivo, estabilidad tras el ajuste, cierre del diagnóstico de transporte, I10 apagado, valores del modo Tierra | Segundos |
+| `test_v31.py` | v3.1: conservación de energía y agua (convección, condensación, simulación corta con todo encendido), saturación, espectro, suelo | Medio minuto |
+| `test_fase6_1.py` | Fase 6.1: masa y energía exactas, casos 2 y 6 de Williamson, orden de convergencia, filtro polar, estabilidad de RAW | ~15 s |
+| `test_fase6_2.py` | Fase 6.2: energía exacta, reposo sobre montañas, onda de Lamb, equilibrio de JW06, semiimplícito, hiperdifusión, puntos de control | ~10 s |
+| `test_fase6_3.py` | Fase 6.3: transporte del vapor (positivo, conservativo, polos) | Segundos |
 
 Las validaciones de cada fase que exigen simular un clima completo (por ejemplo, "con todo apagado, el modelo da lo mismo que la versión anterior") están documentadas, con sus resultados, en los `DISENO_FASE*.md`.
 
@@ -124,7 +133,12 @@ Las validaciones de cada fase que exigen simular un clima completo (por ejemplo,
 | `DISENO_FASE2B.md` | Atmósfera de dos capas: diseño, fuentes, calibración, validación y **valores vigentes** (sección 13) |
 | `DISENO_FASE3.md` | Hielo marino: física, fuentes, validación |
 | `DISENO_FASE4.md` | Exportación de datos: formato `m3n-clima` y validación |
-| `DISENO_V3.0.md` | Atmósfera de N capas: diseño, pruebas, modo Tierra y estado de la calibración |
+| `DISENO_V3.0.md` | Atmósfera de N capas: diseño, pruebas, modo Tierra, calibración, validación y revisión del código |
+| `DISENO_V3.1.md` | Ciclo del agua sobre las N capas: implementación, cambios respecto al borrador de la 5a, validación |
+| `DISENO_FASE6_BORRADOR.md` | Fase 6: plan general del núcleo dinámico propio, por etapas validadas |
+| `DISENO_FASE6_1.md` | Fase 6.1 (aguas someras): discretización, validación con Williamson et al., límite de estabilidad de RAW |
+| `DISENO_FASE6_2.md` | Fase 6.2 (núcleo seco): Simmons y Burridge, semiimplícito, pruebas, hiperdifusión, Held y Suarez |
+| `DISENO_FASE6_3.md` | Fase 6.3 (acoplamiento con la física): borrador, y transporte del vapor |
 | `DISENO_FASE5A.md` | Ciclo del agua (será la v3.1): decisiones tomadas y pendientes |
 
 ### Histórico
@@ -146,9 +160,10 @@ Las validaciones de cada fase que exigen simular un clima completo (por ejemplo,
 | v2.4.2 | Duración del día generalizada (sin "24 h" escondidas); diseño de la Fase 5a en borrador | ✅ |
 | v2.4.3 | Día solar de 19,84 h; hora de P3N = 1/24 del día; paso de 992 s; D de la atmósfera escalado con la rotación | ✅ |
 | v3.0 | Atmósfera de N capas (adelantada de la Fase 8, decisión del 04/10/2026), en seco | 🔧 programada; falta calibrar y validar |
-| v3.1 | Fase 5a: humedad, evaporación, precipitación (sobre las N capas) | ⏳ |
+| v3.1 | Fase 5a: humedad, evaporación, precipitación (sobre las N capas) | 🔧 programada y probada; falta calibrar y validar |
 | v3.2 | Fase 5b: nubes | ⏳ |
-| después | Fase 6 / 6b: circulación atmosférica / corrientes oceánicas; Fase 7 / 7b: biomas | ⏳ |
+| v3.1-pre3 | Fase 6 (núcleo dinámico propio, decisión del 05/10/2026): 6.1 ✅, 6.2 casi ✅ (falta cerrar Held y Suarez), 6.3 empezada | 🔧 en desarrollo, sin conectar |
+| después | Fase 6.3–6.4 (acoplamiento y P3N), Fase 6b: corrientes oceánicas; Fase 7 / 7b: biomas | ⏳ |
 
 Al terminar M3N está previsto un **barrido final de parámetros** (masa de la estrella, órbita, presión, emisividades) para fijar el mundo definitivo. Los valores actuales son provisionales.
 

@@ -41,7 +41,9 @@ def mapa_tierra():
     lon_c = np.ones((FILAS, 1)) * LONGITUDES_GRADOS[None, :]
     altitud = np.zeros((FILAS, COLUMNAS))
     altitud[tierra & (lat_c < -60)] = ALTITUD_ANTARTIDA
-    groenlandia = tierra & (lat_c > 59) & (lon_c > -75) & (lon_c < -10)
+    # v3.1: la caja de Groenlandia ya no incluye Baffin ni Ellesmere (revision del 05/10/2026):
+    # al sur de 75 N, Groenlandia esta al este de -60; al norte, al este de -70 (Thule, -68,7)
+    groenlandia = tierra & (lat_c > 59) & (lon_c < -10) & np.where(lat_c < 75, lon_c > -60, lon_c > -70)
     altitud[groenlandia] = ALTITUD_GROENLANDIA
     return tipo, altitud
 

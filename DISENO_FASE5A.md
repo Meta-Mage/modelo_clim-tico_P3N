@@ -154,6 +154,8 @@ A 5000 m, con T̄ ≈ 255 K: p ≈ 540 hPa. Sin esta corrección, la capacidad d
 
 **Fase 6 (decidido):** el código separa ya el término de remolinos, para poder multiplicarlo por un peso w(φ) cuando entre la célula de Hadley. Forma de Siler et al. (2018) ✅ (código de Bonan et al.): w = 1 − exp(−(sen φ / σ)²), con σ = 0,3 para la Tierra. **σ para P3N deberá deducirse en la Fase 6**: depende de Ω·a (§9).
 
+> **SUSTITUIDO (05/10/2026, decisión de Carlos):** la Fase 6 no usará esta célula de Hadley parametrizada, sino un núcleo dinámico propio (camino B; ver `DISENO_FASE6_BORRADOR.md` §7).
+
 ### 3.7 Estructura vertical de la humedad — DECIDIDO (opción H2, Carlos 04/10/2026)
 
 **Opción H2:** el modelo guarda la **humedad específica de cada capa** (q_CL y q_TR), igual que guarda la temperatura de cada una.

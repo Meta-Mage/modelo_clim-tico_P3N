@@ -381,6 +381,12 @@ def simular_multicapa_punto(
     return T_columna - 273.15, limites, centros, registro
 
 
+# Capa de mezcla del oceano (v3.1): capacidad = INERCIA_POR_TIPO[AGUA] * sqrt(86400 s / pi)
+# = 1,99e8 J/m2/K, es decir ~48,7 m de agua de mar (rho*c_p ~ 4,09e6 J/m3/K). Fija: no
+# depende de la duracion del dia de P3N.
+DIA_REFERENCIA_CAPA_MEZCLA = 86400.0
+
+
 def construir_columna_rejilla(tipo_superficie, inercia_por_tipo, K_difusividad=K_DIFUSIVIDAD_TIERRA, n_capas=N_CAPAS_DEFECTO):
     """
     Version de rejilla completa de construir_columna(): para cada celda
@@ -416,7 +422,14 @@ def construir_columna_rejilla(tipo_superficie, inercia_por_tipo, K_difusividad=K
     capacidades = np.zeros((filas, columnas, n_capas))
     conductancias = np.zeros((filas, columnas, n_capas - 1))
 
-    C_diurno_agua_grid = inercia_grid * math.sqrt(ROTACION_PERIODO / PI)
+    # v3.1 (correccion, revision del 05/10/2026): la capa de mezcla del oceano
+    # tiene una PROFUNDIDAD fija (~48,7 m de agua de mar), no una capacidad
+    # que dependa del dia. Antes era inercia*sqrt(ROTACION_PERIODO/PI), una
+    # formula heredada de la "capa diurna" de la Fase 0: con el dia de 24 h
+    # daba los ~48 m documentados, pero desde la v2.4.3 (19,84 h) daba 43,3 m,
+    # un 9 % menos de capacidad sin que nadie lo hubiera decidido. Se fija la
+    # capacidad que tenia con 24 h (identica en modo Tierra).
+    C_diurno_agua_grid = inercia_grid * math.sqrt(DIA_REFERENCIA_CAPA_MEZCLA / PI)   # solo se usa en el agua
     for i in range(n_capas):
         capacidades[..., i] = np.where(es_tierra, c_v_grid * espesores_tierra[i], C_diurno_agua_grid)
     for i in range(n_capas - 1):

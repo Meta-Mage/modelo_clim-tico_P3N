@@ -101,15 +101,19 @@ INERCIA_TERMICA = 3500
 # calibrar contra observaciones (los parametros etiquetados "(c)") y para
 # comprobar que la fisica nueva da una Tierra razonable antes de fiarse
 # de ella en P3N. Nunca se usa para el clima de P3N. El mapa de la Tierra
-# lo da modo_tierra.py. Valores (todos de referencia, J2000):
-#   - irradiancia a 1 UA: 1361 W/m2 (Kopp y Lean 2011);
-#   - año sideral 365,256363 dias; excentricidad 0,0167086;
-#   - longitud del perihelio 282,9373 grados (geocentrica) -> en el
-#     solsticio de diciembre (longitud del Sol 270) la anomalia media es
-#     347,486 grados: el dia 1 a las 0 h es el solsticio de invierno del
-#     norte, mismo criterio que el calendario de P3N;
-#   - oblicuidad 23,44 grados; dia solar 86 400 s; g = 9,80665 m/s2;
-#     radio medio 6 371 km.
+# lo da modo_tierra.py. Valores de la Earth Fact Sheet de la NASA
+# (nssdc.gsfc.nasa.gov/planetary/factsheet/earthfact.html, verificada el
+# 05/10/2026), salvo que se diga otra cosa:
+#   - irradiancia a 1 UA: 1361,0 W/m2 (coincide con Kopp y Lean 2011,
+#     1360,8 +- 0,5 en el minimo solar);
+#   - año sideral 365,256 dias; excentricidad 0,0167;
+#   - longitud del perihelio 102,94719 grados (heliocentrica; la del Sol
+#     visto desde la Tierra es 282,94719) -> en el solsticio de diciembre
+#     (longitud del Sol 270) la anomalia media es 347,476 grados: el dia 1
+#     a las 0 h es el solsticio de invierno del norte, mismo criterio que
+#     el calendario de P3N;
+#   - oblicuidad 23,44 grados; dia de 24 h; radio medio 6371 km;
+#   - g = 9,80665 m/s2 (gravedad estandar, CODATA 2018, exacta).
 import os as _os
 MODO_TIERRA = _os.environ.get("M3N_MODO", "").strip().lower() == "tierra"
 if MODO_TIERRA:
@@ -118,10 +122,10 @@ if MODO_TIERRA:
     SEMIEJE_MAYOR = UNIDAD_ASTRONOMICA
     S3N_LUMINOSIDAD = IRRADIANCIA_TIERRA * 4 * PI * UNIDAD_ASTRONOMICA ** 2
     S3N_TEMPERATURA = 5772
-    ORBITA_EXCENTRICIDAD = 0.0167086
-    ORBITA_PERIODO = 365.256363 * 86400
+    ORBITA_EXCENTRICIDAD = 0.0167
+    ORBITA_PERIODO = 365.256 * 86400
     MOVIMIENTO_MEDIO = 360 / ORBITA_PERIODO
-    ANOMALIA_MEDIA_INICIO_GRADOS = 347.486184
+    ANOMALIA_MEDIA_INICIO_GRADOS = 347.476397
     DESFASE_SOLSTICIO_RAD = (3 * PI / 2 - _anomalia_verdadera_inicio()) % (2 * PI)
     ROTACION_PERIODO = 86_400
     DURACION_HORA = ROTACION_PERIODO / HORAS_POR_DIA

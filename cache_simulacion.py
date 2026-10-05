@@ -106,8 +106,12 @@ def cargar_o_calcular(nombre_funcion, parametros_clave, funcion_calculo, etiquet
     print(f"[cache] '{nombre_funcion}': no encontrado (parametros nuevos o cambiados) -- calculando...")
     resultado = funcion_calculo()
 
-    with open(ruta, "wb") as f:
+    # v3.1: escritura atomica (archivo temporal + os.replace): dos procesos que
+    # escriban la misma clave a la vez ya no pueden dejar un .pkl a medias
+    temporal = f"{ruta}.{os.getpid()}.tmp"
+    with open(temporal, "wb") as f:
         pickle.dump(resultado, f)
+    os.replace(temporal, ruta)
     print(f"[cache] '{nombre_funcion}': guardado para la proxima vez ({nombre_archivo}).")
     return resultado
 
@@ -222,6 +226,8 @@ MODULOS_FISICA = (
     "fase2b_atmosfera.py", "fase2_inercia_multicapa.py", "fase2_difusion.py",
     "fase1_geografia.py", "rejilla.py", "parametros.py", "temperatura.py",
     "orbita.py", "geometria.py", "fase30_multicapa.py",
+    # v3.1: radiacion.py (i_toa, que usa precalcular_orbita) y atmosfera.py faltaban
+    "radiacion.py", "atmosfera.py", "fase31_agua.py",
 )
 
 

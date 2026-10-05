@@ -105,3 +105,23 @@ def test_sin_modo_tierra_es_p3n():
     if os.environ.get("M3N_MODO", "").lower() == "tierra":
         pytest.skip("lanzado en modo Tierra")
     assert P.MODO_TIERRA is False and P.ROTACION_PERIODO == 71424
+
+
+def test_tropopausa_omm_perfil_estandar():
+    # perfil tipo atmosfera estandar: 6,5 K/km hasta 11 km y luego isotermo -> tropopausa a 11 km
+    import validar_v30 as V
+    zz = np.arange(0, 30001, 500.0)
+    Tz = np.where(zz <= 11000, 288.15 - 0.0065 * zz, 288.15 - 0.0065 * 11000)
+    pz = 1e5 * np.exp(-zz / 7500)
+    zt, Tt = V.tropopausa_omm(Tz, zz, pz)
+    assert zt == 11000 and Tt == pytest.approx(216.65)
+
+
+def test_alturas_recuperan_el_gradiente_critico():
+    import validar_v30 as V
+    c = columna((0.0,))
+    T = c.perfil_inicial(np.full(c.forma, 300.0))[:, 0, 0]
+    z = V.alturas(T, c.pm[:, 0, 0], c.ps[0, 0], c.g)
+    caliente = T > 200.5                                   # por encima del suelo de 200 K del perfil inicial
+    g = -np.diff(T[caliente][::-1]) / np.diff(z[caliente][::-1]) * 1000
+    assert np.allclose(g, M30.GRADIENTE_CRITICO * 1000, atol=0.01)

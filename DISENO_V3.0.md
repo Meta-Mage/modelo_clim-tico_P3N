@@ -151,10 +151,11 @@ Equilibrio radiativo-convectivo con la luz absorbida de Wild et al. sin nubes (2
 ## 13. Modo Tierra y herramientas de calibración (04/10/2026)
 
 **Modo Tierra.** Con la variable de entorno `M3N_MODO=tierra`, `parametros.py` sustituye P3N por la Tierra:
-- irradiancia 1361 W/m² a 1 UA (Kopp y Lean 2011);
-- año sideral 365,256363 días, excentricidad 0,0167086;
-- el día 1 a las 0 h es el solsticio de diciembre (anomalía media 347,486°, calculada con la longitud del perihelio 282,9373°);
-- oblicuidad 23,44°, día de 86 400 s, g = 9,80665 m/s², radio 6371 km;
+- valores de la Earth Fact Sheet de la NASA ✅ (verificada el 05/10/2026);
+- irradiancia 1361,0 W/m² a 1 UA (coincide con Kopp y Lean 2011, 1360,8 ± 0,5 ✅);
+- año sideral 365,256 días, excentricidad 0,0167;
+- el día 1 a las 0 h es el solsticio de diciembre (anomalía media 347,476°, calculada con la longitud del perihelio, 102,94719° heliocéntrica);
+- oblicuidad 23,44°, día de 86 400 s, radio 6371 km ✅; g = 9,80665 m/s² (estándar, CODATA 2018) ✅;
 - paso de tiempo 900 s.
 
 `modo_tierra.py` da el mapa: tierra/agua con `global-land-mask` (20 × 20 puntos por celda, mayoría), **28,2 % de tierra** (real 29,2 %). Altitud: Antártida 2300 m, Groenlandia 2000 m, resto 0 m, igual que la calibración de la v2.2c.
@@ -174,6 +175,65 @@ Equilibrio radiativo-convectivo con la luz absorbida de Wild et al. sin nubes (2
 - compara con Trenberth y Caron (2001, resumen ✅): transporte atmosférico máximo **5,0 ± 0,14 PW a 43° N**, parecido hacia 40° S; a 35° la atmósfera lleva el 78 % (N) y el 92 % (S) del total.
 
 Con `--convergencia-n`, el mismo script repite la simulación con N = 10, 20, 30 y 40.
+
+**Resultado de la calibración (05/10/2026, en el PC de Carlos).** Se hicieron 18 simulaciones en tres tandas, todas convergidas en 8–12 años:
+- tanda 1: D_atm 0,40–0,90 × D_oc 0,12 / 0,20;
+- tanda 2: D_atm 1,0–1,3 × D_oc 0,16 / 0,22;
+- tanda 3: D_atm 1,35 / 1,5 × D_oc 0,22 / 0,28.
+
+Selección:
+
+| D aire | D océano | Pico atm. N / S (PW) | % océano a 35° N / S | Aire a 2 m: global / ecuador / polos N, S |
+|---|---|---|---|---|
+| 0,55 | 0,12 | 3,61 / 2,97 | 11,8 / 19,6 | 19,9 / 31,0 / −5,5, −24,1 |
+| 0,90 | 0,20 | 4,55 / 3,63 | 12,3 / 21,2 | 20,0 / 28,7 / 0,3, −18,4 |
+| 1,30 | 0,22 | 5,32 / 4,22 | 10,3 / 18,3 | 20,0 / 27,3 / 4,0, −15,2 |
+| 1,50 | 0,28 | 5,53 / 4,30 | 11,4 / 20,4 | 20,0 / 26,6 / 5,6, −13,7 |
+| Observado | | 5,0 a 43° N / parecido a 40° S | 22 / 8 | |
+
+**Lectura:**
+- **El transporte ya no satura** como en la v2.4: sigue creciendo con D, cada vez algo menos.
+- **La temperatura global no depende de D:** 19,9–20,0 °C en las 18 simulaciones. El exceso de calor no viene del transporte (§13, más abajo).
+- **El sur transporta siempre ~20 % menos que el norte.** En la realidad son parecidos. Causas probables, por cuantificar con la validación:
+  - el océano del sur se lleva más parte;
+  - la meseta antártica, por el término g·z de la energía estática;
+  - el sur es casi todo mar, con gradientes más suaves.
+  En la realidad pesan además las borrascas más intensas del océano austral y el calor latente, que una difusión con un solo D no puede representar.
+- **El reparto entre océano y atmósfera tiene la asimetría al revés** que la observada: el modelo da más océano en el sur. El océano solo difunde; sin corrientes reales (Fase 6b) no se puede corregir.
+
+**Criterio** (acordado con Carlos): no favorecer a ningún hemisferio.
+- La media de los dos hemisferios del pico atmosférico = 5,0 PW.
+- La media de la parte del océano a 35° = 15 %.
+
+**Ajuste:** una superficie cuadrática sobre las 14 simulaciones con D_atm ≥ 1,0 (residuo máximo 0,003 PW y 0,02 %), resuelta para los dos objetivos. Da **D_atm = 1,55** y **D_oc = 0,27**.
+- Queda 0,05 por encima del D_atm más alto simulado, una extrapolación mínima.
+- **La simulación de validación con estos valores sirve de comprobación directa.**
+- Valores previstos: pico 5,62 N / 4,38 S; océano 10,7 % N / 19,3 % S.
+
+**Cruce con Hwang y Frierson (2010):**
+- Expresado como difusividad de remolinos sobre la masa que recibe el transporte (σ ≥ 0,25), D_atm = 1,55 equivale a K ≈ 8×10⁶ m²/s.
+- En forma de D sobre la energía de toda la columna, 1,55 frente a 0,27 W/m²/K: unas **6 veces el de Hwang y Frierson** (1,06×10⁶ m²/s, aplicado a la energía estática HÚMEDA).
+- Explicación parcial:
+  - el gradiente meridional de la energía húmeda es aproximadamente el doble que el de la seca;
+  - sin nubes, la diferencia de temperatura entre el ecuador y los polos del modelo es unas 2 veces menor que la real: ~31 K frente a ~60 K. Para el valor real se toman el ecuador a ~27 °C y los polos a −18 °C (N) y −49 °C (S), como en `DISENO_FASE3.md` §6.1.
+- Juntas explican un factor ~4. **El resto (~1,5) queda sin explicar**: se revisa en la v3.1, cuando el vapor entre en el transporte y D baje.
+
+**Para P3N:** 1,55 × 0,684 = **1,06**. D_oc = 0,27 no se escala.
+
+**`validar_v30.py`** (05/10/2026). Va después de la calibración, con el D elegido y el hielo encendido.
+- **En modo Tierra** compara con la realidad:
+  - balance global, frente a Wild et al. 2019;
+  - aire a 2 m por bandas;
+  - perfil vertical por bandas: tropopausa con la definición de la OMM, buscada entre 550 y 75 hPa como Reichler, Dameris y Sausen (2003) ✅, temperatura a 25 km y gradiente medio entre 0 y 6 km;
+  - hielo marino, frente a NSIDC;
+  - transporte.
+- **En P3N** compara la v3.0 con la v2.4.3 en el mapa activo.
+- **Pendiente:** una climatología observada del aire a 2 m por latitudes, con fuente verificada, para la comparación por bandas en modo Tierra.
+
+Para eso la simulación devuelve también, en `flujos`, las medias anuales de:
+- DLR y OLR por celda;
+- luz absorbida en el suelo y en el aire;
+- perfil de temperatura y presiones.
 
 **Primera prueba (1 año sin converger, D_atm = 0,55, D_oc = 0,12):**
 - pico atmosférico 3,45 PW (40° N) y 2,88 PW (40° S);
@@ -204,6 +264,89 @@ Llamar a la radiación cada 2 pasos ahorraría solo un ~15 %, así que **no se h
 - La masa de S3N (0,874) se calibró en la v2.2c para un aire a 2 m de 15,94 °C con el modelo de dos capas.
 - Con la v3.0, el mismo Sol da un P3N unos 5 °C más cálido mientras no haya nubes.
 - **Decisión de Carlos, cuando la v3.0 esté validada:** recalibrar la estrella ya, o esperar a las nubes (Fase 5b), que enfriarán.
+
+## 13 bis. Validación de la v3.0 (05/10/2026, en el entorno de la IA, con hielo)
+
+**Modo Tierra** (D_atm = 1,55, D_oc = 0,27; 10 años hasta el equilibrio; desequilibrio 1,6×10⁻⁵):
+
+| | Modelo | Tierra sin nubes (Wild et al. 2019) |
+|---|---|---|
+| Luz absorbida por el suelo | 225,2 | 214 |
+| Luz absorbida por el aire | 71,4 | 73 |
+| Luz reflejada | 43,7 | 53 |
+| DLR | 334,0 | 314 (atmósfera real, con nubes) |
+| OLR | 296,6 | 267 (atmósfera real, con nubes) |
+
+**Lo que sale bien:**
+- **El transporte confirma la calibración:** 5,62 PW en el norte y 4,37 PW en el sur, frente a 5,62 y 4,38 previstos. La pequeña extrapolación era correcta.
+- **Gradiente medio entre 0 y 6 km:** 6,4–6,5 K/km entre 60° N y 60° S, el impuesto.
+- **Estratosfera a 25 km:** −42 a −51 °C.
+
+**Lo que sale MAL** (no se ajusta nada para esconderlo):
+1. **Polos demasiado cálidos y ningún hielo marino.**
+   - Aire a 2 m entre 90° y 60° N: +7 °C (real, unos −15 °C).
+   - En el sur, el océano a +13 °C.
+   - Hielo marino: 0, frente a 15,6/18,5 millones de km² de máximo.
+   - El aire a 2 m medio es 20,0 °C.
+2. **Tropopausa demasiado baja y casi plana:** unos 10,3 km en todas las latitudes (real, ~16–17 km en el trópico y ~8–9 en los polos).
+3. **OLR casi plano:** 271 W/m² en los polos y 314 en el ecuador (real, ~180 y ~290).
+   - Los polos reciben por transporte lo que en la Tierra (balance en lo alto, −130 W/m², ≈ real).
+   - Pero tienen que emitir mucho más, porque absorben más luz al no haber hielo.
+   - Y porque **el espesor óptico gris es el mismo en todas partes**: en la Tierra, el aire polar, frío y seco, es mucho más transparente al infrarrojo que el tropical.
+
+**P3N** (mapa de la pizarra, D = 1,55 × 0,683 = 1,06):
+
+| | v3.0 | v2.4.3 (con la corrección de la capa de mezcla) |
+|---|---|---|
+| Aire a 2 m global | 23,0 °C | 14,5 °C |
+| 90°–60° N | +5,0 °C | −24,6 °C |
+| 10° N – 10° S | 32,0 °C | 31,1 °C |
+| Hielo marino | 0 | 6 % N / 11 % S |
+
+El calentamiento es casi todo polar: +30 K en los polos y +1–3 K en el trópico.
+
+**Diagnóstico:**
+- La causa principal es estructural: **el vapor de agua no es radiativamente activo**. El espesor óptico τ es fijo y está calibrado con la media global, que dominan los trópicos húmedos. Eso da a los polos un efecto invernadero demasiado fuerte y a los trópicos uno algo débil.
+- Lo empeoran tres cosas:
+  - la falta de nubes;
+  - un D grande, necesario para transportar los 5 PW solo con calor seco;
+  - la retroalimentación del hielo: sin frío no se forma hielo, y sin hielo los polos absorben más luz.
+- En el modelo de dos capas, los polos eran fríos por un motivo equivocado: el bloque alto podía calentarse sin calentar el suelo.
+
+**Matiz (análisis con columnas, `DISENO_V3.1.md` §8 bis):**
+- Lo que más cambia con un τ que depende del vapor no es lo que sale por arriba, sino **el infrarrojo que llega al suelo polar**: en el invierno subártico, 220 W/m² con τ fijo frente a 124 con vapor.
+- Con τ fijo, la superficie polar no puede enfriarse lo bastante para formar hielo, y sin hielo absorbe mucha más luz.
+
+**Consecuencia:** la v3.0 tal cual **no debe encenderse para P3N**.
+
+**La solución física:** que el espesor óptico dependa del vapor que calcula el propio modelo (vapor radiativamente activo, previsto para la 5b). La v3.1 ya tiene ese vapor. **Decisión de Carlos:** adelantar esa parte de la 5b.
+
+Se descartó usar el τ dependiente de la latitud de Frierson/Isca porque es una forma terrestre (c) impuesta.
+
+## 14. Revisión del código y correcciones (05/10/2026)
+
+Una revisión independiente del código, hecha por un agente aparte con experimentos propios, **no encontró errores de energía, signos ni índices en la física**:
+- el cierre de energía paso a paso queda por debajo de 10⁻⁷ W/m² con 2 y con N capas, con y sin hielo;
+- el infrarrojo coincide con la solución analítica;
+- el ajuste convectivo con numba coincide con la forma cerrada hasta 2×10⁻¹¹ K.
+
+Corregido:
+1. **La capa de mezcla del océano dependía de la duración del día** (`fase2_inercia_multicapa.py`).
+   - Su capacidad se calculaba como inercia·√(día/π), una fórmula heredada de la capa diurna de la Fase 0.
+   - Con 24 h daba los ~48 m documentados; desde la v2.4.3 (19,84 h) daba **43,3 m**, un 9 % menos de capacidad que nadie había decidido.
+   - Ahora es fija: la capacidad con 24 h, ~48,7 m de agua de mar.
+   - **Cambia algo el clima de P3N exportado con la v2.4.3:** un poco más de inercia en el océano, con estaciones algo más suaves en el mar. En modo Tierra no cambia nada, así que la calibración de D sigue valiendo.
+2. `radiacion.py` (y `atmosfera.py`) no estaban en la huella de la caché. Ahora la caché se invalida también si cambian.
+3. **La caché escribe de forma atómica** (archivo temporal + renombrar): dos procesos ya no pueden dejar un archivo a medias.
+4. **El informe y la exportación** muestran los D que usa de verdad la simulación (`D_usados`, ya escalados con la rotación), no los de la Tierra.
+5. **Convergencia:** `simular_fase2b` devuelve un indicador explícito, `convergido`. Antes, el aviso de "no convergió" saltaba también si convergía justo en el año 50.
+6. **Modo Tierra:** la caja de Groenlandia ya no pone 2000 m en Baffin ni en Ellesmere.
+7. **`validar_v30.py`:**
+   - el gradiente de 0 a 6 km leía de menos: daba 6,29 en un perfil exacto de 6,5 K/km;
+   - el filtro de celdas bajas estaba descrito de tres formas distintas.
+8. Código sin uso eliminado y comentarios desfasados (año de 270 días) corregidos.
+
+**Optimización:** infrarrojo con funciones compiladas (numba), unas 2 veces más rápido. Mismo resultado salvo redondeo: diferencia máxima 2×10⁻¹³ W/m².
 
 ## Referencias
 

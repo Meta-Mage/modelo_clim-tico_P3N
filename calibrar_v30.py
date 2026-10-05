@@ -33,6 +33,7 @@ import argparse
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("NUMBA_NUM_THREADS", "1")   # v3.1: un hilo por simulacion (van varias en paralelo)
 
 import numpy as np
 import parametros as P
@@ -44,7 +45,7 @@ OBS = {"pico_atm_N": 5.0, "lat_pico_N": 43, "pico_atm_S": 5.0, "lat_pico_S": -40
 CARPETA = os.path.join("outputs", "calibracion_v30")
 
 
-def una(d_atm, d_oc, max_anos, acelerar, n_capas=None):
+def una(d_atm, d_oc, max_anos, acelerar, n_capas=None, v31=False):
     import fase2b_atmosfera as F
     import fase30_multicapa as M30
     from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
@@ -56,6 +57,9 @@ def una(d_atm, d_oc, max_anos, acelerar, n_capas=None):
     I = dict(F.INTERRUPTORES_FASE2B)
     I["hielo_marino"] = False
     I["atmosfera_multicapa"] = True
+    if v31:      # v3.1: con el ciclo del agua (el transporte incluye el calor latente)
+        for k in ("ciclo_agua", "conveccion_humeda", "suelo_termico_agua"):
+            I[k] = True
     t = time.time()
     r = F.simular_fase2b(orbita, tipo, alt, P.EMISIVIDAD, ALBEDO_POR_TIPO, INERCIA_POR_TIPO,
                          P.PROFUNDIDAD_OPTICA, 0.55, interruptores=I, d_atmosfera=d_atm, d_oceano=d_oc,
@@ -120,6 +124,10 @@ def main():
     ap.add_argument("--rapido", action="store_true", help="1 año sin acelerar, solo para comprobar")
     ap.add_argument("--nucleos", type=int, default=max(1, min(4, (os.cpu_count() or 2) // 2)))
     ap.add_argument("--max-anos", type=int, default=60)
+    ap.add_argument("--d-atm", type=float, nargs="+", default=None,
+                    help="valores de D de la atmosfera a probar (por defecto, la rejilla de la tanda 1)")
+    ap.add_argument("--d-oc", type=float, nargs="+", default=None, help="valores de D del oceano a probar")
+    ap.add_argument("--v31", action="store_true", help="con el ciclo del agua (I11-I13)")
     ap.add_argument("--convergencia-n", action="store_true",
                     help="en vez de la rejilla de D: misma simulacion con N = 10, 20, 30 y 40 capas")
     a = ap.parse_args()
@@ -135,7 +143,10 @@ def main():
     elif a.rapido:
         trabajos = [(0.55, 0.12, 1, False)]
     else:
-        trabajos = [(da, do, a.max_anos, True) for do in D_OC_REJILLA for da in D_ATM_REJILLA]
+        # v3.0 (05/10/2026): tanda 1 = la rejilla por defecto; tandas 2 y 3 con --d-atm 1.0 1.15 1.3
+        # --d-oc 0.16 0.22 y --d-atm 1.35 1.5 --d-oc 0.22 0.28 (DISENO_V3.0.md, seccion 13)
+        trabajos = [(da, do, a.max_anos, True, None, a.v31) for do in (a.d_oc or D_OC_REJILLA)
+                    for da in (a.d_atm or D_ATM_REJILLA)]
     print(f"{len(trabajos)} simulaciones en modo Tierra, {a.nucleos} a la vez...", flush=True)
     resultados = []
     if a.nucleos > 1 and len(trabajos) > 1:
@@ -153,7 +164,8 @@ def main():
         informe_n(resultados)
         return
     resultados.sort(key=lambda r: (r["D_oc"], r["D_atm"]))
-    nombre = os.path.join(CARPETA, "calibracion_v30_rapida.json" if a.rapido else "calibracion_v30.json")
+    nombre = os.path.join(CARPETA, ("calibracion_v31" if a.v31 else "calibracion_v30") + ("_rapida" if a.rapido else "")
+                          + "_" + time.strftime("%Y%m%d_%H%M%S") + ".json")   # v3.1: nunca se sobrescribe
     with open(nombre, "w") as f:
         json.dump({"observado": OBS, "resultados": resultados}, f, indent=1)
 
