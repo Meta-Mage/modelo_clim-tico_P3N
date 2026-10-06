@@ -424,3 +424,28 @@ Media de los días 200 a 1200, con 100 muestras (una cada 10 días). Estable los
 - **Con τ = 2** los chorros quedan algo más altos de latitud y más intensos.
 
 **v3.1-pre4:** `held_suarez.py` acepta `--filas 72` (2,5°, dt = 225 s, misma τ en la onda más corta de esa rejilla), para la prueba de resolución. En el entorno de la IA va a ~1 día simulado por minuto; en el PC de Carlos se esperan ~3–4 h para 1200 días ⚠️.
+
+### Prueba 6: prueba de resolución a 2,5° (PC de Carlos, 05–06/10) — CIERRE DE LA 6.2
+
+| | 5°, τ = 0,5 | 5°, τ = 2 | **2,5°, τ = 0,5** |
+|---|---|---|---|
+| Chorro (N / S) | 37,3 / 37,2 m/s en 28,9 / 29,0° | 40,6 / 40,4 m/s en 31,5 / 31,3° | **35,4 / 34,9 m/s en 40,6 / 40,4°** |
+| Incertidumbre (mitades) | ±0,2° | ±0,1° | ±0,3° (N), ±1,1° (S) |
+| Viento del oeste en superficie | 3,3–3,5 m/s en 33,5° | 4,6–4,7 m/s en 35,3° | **7,1–7,6 m/s en 42,0–42,7°** |
+| Calor por remolinos (máx.) | 33,1° | 33,5° | 36,4–36,7° |
+| Momento por remolinos hacia el polo (máx.) | 34–35 m²/s² en 24° | 33–36 m²/s² en 25° | **67–68 m²/s² en 31°** |
+
+**Conclusión: la 6.2 queda CERRADA ✅**
+- **Al reducir la celda a la mitad, el chorro se desplaza ~11,5° hacia el polo (hasta ~40,5°) y se debilita hacia ~35 m/s.**
+  - El viento del oeste en superficie se duplica y se coloca en ~42°.
+  - El transporte de momento por remolinos se duplica.
+  - Todo se acerca a HS94 (~30 m/s hacia ~45° ⚠️, cifra del artículo pendiente de verificar).
+- **El desplazamiento era sobre todo un efecto de la resolución,** como describen Lu et al. (2015) ✅, y en menor medida de la disipación (τ = 2 a 5°: +2,4°). No era un fallo del núcleo.
+- **El núcleo da la convergencia esperada al refinar la rejilla.**
+
+**Consecuencias para M3N**
+- **A 5°** (≈ 408 km en P3N), la zona de borrascas de P3N quedará previsiblemente unos 10° más cerca del ecuador de lo que daría un modelo de alta resolución, con unos vientos del oeste en superficie la mitad de intensos. Es una **limitación conocida y medida**, que se documentará en la validación de la 6.3 y en H3N.
+- **Opciones a decidir más adelante** (con Carlos):
+  - (a) aceptarlo;
+  - (b) simular a 2,5°, unas 8 veces más caro;
+  - (c) una corrección de los remolinos no resueltos, solo si la validación en modo Tierra lo justifica.

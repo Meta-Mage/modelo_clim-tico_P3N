@@ -74,7 +74,7 @@ def main():
             for a_ in ax:
                 a_.set_xlabel("latitud"); a_.invert_yaxis()
             ax[0].set_ylabel("sigma = p / p_s")
-            fig.suptitle(f"Held y Suarez con el nucleo de M3N (tau = {float(d['tau']):g} d, media de {int(d['n_medias'])} dias)")
+            fig.suptitle(f"Held y Suarez con el nucleo de M3N ({res}tau = {float(d['tau']):g} d, media de {int(d['n_medias'])} dias)")
             png = f.replace("_medias.npz", ".png")
             fig.savefig(png, dpi=110, bbox_inches="tight"); plt.close(fig)
             print(f" Figura: {png}")

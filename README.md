@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `v3.1-pre4`** (octubre de 2026). Igual que la v3.1-pre2 más el **núcleo dinámico propio de la Fase 6 en desarrollo** (módulos `fase6_*.py`, todavía sin conectar al modelo: no cambia el clima). La v3.1-pre2 es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 (calibrada en modo Tierra: D_atm = 1,55, D_oc = 0,27) y el ciclo del agua de la v3.1 (Fase 5a), programado y probado, con un prototipo de vapor radiativo (I15). Todo sigue **apagado** (I10–I15) hasta validarlas: el clima exportado es el de la v2.4.3, con la corrección de la capa de mezcla (`DISENO_V3.0.md` §14, `DISENO_V3.1.md`).
+**Versión actual: `v3.1-pre5`** (octubre de 2026). Igual que la v3.1-pre2 más el **núcleo dinámico propio de la Fase 6 en desarrollo** (módulos `fase6_*.py`, todavía sin conectar al modelo: no cambia el clima). La v3.1-pre2 es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 (calibrada en modo Tierra: D_atm = 1,55, D_oc = 0,27) y el ciclo del agua de la v3.1 (Fase 5a), programado y probado, con un prototipo de vapor radiativo (I15). Todo sigue **apagado** (I10–I15) hasta validarlas: el clima exportado es el de la v2.4.3, con la corrección de la capa de mezcla (`DISENO_V3.0.md` §14, `DISENO_V3.1.md`).
 
 ---
 
@@ -162,7 +162,7 @@ Las validaciones de cada fase que exigen simular un clima completo (por ejemplo,
 | v3.0 | Atmósfera de N capas (adelantada de la Fase 8, decisión del 04/10/2026), en seco | 🔧 programada; falta calibrar y validar |
 | v3.1 | Fase 5a: humedad, evaporación, precipitación (sobre las N capas) | 🔧 programada y probada; falta calibrar y validar |
 | v3.2 | Fase 5b: nubes | ⏳ |
-| v3.1-pre3 | Fase 6 (núcleo dinámico propio, decisión del 05/10/2026): 6.1 ✅, 6.2 casi ✅ (falta cerrar Held y Suarez), 6.3 empezada | 🔧 en desarrollo, sin conectar |
+| v3.1-pre3 | Fase 6 (núcleo dinámico propio, decisión del 05/10/2026): 6.1 ✅, 6.2 ✅ (cerrada con Held y Suarez a 5° y 2,5°), 6.3 empezada | 🔧 en desarrollo, sin conectar |
 | después | Fase 6.3–6.4 (acoplamiento y P3N), Fase 6b: corrientes oceánicas; Fase 7 / 7b: biomas | ⏳ |
 
 Al terminar M3N está previsto un **barrido final de parámetros** (masa de la estrella, órbita, presión, emisividades) para fijar el mundo definitivo. Los valores actuales son provisionales.
