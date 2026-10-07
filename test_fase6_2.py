@@ -201,5 +201,6 @@ def test_hiperdifusion_correccion_presion_reduce_el_calentamiento_falso_sobre_mo
         m.preparar_hiperdifusion(0.5, correccion_presion=corr)
         Tn, _, _ = m.aplicar_hiperdifusion(T, *z, 900.0, ps=ps)
         dT[corr] = np.abs(Tn - T).max()
-    # medido el 07/10: 3,4e-2 K -> 8,3e-3 K por paso de 900 s (x4,1; la correccion de CAM es de primer orden)
+    # medido el 07/10: 3,4e-2 K -> 8,3e-3 K por paso de 900 s con la forma de CAM (x4,1); con la interpolacion
+    # vertical de la v3.1-pre14 (DISENO_FASE6_3.md §6.12), 5,0e-3 K (x6,8)
     assert dT[True] < dT[False] / 3.5

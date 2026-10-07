@@ -20,7 +20,7 @@ import numpy as np
 from fase6_aguas_someras import Rejilla, _filtro_fourier, LAT_FILTRO_DEFECTO, RAW_NU, RAW_ALFA
 from fase6_nucleo_nb import HAY_NUMBA, _tendencias_sin_filtro
 
-LIMITE_CORRECCION_PRESION = 0.5     # v3.1-pre13: desplazamiento maximo (en capas) de la correccion de T (§6.11)
+LIMITE_CORRECCION_PRESION = 0.5     # peso maximo de la interpolacion de la correccion de T (§6.11, §6.12)
 
 # v3.1-pre8: con numba, las tendencias explicitas se calculan con la version compilada de fase6_nucleo_nb.py,
 # IDENTICA BIT A BIT a la de numpy de este archivo (test_fase6_2.py). Poner a False para usar la de numpy.
@@ -532,22 +532,34 @@ class NucleoSeco:
         ps_dif = np.fft.irfft((np.matmul(Is, pk[..., None].real)[..., 0]
                                + 1j * np.matmul(Is, pk[..., None].imag)[..., 0]).T, n=C, axis=-1)
         delps = ps - ps_dif                                                              # Pa
-        sh = self.sh
-        dT = np.zeros_like(T)
-        dT[:-1] += sh[1:-1, None, None] * (T[1:] - T[:-1])                              # B_{k+1/2}(T_{k+1}-T_k)
-        dT[1:] += sh[1:-1, None, None] * (T[1:] - T[:-1])                               # B_{k-1/2}(T_k-T_{k-1})
-        dp = self._d3 * ps[None]
-        # v3.1-pre13: LIMITE DE VALIDEZ. La correccion equivale a desplazar el perfil de T en la vertical
-        # dsigma ~ sigma delps/p_s (desarrollo de Taylor de 1.er orden); en capas, c_k = |delps| sigma_k / dp_k.
-        # Solo vale si ese desplazamiento es pequeño frente a la capa. Junto a escalones de relieve de casi 3 km
-        # (Antartida a 5 grados) llega a ~3 capas: el desarrollo deja de valer y el termino, explicito, se vuelve
-        # inestable (medido el 07/10 en modo Tierra, DISENO_FASE6_3.md §6.11). En cada columna se reduce delps
-        # para que max_k c_k <= LIMITE_CORRECCION_PRESION (media capa); donde ya es menor, no cambia nada.
-        sig_m = (0.5 * (self.sh[1:] + self.sh[:-1]))[:, None, None]
-        c = (np.abs(delps)[None] * sig_m / dp).max(axis=0)
-        delps = np.where(c > LIMITE_CORRECCION_PRESION,
-                         delps * (LIMITE_CORRECCION_PRESION / np.where(c > 0, c, 1.0)), delps)
-        return delps[None] * 0.5 / dp * dT
+        # v3.1-pre14: la correccion es T en la superficie de presion que pasa por el centro de la capa, es decir,
+        # T a la altura desplazada sigma_k + dsigma_k, con dsigma_k = sigma_k delps/p_s (lo que CAM aproxima con el
+        # 1.er termino de Taylor, centrado). Aqui se calcula como INTERPOLACION LINEAL entre la capa y su vecina en
+        # la direccion del desplazamiento (DISENO_FASE6_3.md §6.12):
+        #   - para perfiles suaves y desplazamientos pequeños coincide con CAM a 1.er orden;
+        #   - nunca extrapola con el perfil del modelo. La extrapolacion de CAM en las capas extremas, con una
+        #     inversion termica fuerte (meseta antartica en la noche polar), se realimentaba: enfriaba la capa baja
+        #     cada vez mas (medido el 07/10: de 200 K a 0 K en meses). Arriba (desplazamiento hacia el tope) la
+        #     correccion es 0; abajo (hacia el suelo), gradiente acotado (ver mas abajo);
+        #   - el peso de la interpolacion se acota a LIMITE_CORRECCION_PRESION = 0,5 (validez del desarrollo, §6.11):
+        #     el resultado queda siempre entre T_k y su vecina (no crea extremos nuevos).
+        sm = 0.5 * (self.sh[1:] + self.sh[:-1])                                          # sigma de cada capa
+        ds = (sm[None, None, :] * (delps / ps)[..., None]).transpose(2, 0, 1)            # dsigma (N, F, C)
+        gap = np.diff(sm)[:, None, None]                                                 # sigma_{k+1} - sigma_k
+        corr = np.zeros_like(T)
+        w_ab = np.minimum(np.maximum(ds[:-1], 0.0) / gap, LIMITE_CORRECCION_PRESION)     # hacia la capa de abajo
+        corr[:-1] += w_ab * (T[1:] - T[:-1])
+        w_ar = np.minimum(np.maximum(-ds[1:], 0.0) / gap, LIMITE_CORRECCION_PRESION)     # hacia la capa de arriba
+        corr[1:] += w_ar * (T[:-1] - T[1:])
+        # capa de abajo con desplazamiento hacia el suelo: por debajo no hay capa del modelo. Se extrapola en
+        # ln(sigma) con el gradiente de las dos capas de abajo, ACOTADO entre isotermo (0) y adiabatico seco
+        # (dT/dln sigma = kappa T): una inversion (gradiente negativo) no se extrapola, asi que no puede
+        # realimentarse; una atmosfera isoterma no cambia (reposo exacto); un perfil normal se extrapola bien.
+        d_ab = np.minimum(np.maximum(ds[-1], 0.0), LIMITE_CORRECCION_PRESION * gap[-1])
+        pend = (T[-1] - T[-2]) / math.log(sm[-1] / sm[-2])
+        pend = np.clip(pend, 0.0, self.kappa * T[-1])
+        corr[-1] += pend * np.log1p(d_ab / sm[-1])
+        return corr
 
     # ------------------------------------------------------------------ avance (explicito)
     def integrar(self, ps, T, u, v, dt, pasos, forzamiento=None, cada=None, al_registrar=None):

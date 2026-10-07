@@ -654,3 +654,46 @@ Medido:
 - **Prueba nueva** (100): con una meseta de 2800 m, el desplazamiento queda ≤ 0,5 capas y la corrección se reduce; con la montaña del caso 5, la corrección es idéntica bit a bit a la de antes.
 - `clima_dinamico.py` también para con un mensaje claro si aparecen valores no válidos (IndexError o ValueError por NaN).
 
+### 6.12 v3.1-pre14 (07/10/2026): la corrección de presión, como interpolación vertical sin extrapolar
+
+**Lo que pasó con la pre13.** La simulación larga en modo Tierra pasó del 1,8 % al **65,8 % del año 1**, unos 240 días, y se rompió de otra forma. `diagnostico_tierra.py` (guarda los últimos 60 subpasos) lo localizó:
+- **Dónde y cuándo:** en la meseta antártica (82,5° S, 122,5° O, 2300 m), en pleno invierno austral.
+- **Qué:** la capa más baja se fue enfriando a ~1 K por subpaso, de forma suave y continua, hasta 0 K. La física la calentaba (+3 K por paso), y la culpable era la dinámica.
+- **Desglose en ese momento:**
+  - la hiperdifusión la calentaba +11 K;
+  - **la corrección de presión la enfriaba −15 K**.
+- Antes de romperse, la temperatura mínima del planeta ya había tenido caídas pasajeras (124 K, 153 K...), que eran este mismo mecanismo.
+
+**La causa.** En las capas de arriba y de abajo, la forma de CAM usa una diferencia de un solo lado, es decir, **extrapola**.
+- Con una inversión térmica fuerte (la capa baja mucho más fría que la de encima, típico de la noche polar sobre hielo), la extrapolación enfría la capa baja en proporción a la propia inversión.
+- Eso hace la inversión aún mayor, y la realimentación crece sin límite.
+- El límite de media capa de la pre13 no lo impide: acota el desplazamiento, no la extrapolación.
+
+**Decisión (técnica, tomada por la IA a petición de Carlos el 07/10).** La corrección se calcula como lo que es: T en la superficie de presión que pasa por el centro de la capa, es decir, T a la altura desplazada σ_k + δσ_k, con δσ_k = σ_k·delps/p_s. Se obtiene por **interpolación lineal** entre la capa y su vecina en la dirección del desplazamiento.
+- Con un perfil lineal en σ es **exacta**. La forma de CAM, centrada y con capas desiguales, se aparta ~8 % de ese valor exacto.
+- **Nunca extrapola con el perfil del propio modelo:**
+  - en la capa de arriba, si el desplazamiento va hacia el tope, la corrección es 0;
+  - en la de abajo, si va hacia el suelo, no hay capa del modelo debajo. T se extrapola en ln σ con el gradiente de las dos capas de abajo, **acotado entre isotermo (0) y adiabático seco** (dT/d ln σ = κT) 🔶:
+    - una inversión no se extrapola, así que no puede realimentarse;
+    - una atmósfera isoterma no cambia (reposo exacto, prueba T4);
+    - un perfil normal se extrapola con su propio gradiente.
+  - Se probó antes un gradiente fijo de 6,5 K/km (el estándar para reducir T por debajo del suelo), pero rompía el reposo isotermo.
+- El peso de la interpolación se acota a 0,5 (`LIMITE_CORRECCION_PRESION`, la validez del §6.11). El resultado queda siempre entre T de la capa y la de su vecina, así que **no crea extremos nuevos** y no puede realimentarse.
+- Sustituye al límite por columna de la pre13.
+- **Sin cambios en el resto:** Held y Suarez no usa la corrección.
+- **Montaña del caso 5** (T que solo depende de p), el calentamiento falso por paso de 900 s:
+
+  | | sin corrección | forma de CAM | pre14 |
+  |---|---|---|---|
+  | máximo | 3,4·10⁻² K | 8,3·10⁻³ K (×4,1) | **5,0·10⁻³ K (×6,8)** |
+  | capa baja | 3,4·10⁻² K | — | 1,3·10⁻³ K |
+
+  Sin la extrapolación de abajo, la capa baja se quedaba sin corregir: 3,4·10⁻² K.
+
+**Medido con el estado guardado justo antes del fallo:**
+- en la capa baja de la celda que se rompía, la corrección pasa de −15,1 K (que enfriaba) a **0**: es una inversión y no se extrapola.
+
+**Prueba nueva** (sustituye a la de la pre13): con T lineal y relieve suave, la corrección es exacta. Con una meseta de 2800 m y una inversión de 150 K en la capa baja, esa capa solo se acerca a la de encima, como mucho la mitad del camino, y ningún valor sale del rango de sus vecinas. **Suite: 100.**
+
+**Pendiente:** que la simulación larga en modo Tierra pase el año completo (en el PC de Carlos, `diagnostico_tierra.py` y después `clima_dinamico.py --tierra`).
+

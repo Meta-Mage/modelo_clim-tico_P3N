@@ -213,37 +213,59 @@ def test_climatologia_cortada_y_retomada_da_lo_mismo(tmp_path, monkeypatch):
     assert seguida["climatologia"]["equilibrio"]["anos"] == retomada["climatologia"]["equilibrio"]["anos"] == 1
 
 
-def test_correccion_presion_limitada_en_escalones_de_relieve():
-    """v3.1-pre13 (§6.11): junto a un escalon de ~2800 m (Antartida a 5 grados) la correccion de la difusion
-    de T a superficies de presion equivaldria a desplazar el perfil ~3 capas (fuera de su validez, e inestable);
-    se limita a media capa. Con relieve suave (montaña del caso 5 de Williamson) no cambia nada."""
+def test_correccion_presion_interpola_sin_extrapolar():
+    """v3.1-pre14 (§6.12): la correccion de la difusion de T a superficies de presion es una interpolacion lineal
+    entre cada capa y su vecina en la direccion del desplazamiento, con peso <= 0,5:
+      - con un perfil lineal en sigma y desplazamientos pequeños, coincide con la forma de CAM (Taylor centrado)
+        en las capas interiores;
+      - nunca extrapola con el perfil del modelo: en la capa de abajo, con una inversion fortisima (meseta
+        antartica en la noche polar), no la extrapola (gradiente acotado entre isotermo y adiabatico seco);
+      - en ningun caso crea extremos nuevos."""
     import fase30_multicapa as M30
     import fase6_nucleo as N6
     from fase6_aguas_someras import caso5, A_TIERRA, OMEGA_TIERRA, G_TIERRA
-    sh = M30.sigma_seminiveles(20)
-    sig_m = 0.5 * (np.asarray(sh[1:]) + np.asarray(sh[:-1]))
-    T = 290.0 - 40.0 * (1 - sig_m)[:, None, None] * np.ones((1, 36, 72))     # T que cambia con la altura
-    for alto, cambia in ((np.where((np.arange(36)[:, None] >= 31) & (np.abs(np.arange(72)[None] - 36) < 6), 2800.0, 0.0), True),
-                         (caso5()[3], False)):
+    sh = np.asarray(M30.sigma_seminiveles(20))
+    sm = 0.5 * (sh[1:] + sh[:-1])
+    lim = N6.LIMITE_CORRECCION_PRESION
+
+    def nucleo(alto):
         m = N6.NucleoSeco(A_TIERRA, OMEGA_TIERRA, G_TIERRA, 287.0, 1004.0, sh, phis=G_TIERRA * alto)
         m.preparar_semiimplicito(450.0)
         m.preparar_hiperdifusion(0.5, calor_rozamiento=True, correccion_presion=True)
-        ps = 1e5 * np.exp(-G_TIERRA * alto / (287.0 * 260.0))
-        corr = m._correccion_presion(T, ps, 900.0)
-        lim = N6.LIMITE_CORRECCION_PRESION
-        N6.LIMITE_CORRECCION_PRESION = np.inf
-        try:
-            libre = m._correccion_presion(T, ps, 900.0)
-        finally:
-            N6.LIMITE_CORRECCION_PRESION = lim
-        assert np.isfinite(corr).all()
-        if cambia:
-            assert np.abs(corr).max() < np.abs(libre).max()
-            dT = np.zeros_like(T)
-            dT[:-1] += np.asarray(sh)[1:-1, None, None] * (T[1:] - T[:-1])
-            dT[1:] += np.asarray(sh)[1:-1, None, None] * (T[1:] - T[:-1])
-            delps = corr / (0.5 / (m._d3 * ps[None]) * np.where(dT == 0, 1.0, dT))       # delps efectivo
-            c = (np.abs(delps) * sig_m[:, None, None] / (m._d3 * ps[None])).max(axis=0)
-            assert c.max() <= lim * (1 + 1e-12)
-        else:
-            assert np.array_equal(corr, libre)
+        return m, 1e5 * np.exp(-G_TIERRA * alto / (287.0 * 260.0))
+
+    # 1) relieve suave (montaña del caso 5 a la decima parte) y T lineal en sigma, T = a + b sigma: la
+    #    interpolacion es EXACTA, corr = b dsigma con dsigma = sigma delps/p_s (lo que la forma de CAM aproxima;
+    #    con capas desiguales, la de CAM se aparta ~8 %); arriba, hacia el tope, 0; abajo, hacia el suelo, con el
+    #    gradiente de las dos capas de abajo en ln(sigma), acotado entre isotermo y adiabatico seco
+    m, ps = nucleo(0.1 * caso5()[3])
+    b_ = 70.0
+    T = (220.0 + b_ * sm)[:, None, None] * np.ones((1, 36, 72))
+    corr = m._correccion_presion(T, ps, 900.0)
+    Is, _ = m._inversas_difusion(900.0)
+    pk = np.ascontiguousarray(np.fft.rfft(ps, axis=-1).T)
+    delps = ps - np.fft.irfft((np.matmul(Is, pk[..., None].real)[..., 0]
+                               + 1j * np.matmul(Is, pk[..., None].imag)[..., 0]).T, n=72, axis=-1)
+    exacta = b_ * sm[:, None, None] * (delps / ps)[None]
+    gap = np.diff(sm)
+    d_ab = np.minimum(np.maximum(sm[-1] * delps / ps, 0.0), lim * gap[-1])               # abajo, hacia el suelo:
+    pend = np.clip((T[-1] - T[-2]) / np.log(sm[-1] / sm[-2]), 0.0, (287.0 / 1004.0) * T[-1])  # gradiente acotado
+    abajo = pend * np.log1p(d_ab / sm[-1])
+    exacta[-1] = np.where(delps > 0, abajo, exacta[-1])
+    exacta[0] = np.where(delps < 0, 0.0, exacta[0])
+    assert np.abs(exacta).max() > 1e-3 and np.allclose(corr, exacta, rtol=1e-10, atol=1e-14)
+
+    # 2) meseta de 2800 m y una inversion fortisima en la capa de abajo
+    alto = np.where((np.arange(36)[:, None] >= 31) & (np.abs(np.arange(72)[None] - 36) < 6), 2800.0, 0.0)
+    m, ps = nucleo(alto)
+    T = (220.0 + 40.0 * sm)[:, None, None] * np.ones((1, 36, 72))
+    T[-1] = 70.0
+    corr = m._correccion_presion(T, ps, 900.0)
+    assert np.isfinite(corr).all() and np.abs(corr).max() > 0
+    # la capa de abajo solo se acerca a la de arriba, como mucho la mitad del camino
+    assert (corr[-1] * (T[-2] - T[-1]) >= 0).all() and (np.abs(corr[-1]) <= lim * np.abs(T[-2] - T[-1]) + 1e-12).all()
+    # ningun extremo nuevo: T + corr queda entre los valores de la capa y sus vecinas
+    Tn = T + corr
+    vec_min = np.minimum(T, np.minimum(np.concatenate([T[:1], T[:-1]]), np.concatenate([T[1:], T[-1:]])))
+    vec_max = np.maximum(T, np.maximum(np.concatenate([T[:1], T[:-1]]), np.concatenate([T[1:], T[-1:]])))
+    assert (Tn >= vec_min - 1e-9).all() and (Tn <= vec_max + 1e-9).all()

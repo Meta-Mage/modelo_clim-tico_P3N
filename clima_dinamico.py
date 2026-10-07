@@ -115,7 +115,7 @@ def main():
 
     F.AL_PASO = al_paso
     F.AL_ACABAR_ANO = al_acabar_ano
-    informar(f"=== M3N v3.1-pre13 con nucleo dinamico | {'modo Tierra' if args.tierra else 'P3N, mapa ' + nombre_mapa} | "
+    informar(f"=== M3N v3.1-pre14 con nucleo dinamico | {'modo Tierra' if args.tierra else 'P3N, mapa ' + nombre_mapa} | "
              f"arranque {args.arranque} | {len(orbita)} pasos por año | carpeta {carpeta}")
     try:
         prueba = {} if not args.dias else dict(          # prueba: pocos años y sin exigir equilibrio
