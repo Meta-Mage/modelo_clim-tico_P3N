@@ -1,6 +1,6 @@
 # Fase 6.3 de M3N: acoplar el núcleo dinámico con la física de M3N (BORRADOR v1)
 
-**Estado: BORRADOR v1 (05/10/2026), sin código.** Requisito: que la 6.2 esté cerrada con Held y Suarez.
+**Estado: v2 (06/10/2026).** Las decisiones del §1 están revisadas con fuentes y **aprobadas por Carlos** (§6). El transporte del vapor está hecho (§5). El paso 2 del §3 (núcleo con los niveles de M3N) está en marcha (v3.1-pre6). La 6.2 está cerrada (`DISENO_FASE6_2.md`).
 
 Etiquetas:
 - ✅ verificado;
@@ -62,7 +62,7 @@ Ahora mismo, en `paso_agua` (v3.1), el aire se mueve con una **difusión horizon
 
 ### 1.6 Capa esponja para el techo de M3N
 
-- **Por qué hace falta:** los 20 niveles de M3N llegan a 0,7 hPa. La 6.2 (intento 1 de Held y Suarez) demostró que sin disipación en el tope los vientos de las capas altas crecen sin límite.
+- **Por qué hace falta:** la capa de arriba de M3N va de 0 a 7,35 hPa, con el centro a 3,7 hPa (corregido el 06/10: los documentos decían "0,7 hPa" por un desliz de unidades, 0,735 kPa). La 6.2 (intento 1 de Held y Suarez) demostró que sin disipación en el tope los vientos de las capas altas crecen sin límite.
 - 🔶 **Propuesta:** relajación de Rayleigh de u y v hacia 0 (o hacia su media zonal) en las capas con p < ~1 hPa, con un tiempo de amortiguamiento de ~1 día. Hay que fijar el criterio en una fuente: Polvani y Kushner (2002) ⚠️, o la práctica de los modelos con el techo alto.
 - **Energía:** la energía cinética que quita se devuelve como calor, para no perder energía ⚠️ (decisión).
 - **Alternativa:** reducir el techo del modelo, con otros niveles. Cambiaría la radiación de la v3.0, y no se recomienda.
@@ -100,11 +100,7 @@ Referencias observadas a verificar una a una:
 
 ## 4. Decisiones de Carlos
 
-- 1.2: unificar la presión del centro de la capa en la definición de SB81.
-- 1.3: viento en superficie a partir del núcleo, con una ráfaga mínima.
-- 1.4: arrastre de fórmula aerodinámica y difusión vertical en la capa límite.
-- 1.6: capa esponja (y si devuelve la energía como calor).
-- El orden de trabajo de §3.
+**Tomadas el 06/10/2026:** ver el §6, que sustituye a la lista de este apartado (la de la v1 era: 1.2 presión de SB81; 1.3 viento con ráfaga mínima; 1.4 arrastre y difusión vertical; 1.6 capa esponja; el orden del §3). La ráfaga mínima de 1.3 y la capa esponja de 1.6 cambian respecto a la v1; ver allí por qué.
 
 ---
 
@@ -165,3 +161,107 @@ Esa diferencia acotada es el efecto del filtro RAW, el filtro polar y la correcc
 **Decisión 🔶 (opción A + conciliación):** en cada paso de la física, q pasa a la masa dinámica conservando la masa de agua, q ← q·m_tr/Δp_dyn, y m_tr ← Δp_dyn.
 - **El agua se conserva exacta,** que es lo prioritario para el cierre del ciclo del agua.
 - **Un campo constante cambia ≤ 2·10⁻⁴ relativo,** acotado y medido.
+
+---
+
+## 6. Decisiones revisadas con fuentes y aprobadas por Carlos (06/10/2026)
+
+Criterio de Carlos para todo este apartado: "que todo lo que se haga se haga desde la información y la seguridad de que es apropiado, preciso y riguroso al máximo". Las decisiones técnicas de la 6.3 las verifica la IA en las fuentes, elige la opción más rigurosa y se las presenta justificadas para su visto bueno. Las que dependan del worldbuilding o de sus preferencias se le consultan aparte.
+
+### 6.1 Correcciones a la v1 de este documento
+
+1. **§1.2.** Decía que la presión del centro de la capa "difiere mucho" en la capa de arriba entre la media aritmética y SB81. **Es falso.** Con el tope a p = 0, las dos dan p_{3/2}/2 en la capa de arriba. Diferencia relativa calculada con los 20 niveles de M3N: 0 % en la capa 1, −0,68 % en la capa 2 (la máxima), bajando hasta −0,01 % en la capa 20.
+2. **§1.4.** Suponía que `factor_estabilidad_louis` "ya da la función para el momento" (⚠️ comprobar). **No la da:** es solo la del calor. Louis, Tiedtke y Geleyn (1982), Tabla 1, verificada en el código de LMDZ (`cdrag_mod.F90`, que la cita) ✅:
+   - momento, inestable: f_m = 1 − 2b·Ri / (1 + 3bc·C_N·√(z/z₀·|Ri|));
+   - momento, estable: f_m = 1 / (1 + 2b·Ri / √(1 + d·Ri));
+   - calor, inestable: f_h = 1 − 3b·Ri / (1 + 3bc·C_N·√(z/z₀·|Ri|));
+   - calor, estable: f_h = 1 / (1 + 3b·Ri·√(1 + d·Ri));
+   - b = c = d = 5.
+   La función del calor de M3N coincide con esta tabla ✅. LMDZ usa √(|Ri|(1 + z/z₀)) en lugar de √(z/z₀·|Ri|): con z = 10 m y z₀ ≤ 0,01 m, la diferencia es ≤ 0,05 % ✅ (cálculo propio).
+3. **§1.3.** Suponía que una "ráfaga mínima" es práctica habitual. El esquema publicado más cercano a M3N (radiación gris), Frierson, Held y Zurita-Gotor (2006), usa **ráfaga cero**: "zero gustiness velocity in this model, so surface fluxes are allowed to approach zero" ✅ (tesis de Frierson).
+4. **§1.6 y `DISENO_FASE6_2.md`.** "Techo a 0,7 hPa" → la capa de arriba va de 0 a 7,35 hPa y su centro está a 3,7 hPa.
+5. **Hallazgo nuevo:** el viento fijo de 5 m/s (`VIENTO`, `fase2b_atmosfera.py`) también entra en el **albedo del océano** (tabla de Cox-Munk) y en la **rugosidad del océano** (Z0M = 2·10⁻⁴ m, "Charnock a 5 m/s"). Con viento real, las tres cosas tienen que usar el viento de cada celda.
+
+### 6.2 Las decisiones (aprobadas)
+
+**1.1 Reparto del paso y acoplamiento** ✅ fuente / 🔶 diseño
+- CAM euleriano (leapfrog, como M3N) usa un acoplamiento "process split": la física se calcula sobre el nivel n−1 y se aplica con 2Δt ✅ (descripción de CAM, cap. 3). El paso de la física de M3N (992 s) es exactamente 2 × 496 s.
+- **Riesgo detectado:** aplicar la física de golpe cada 2 pasos tocaría solo una de las dos cadenas del leapfrog (pasos pares e impares) y excitaría el modo computacional.
+- **Decisión:**
+  - la física se calcula una vez cada 992 s;
+  - su tendencia de T, u y v entra como forzamiento constante en los 2 pasos de la dinámica (cada cadena la recibe una vez);
+  - el vapor, el suelo, el hielo y la superficie se actualizan directamente, con lo que el agua sigue cerrando de forma exacta.
+- Aplicar la tendencia repartida y no de golpe reduce el ruido de las ondas de gravedad en CAM-SE ✅ (Gross et al. 2018, revisión del acoplamiento física-dinámica, fig. 5).
+- **Prueba obligatoria:** física evaluada en n−1 (como CAM, por defecto) frente a en n; medir la amplitud del modo computacional y el cierre de energía.
+
+**1.2** Unificar la presión del centro de la capa con SB81. Se mide el cambio en la v3.1, que se espera pequeño por el §6.1.1.
+
+**1.3 Viento en superficie**
+- El de la capa más baja del núcleo, en el centro de la celda. **Sin ráfaga** (Frierson et al. 2006 ✅), con solo un mínimo numérico para no dividir por cero en Ri.
+- Si la validación en modo Tierra muestra un desacoplamiento irreal de las noches sobre tierra (oscilación diaria frente a las observaciones), se añade una ráfaga **con fuente verificada**: medido, no supuesto.
+- El albedo y la rugosidad del océano pasan a usar el viento local. La rugosidad, con Charnock: constante ⚠️ por verificar en la fuente antes de programarla.
+
+**1.4 Rozamiento y capa límite**
+- **Arrastre en superficie:** τ = ρ·C_N·f_m(Ri)·|v|·v, con la f_m de Louis, Tiedtke y Geleyn (1982) ✅ (§6.1.2) y la misma rugosidad que el calor.
+- **Mezcla vertical en la capa límite:** el perfil de K de Frierson et al. (2006) ✅. Capa superficial = 10 % de la capa límite (f = 0,1); tope donde el Ri global llega a 1; el mismo coeficiente para el momento, el calor y el vapor. Implícita en cada columna, sobre u, v, T y q.
+- Combinar el arrastre de Louis con la mezcla de Frierson es diseño propio 🔶. Prueba de columna: con estratificación neutra tiene que salir el perfil logarítmico.
+
+**1.5** Confirmado lo hecho (§5): el trazador lleva su propia masa de aire y se concilia conservando exactamente el agua.
+
+**1.6 Capa esponja: no se pone de entrada.** La decide el paso 2 del §3 (§6.4). Si hace falta, tendrá que conservar el momento angular y devolver como calor la energía cinética que quite. Su forma se verificará entonces en la fuente ⚠️ (Shepherd et al., "Sponge layer feedbacks in middle-atmosphere models": la página del artículo no fue accesible el 06/10).
+
+**1.7** Corrección de la difusión de T para que actúe como sobre superficies de presión, como CAM ✅ (`difcor.F90`: tcor ∝ ∇⁴p_s · B_k · ∂T/∂p; en σ pura, B_k = σ).
+
+**1.8 Energía**
+- La energía cinética que quitan la difusión del viento y el rozamiento en superficie se devuelve como calor, como hace CAM en `difcor.F90` ✅ ("to conserve total energy").
+- El balance incluirá la energía cinética y Φ_s·p_s, y declarará por separado las pérdidas del filtro RAW y del filtro polar (ya no serán exactas a 10⁻¹²).
+- Antes de decidir si hace falta un corrector global de energía, **se mide** el error. El umbral para decidirlo, con fuente ⚠️.
+
+### 6.3 Equilibrio, climatología y coste (§1.9 nuevo)
+
+**El problema (hallazgo del 06/10).** El criterio actual de `simular_fase2b` es que ninguna celda cambie su media anual más de 0,015 K, y el clima es el último año. Con el núcleo dinámico hay tiempo meteorológico, el criterio no se cumpliría nunca y un año pasa a ser una muestra, no el clima.
+
+**Decisiones (Carlos, 06/10):**
+- **Equilibrio:** medias globales anuales en una ventana de los últimos 5 años, con cuatro condiciones a la vez:
+  - balance en el tope de la atmósfera |N| < 0,2 W/m²;
+  - tendencia del aire a 2 m < 0,02 K/año;
+  - tendencia del área de hielo < 0,1 % del océano por año;
+  - tendencia del agua del suelo < 1 % de su capacidad por año.
+
+  Son umbrales de partida 🔶: se fijan en firme midiendo el ruido de la primera simulación en modo Tierra. El modelo de 2 capas (v2.4.3) conserva su criterio actual.
+- **Arranque caliente:** el océano, el hielo y el suelo salen del equilibrio del modelo de 2 capas con el mismo mapa y los mismos parámetros. El aire arranca en reposo. Prueba: el mismo equilibrio que desde un arranque frío.
+- **Aceleración:** el salto geométrico se aplica solo a lo lento (entalpía del océano, hielo, suelo profundo, agua del suelo), **nunca** al aire ni al viento.
+- **Climatología:** se promedian los años necesarios para que el error de la media sea < 0,1 K en la temperatura de cada banda de latitud y < 5 % en su precipitación (σ/√N_eff, con la autocorrelación entre años).
+- **Exportación** (claves nuevas de `m3n-clima` v1):
+  - medias de N años por día del año;
+  - extremos absolutos de los N años;
+  - desviación típica entre años;
+  - datos horarios como media de N años por día y hora;
+  - metadatos: años promediados, error estimado y nivel del modelo.
+- **Comparaciones:** como el modelo es caótico, una diferencia entre dos simulaciones solo cuenta si supera unas 2 veces el error de la media. La prueba de "interruptor apagado = bit a bit" sigue igual.
+- **Coste:** objetivo ~2 h por simulación de P3N, techo una noche. Todas las optimizaciones posibles, cada una con su prueba de igualdad bit a bit o de diferencia medida, acotada y documentada.
+  - Medido el 06/10 en el entorno de la IA: núcleo 43 ms/paso (en el PC ~7), física de la v3.1 con agua 36 ms/paso, vapor 3D 7,5 ms/paso.
+  - Estimación en el PC: ~10 min por año de P3N y ~15 min por año terrestre (±50 %).
+- **Resolución de 2,5°:** se pensará cuando el planeta esté definido, quizá para una sola simulación muy larga.
+- **Jerarquía de modelos** (rápido = v2.4.3 de 2 capas; completo = 6.3 en adelante): aceptada como idea; los Barridos se verán más adelante. `DISENO_H3N.md` no cambia por ahora.
+
+### 6.4 Paso 2 del §3: núcleo con los niveles de M3N (v3.1-pre6)
+
+- `python held_suarez.py --niveles m3n` (Held y Suarez, 1200 días, τ = 0,5 días, dt = 450 s, con los 20 niveles de `sigma_seminiveles`). En el PC de Carlos, ~25 min.
+- El registro muestra cada 20 días el máximo de |u| en las capas con el centro por encima de 20 hPa. `analizar_held_suarez.py` compara esas capas entre la 1.ª y la 2.ª mitad del promedio.
+- Prueba corta en el entorno de la IA (06/10): 21 días estables; el día 20, chorro de 39,0 m/s en 27,5° S, σ = 0,20; capas altas, |u| máx. 28,3 m/s.
+- **Criterios para no necesitar la capa esponja** (🔶, fijados ANTES de ver el resultado):
+  1. estable los 1200 días, sin valores no finitos;
+  2. capas altas sin deriva: el máximo de |u zonal medio| cambia < 10 % entre la 1.ª y la 2.ª mitad;
+  3. troposfera coherente con la corrida de niveles iguales (37,3 m/s en 28,9°): diferencias < 2 m/s y < 2° de latitud. Los niveles son distintos, así que no se espera igualdad exacta.
+
+  Si falla 1 o 2, se diseña la capa esponja (1.6). Si falla solo 3, se analiza antes de decidir.
+
+### Referencias de este apartado
+
+- CAM, descripción del núcleo euleriano (www2.cesm.ucar.edu/models/atm-cam/docs/description/node9.html) ✅.
+- CAM, `difcor.F90` (código de CAM 5.4) ✅.
+- Gross, M., et al. (2018), revisión del acoplamiento física-dinámica (arXiv:1605.06480) ✅.
+- Frierson, D. M. W., Held, I. M., y Zurita-Gotor, P. (2006), J. Atmos. Sci. 63, 2548–2566 ✅ (detalles verificados en la tesis de Frierson).
+- Louis, J.-F., Tiedtke, M., y Geleyn, J.-F. (1982), ECMWF Workshop on Planetary Boundary Layer Parameterization, Tabla 1 ✅ (vía LMDZ, `cdrag_mod.F90`).
+- Mendonça, J. M., et al. (2016), THOR (arXiv:1607.05535) ✅: Held y Suarez, chorros hacia ~45° y ~250 hPa.

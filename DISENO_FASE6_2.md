@@ -320,7 +320,7 @@ Con la montaña del caso 5 (2000 m), las tendencias son ≤ 3·10⁻¹⁶: **nin
   - el Courant vertical de ~2 es un síntoma del ruido, no la causa.
 
 **Conclusión: son dos problemas distintos.**
-1. **El techo alto de M3N** (0,7 hPa en el centro de la capa de arriba) necesita una **capa esponja**, una disipación de Rayleigh en el tope, que es lo habitual en los modelos con el techo alto ⚠️ (fuente por verificar). **Queda para la 6.3**, porque la prueba publicada no usa esos niveles.
+1. **El techo alto de M3N** (la capa de arriba va de 0 a 7,35 hPa, con el centro a 3,7 hPa; corregido el 06/10, antes decía "0,7 hPa" por un desliz de unidades) necesita una **capa esponja**, una disipación de Rayleigh en el tope, que es lo habitual en los modelos con el techo alto ⚠️ (fuente por verificar). **Queda para la 6.3**, porque la prueba publicada no usa esos niveles.
 2. **La acumulación de energía y enstrofía en la escala de la rejilla** es lo que motiva la hiperdifusión de §7. No es un fallo del esquema: todas las implementaciones de HS94 la llevan (CESM y DCPAM ✅).
 
 ### Hiperdifusión implementada (§7, 05/10)
@@ -344,7 +344,7 @@ Con la montaña del caso 5 (2000 m), las tendencias son ≤ 3·10⁻¹⁶: **nin
 Está en marcha la simulación completa de 1200 días.
 
 **Rectificación (05/10, 17:40): con la hiperdifusión, los niveles de M3N también son estables.**
-- Held y Suarez con los 20 niveles de M3N (techo a 0,7 hPa), τ = 0,5 días y dt = 450 s: **60 días estables y razonables**.
+- Held y Suarez con los 20 niveles de M3N (capa de arriba de 0 a 7,35 hPa), τ = 0,5 días y dt = 450 s: **60 días estables y razonables**.
   - Courant vertical ≤ 0,04;
   - |v| ≤ 60 m/s solo en el ajuste inicial, y luego ~30 m/s;
   - T_min = 183–192 K;

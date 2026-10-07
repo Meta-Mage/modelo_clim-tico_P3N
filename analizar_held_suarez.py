@@ -39,6 +39,12 @@ def main():
         d = np.load(f)
         lat, sig = d["lat"], d["sigma"]
         res = f"{180 / int(d['filas']):g} grados, " if "filas" in d.files else "5 grados, "
+        if "niveles" in d.files:                                                   # v3.1-pre6
+            res += f"niveles {str(d['niveles'])}, "
+        if int(d["n_medias"]) == 0 or np.ndim(d["u"]) != 2:                       # v3.1-pre6: corrida corta
+            print(f"\n=== {os.path.basename(f)}: {res}{int(d['dias'])} dias simulados: sin dias promediados "
+                  f"(la media empieza el dia 200); no hay informe ===")
+            continue
         print(f"\n=== {os.path.basename(f)}: {res}tau = {float(d['tau']):g} dias, {int(d['dias'])} dias simulados, "
               f"media de {int(d['n_medias'])} dias ===")
         ks = int(np.argmax(sig))                                                   # capa mas baja
@@ -60,7 +66,13 @@ def main():
             print(f"   viento del oeste en superficie: max {us:4.1f} m/s en {abs(ls):5.1f} | "
                   f"calor por remolinos (sigma 0,85): max en {abs(lvt):5.1f} | "
                   f"momento por remolinos hacia el polo (sigma 0,25): max {uv:5.1f} m2/s2 en {abs(luv):5.1f}")
-        print(" Referencia (HS94, a verificar en el articulo): chorros de ~30 m/s hacia ~45 grados.")
+        print(" Referencia (HS94): chorros hacia ~45 grados y ~250 hPa (verificado en Mendonca et al. 2016, THOR); "
+              "la velocidad, ~30 m/s, sigue pendiente de cita textual.")
+        alto = sig < 0.02                                                          # v3.1-pre6: vigilancia del techo
+        if alto.any() and d["u1"].ndim == 2 and d["u2"].ndim == 2:
+            ua1 = float(np.abs(d["u1"][alto]).max()); ua2 = float(np.abs(d["u2"][alto]).max())
+            print(f" Capas altas (centro < 20 hPa): |u zonal medio| max {float(np.abs(d['u'][alto]).max()):.1f} m/s "
+                  f"(1.a mitad {ua1:.1f}, 2.a mitad {ua2:.1f}; cambio {100 * (ua2 - ua1) / max(ua1, 1e-9):+.0f} %)")
         try:
             import matplotlib
             matplotlib.use("Agg")

@@ -5,10 +5,13 @@
 #     python held_suarez.py --tau 2         # sensibilidad: hiperdifusion 4 veces mas debil
 #     python held_suarez.py --dias 300      # mas corto (solo para probar)
 #     python held_suarez.py --filas 72      # rejilla de 2,5 grados (144 x 72): ~8 veces mas lenta por dia
+#     python held_suarez.py --niveles m3n   # v3.1-pre6: los 20 niveles REALES de M3N (capa de arriba 0-7,35 hPa),
+#                                           # paso 2 de la Fase 6.3 (decide si hace falta la capa esponja)
 #
 # Configuracion (DISENO_FASE6_2.md §5 y §10): Tierra (Williamson/HS94: a = 6,37122e6 m, Omega = 7,292e-5,
 # g = 9,80616, R = 287, cp = 1004), rejilla de M3N (72 x 36, 5 grados), 20 capas sigma IGUALES (la
-# especificacion de la prueba), dt = 450 s, semiimplicito + RAW, hiperdifusion nabla^4 implicita.
+# especificacion de la prueba; con --niveles m3n, las de fase30_multicapa.sigma_seminiveles), dt = 450 s,
+# semiimplicito + RAW, hiperdifusion nabla^4 implicita.
 #
 # - Muestra el PROGRESO en pantalla (barra, dias, velocidad, tiempo restante) y una linea cada 20 dias.
 # - Guarda un PUNTO DE CONTROL cada 20 dias en outputs/held_suarez/: si se corta (Ctrl+C, apagon...),
@@ -40,17 +43,25 @@ def main():
     ap.add_argument("--tau", type=float, default=0.5, help="hiperdifusion: dias de amortiguamiento de la onda mas corta")
     ap.add_argument("--dias", type=int, default=1200)
     ap.add_argument("--filas", type=int, default=36, help="filas de la rejilla: 36 = 5 grados (la de M3N), 72 = 2,5 grados")
+    ap.add_argument("--niveles", choices=("iguales", "m3n"), default="iguales",
+                    help="iguales = 20 capas sigma iguales (la especificacion de HS94); m3n = los 20 niveles de M3N")
     a = ap.parse_args()
     DT = DT_5GRADOS * 36 / a.filas
 
     carpeta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "held_suarez")
     os.makedirs(carpeta, exist_ok=True)
-    nombre = f"hs_tau{a.tau:g}" + ("" if a.filas == 36 else f"_f{a.filas}")
+    nombre = (f"hs_tau{a.tau:g}" + ("" if a.filas == 36 else f"_f{a.filas}")
+              + ("" if a.niveles == "iguales" else "_m3n"))
     f_estado = os.path.join(carpeta, nombre + "_estado.npz")
     f_medias = os.path.join(carpeta, nombre + "_medias.npz")
     f_log = os.path.join(carpeta, nombre + ".log")
 
-    m = NucleoSeco(A_TIERRA, OMEGA_TIERRA, G_TIERRA, 287.0, 1004.0, np.linspace(0, 1, 21), filas=a.filas)
+    if a.niveles == "m3n":
+        from fase30_multicapa import sigma_seminiveles
+        sigma_semi = np.asarray(sigma_seminiveles(), dtype=float)
+    else:
+        sigma_semi = np.linspace(0, 1, 21)
+    m = NucleoSeco(A_TIERRA, OMEGA_TIERRA, G_TIERRA, 287.0, 1004.0, sigma_semi, filas=a.filas)
     hs = HeldSuarez(m)
     N, Rj = m.N, m.Rj
     sig = sigma_capas(m)
@@ -77,8 +88,9 @@ def main():
         n_med = 0; n1 = 0
         reanudar = None
         n0 = 1
-    print(f"Held y Suarez | {180 / a.filas:g} grados | tau = {a.tau:g} dias | {a.dias} dias = {total} pasos de {DT:.0f} s | "
-          f"media desde el dia {DIA_INICIO_MEDIA}")
+    print(f"Held y Suarez | {180 / a.filas:g} grados | niveles {a.niveles} (techo {sig.min() * 1000:.2f} hPa) | "
+          f"tau = {a.tau:g} dias | {a.dias} dias = {total} pasos de {DT:.0f} s | media desde el dia {DIA_INICIO_MEDIA}")
+    alto = sig < 0.02          # capas por encima de ~20 hPa (solo existen con --niveles m3n): vigilancia del techo
 
     t0 = time.time()
     estado = {"n_med": n_med, "n1": n1}
@@ -113,6 +125,8 @@ def main():
             linea = (f"{dia:6.0f} d  u_zonal max {uz.max():5.1f} m/s en {math.degrees(Rj.phi_c[i]):6.1f}, "
                      f"sigma {sig[k]:.2f} | max|v| {abs(v).max():5.1f} | T {T.min():.0f}..{T.max():.0f} K | "
                      f"ps {ps.min() / 100:.0f}..{ps.max() / 100:.0f} hPa")
+            if alto.any():
+                linea += f" | capas altas (<20 hPa): max|u| {np.abs(uc[alto]).max():5.1f} m/s"
             sys.stdout.write("\r" + " " * 100 + "\r" + linea + "\n")
             with open(f_log, "a") as fl:
                 fl.write(linea + "\n")
@@ -146,7 +160,7 @@ def main():
     n2 = estado["n_med"] - estado["n1"]
     med["u2"] = (np.asarray(acum["u"]) - np.asarray(acum["u1"])) / max(n2, 1)
     np.savez(f_medias, **med, n_medias=estado["n_med"],
-             sigma=sig, lat=np.degrees(Rj.phi_c), tau=a.tau, dias=a.dias, filas=a.filas)
+             sigma=sig, lat=np.degrees(Rj.phi_c), tau=a.tau, dias=a.dias, filas=a.filas, niveles=a.niveles)
     print(f"\nTerminado en {(time.time() - t0) / 60:.0f} min. Medias de {estado['n_med']} dias en {f_medias}")
     print("Siguiente paso: python analizar_held_suarez.py")
 
