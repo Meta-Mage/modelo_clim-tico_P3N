@@ -440,7 +440,7 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 |---|---|
 | pre9 (hecha) | Columna con p_s variable, caché corregida, conversión caras-centros, este diseño |
 | pre10 | Opciones del núcleo (energía cinética de la hiperdifusión → calor; corrección de T a superficies de presión); luz con p_s variable; superficie con z_a y viento real (Cox-Munk 2D, Charnock) como funciones probadas, sin conectar |
-| pre11 | `paso_acoplado` (I16) con T1–T6 |
+| pre11 (hecha, §6.9) | I16 dentro de `paso_agua`, con T1–T6; diagnóstico de energía de la dinámica |
 | pre12 | Equilibrio y climatología (§6.3), arranque caliente, prueba corta en modo Tierra |
 | — | Paso 6: validación en modo Tierra en el PC de Carlos, con los criterios del §2 escritos antes |
 
@@ -476,3 +476,83 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 **Pregunta para Carlos (cambio de una decisión ya tomada):** la v3.1 decidió C_E = C_H (Frierson 2007). El ECMWF usa rugosidades distintas para el calor (z₀ₕ) y para el vapor (z₀_q = 1,55·z₀ₕ), y eso da una C_E algo mayor. `fase6_superficie.py` calcula z₀_q pero **mantiene C_E = C_H** hasta que lo decidas.
 
 **Pruebas:** 2 nuevas en `test_fase6_2.py` y `test_fase6_superficie.py` (4).
+
+### 6.9 v3.1-pre11 (07/10/2026): el modelo acoplado (I16 `nucleo_dinamico`), apagado por defecto
+
+**Qué hace I16** (diseño del §6.7, en `fase2b_atmosfera.py`, dentro de `paso_agua`; necesita I10 e I11):
+- 2 subpasos del núcleo por paso de la física (`NucleoSeco.avanzar`, extraído de `integrar_si` sin cambiar nada: Held y Suarez sigue idéntica bit a bit), con la tendencia de la física del paso anterior como forzamiento constante.
+- Vapor transportado con los flujos de masa de cada subpaso (`NucleoSeco.flujos_masa`) y conciliado con la masa del núcleo.
+- La columna toma la p_s del núcleo (`presion_capa="sb81"`); la luz, el factor de masa y el viento de cada paso.
+- Superficie con el viento real y la altura real (`fase6_superficie.py`); capa límite antes de la convección; se apagan las difusiones horizontales del aire y del vapor.
+- Hiperdifusión con sus dos opciones del §6.8 encendidas.
+- Punto de control: guarda y recupera también el estado del núcleo.
+
+**Un cambio en el núcleo** (corrección de un fallo de la v3.1-pre10):
+- La corrección de la difusión de T a superficies de presión usaba ∇⁴p_s explícito. Cerca de los polos, donde las celdas son estrechas, eso crece como ~1/cos⁴ y hacía inestable el modelo acoplado: T de ±6·10⁵ K en 4 pasos.
+- Ahora delps = p_s − (p_s difundida con el mismo operador implícito de la hiperdifusión), acotado en la escala de la rejilla e igual a dt·ν₄·∇⁴p_s para campos suaves.
+- La reducción del calentamiento falso sobre las montañas del caso 5 pasa de ×4,1 a **×3,7**; la prueba pide > 3,5.
+
+**Pruebas (`test_fase6_i16.py`, 4; suite completa: 95):**
+
+| Prueba | Resultado |
+|---|---|
+| T1: I16 apagado = v3.1-pre10 | los 28 resultados de la simulación corta de la v3.1, idénticos bit a bit; las 91 pruebas anteriores pasan |
+| T2: energía | ver abajo |
+| T3: agua | cierre de la atmósfera ~10⁻¹⁴ kg/m², del suelo ~10⁻¹⁵, sin recortes |
+| T4: reposo isotermo sobre las montañas del caso 5 (núcleo con la configuración de I16) | 100 pasos (400 en el banco): \|u\| ~2·10⁻¹¹ m/s, \|ΔT\| ~10⁻¹¹ K |
+| T5: modo computacional | ver abajo |
+| T6: punto de control | cortar y reanudar da lo mismo **bit a bit**, también con el núcleo |
+
+**T2, energía.** Hay un diagnóstico nuevo en `r["energia"]`:
+- `residuo_dinamica_W_m2`: lo que la dinámica no conserva en sus 2 subpasos, incluida la energía cinética que quita el rozamiento.
+- `calor_rozamiento_W_m2`: lo que la capa límite devuelve como calor.
+- `error_dinamica_W_m2`: la suma de los dos, es decir, el error de energía de la dinámica y del acoplamiento.
+- `cierre_sin_dinamica`: el cierre quitando ese error.
+
+Medido:
+- `cierre_sin_dinamica` = **−2,6·10⁻¹³**: el resto del balance cierra como en la v3.1 sin dinámica (la prueba pide < 10⁻⁹).
+- Error de la dinámica en 30 días desde un estado de equilibrio, con continente: residuo −0,276 W/m², rozamiento +0,241 W/m², **error −0,035 W/m²**. Cumple el criterio 🔶 de < 0,05 W/m² del §6.7.4, aunque no con mucho margen.
+- En el planeta acuático, cierre relativo 1,9·10⁻⁵ (≈ −0,005 W/m²).
+- Pendiente: desglosarlo entre el filtro RAW, el filtro polar y el semiimplícito (§6.7.4).
+
+**T5, modo computacional.** 3 días desde el equilibrio, con continente. Segunda diferencia en el tiempo del nivel n en cada subpaso (un modo par-impar de amplitud A da ~4A):
+
+| | RMS T | RMS u | RMS p_s | máx T |
+|---|---|---|---|---|
+| física en n−1 (I16) | 0,054 K | 0,070 m/s | 13,4 Pa | 0,45 K |
+| física en n | 0,054 K | 0,070 m/s | 13,7 Pa | 0,45 K |
+| sin forzamiento de la física | 0,067 K | 0,093 m/s | 23,4 Pa | 0,55 K |
+
+- La física no excita el modo: con ella, todo es menor que con la dinámica sola.
+- Cota del modo: RMS ≤ 0,013 K y ≤ 3 Pa.
+- En 3 días, evaluar la física en n−1 o en n no se distingue. Se mantiene n−1 (decisión 1.1, como CAM e Isca): la inestabilidad del rozamiento evaluado en n es lenta, y no se vería en 3 días.
+
+**Hallazgo: el arranque frío.** El primer acoplamiento reventaba a las pocas decenas de pasos: vientos de 150–500 m/s en la estratosfera y luego "Courant vertical > 1" en el transporte.
+- **Diagnóstico:** tormentas de punto de rejilla que crecen sin control.
+  - Una columna asciende, satura, la condensación la calienta hasta 10 K por paso y el vapor sube hasta la estratosfera.
+  - Es un fenómeno conocido del acoplamiento física-dinámica: Gross et al. 2018, §6.2, en CAM-SE con pasos de física largos.
+- **Causa:** el estado inicial.
+  - El banco de pruebas recortaba la órbita a 1–2 días. El estado inicial, el balance de Newton con la luz media de esa órbita, salía con la superficie a 321–342 K (13–34 K por encima de su equilibrio), con el aire al 60 % de humedad hasta σ = 0,3 y en reposo: una energía convectiva enorme.
+  - Con la órbita entera, el arranque frío aguanta 10 días, aunque con un ajuste brusco: hasta 147 m/s en la estratosfera y 146 K en lo alto.
+- **Comprobaciones:**
+  - sin calor latente, estable; con la convección o con la condensación, revienta;
+  - el planeta acuático y el modo Tierra también revientan, así que no es el relieve ni la costa;
+  - desde el equilibrio de la v3.1 sin dinámica es **estable 60 días** (acuático y con continente). Los vientos llegan hasta ~50 m/s; el calentamiento de la física se queda por debajo de 1 K por paso.
+- **Plan decidido del §6.3** (superficie del equilibrio, aire con el perfil inicial y en reposo): probado con la superficie del equilibrio de la v3.1 sin dinámica, es estable 20 días.
+- **Consecuencia:** con I16 hay que arrancar siempre en caliente (pre12). El arranque frío queda como limitación conocida.
+  - Si hiciera falta más robustez, lo que hay en la literatura es una capa esponja como la de CAM (∇² en las 3 capas de arriba) o repartir la tendencia de la física en más subpasos (Gross et al. 2018 §6.2). La decisión "sin capa esponja" del §6.4 se tomó con Held y Suarez, que es seco: **revisarla si la validación en modo Tierra lo pide**.
+- **No se ha tocado ningún parámetro** para que funcione.
+
+**Decisión técnica 🔶: la física ve T en n−1 y q en n.**
+- La T y el viento que ve la física son los del nivel n−1, por estabilidad. El vapor es el del transporte, que va de dos niveles y está en n, con la p_s de n; así el agua cierra exacta.
+- Isca (`idealized_moist_phys.F90` ✅) evalúa toda la física con T, q y p del mismo nivel (`previous`).
+- **Medido:** la variante "todo en el mismo nivel" (q a medio paso, incremento aplicado con la masa) necesita recortar vapor negativo, hasta −9·10⁻⁵, y entonces el agua deja de cerrar exacta. En 30 días cambia la precipitación global un −0,3 %, el agua precipitable un +0,7 %, la evaporación un −1,2 % y T hasta +0,15 K.
+- Es un error de partición de orden Δt, del tamaño de otras elecciones de acoplamiento. Se mantiene el diseño actual (agua exacta, sin correctores).
+
+**Coste** (entorno de la IA, sin el código de diagnóstico): 131–160 ms por paso de la física con I16, frente a ~36 ms de la v3.1 sin dinámica.
+
+**Referencias de este apartado:**
+- Gross, M. et al. (2018): Physics–dynamics coupling in weather, climate and Earth system models: challenges and recent progress. *Mon. Wea. Rev.* 146, 3505–3544 (arXiv:1605.06480 ✅).
+- Isca, `src/atmos_spectral/driver/solo/idealized_moist_phys.F90` y `atmosphere.F90` (GitHub ExeClim/Isca ✅): niveles de tiempo de la física.
+- CAM 3.0 (Collins et al. 2004), §3.1.6: ∇² en las 3 capas de arriba como esponja ✅.
+

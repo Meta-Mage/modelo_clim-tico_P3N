@@ -359,20 +359,53 @@ class NucleoSeco:
             self.si_dt = dt
             n0 = 1
         self._rehacer_hinv()
-        dif = getattr(self, "nu4", None) is not None
         for n in range(n0, pasos):
-            nue = self.paso_semiimplicito(ant, act, forzamiento)
-            if dif:                                  # hiperdifusion implicita sobre el salto de 2 dt
-                T_d, u_d, v_d = self.aplicar_hiperdifusion(nue[1], nue[2], nue[3], 2 * dt, ps=nue[0])
-                nue = (nue[0], T_d, u_d, v_d)
-            corr = tuple(0.5 * nu * (a - 2 * b + c) for a, b, c in zip(ant, act, nue))
-            ant = tuple(b + RAW_ALFA * c for b, c in zip(act, corr))
-            act = tuple(x + (RAW_ALFA - 1) * c for x, c in zip(nue, corr))
+            ant, act = self.avanzar(ant, act, forzamiento, nu)
             if al_registrar is not None and cada and (n + 1) % cada == 0:
                 al_registrar(n + 1, *act)
             if guardar is not None and cada_guardar and (n + 1) % cada_guardar == 0:
                 guardar(n + 1, ant, act)
         return act
+
+    def arrancar(self, estado, forzamiento=None):
+        """Primer paso del leapfrog: medio paso semiimplicito desde el mismo estado (como integrar_si).
+        Devuelve (ant, act)."""
+        dt = self.si_dt
+        ant = tuple(x.copy() for x in estado)
+        self.si_dt = dt / 2
+        self._rehacer_hinv()
+        act = self.paso_semiimplicito(ant, ant, forzamiento)
+        self.si_dt = dt
+        self._rehacer_hinv()
+        return ant, act
+
+    def avanzar(self, ant, act, forzamiento=None, nu=RAW_NU):
+        """Un paso leapfrog semiimplicito + hiperdifusion + filtro RAW (v3.1-pre11: extraido de integrar_si,
+        mismo codigo; lo usa tambien el acoplamiento con la fisica). Devuelve (ant, act) nuevos."""
+        dt = self.si_dt
+        nue = self.paso_semiimplicito(ant, act, forzamiento)
+        if getattr(self, "nu4", None) is not None:          # hiperdifusion implicita sobre el salto de 2 dt
+            T_d, u_d, v_d = self.aplicar_hiperdifusion(nue[1], nue[2], nue[3], 2 * dt, ps=nue[0])
+            nue = (nue[0], T_d, u_d, v_d)
+        corr = tuple(0.5 * nu * (a - 2 * b + c) for a, b, c in zip(ant, act, nue))
+        ant = tuple(b + RAW_ALFA * c for b, c in zip(act, corr))
+        act = tuple(x + (RAW_ALFA - 1) * c for x, c in zip(nue, corr))
+        return ant, act
+
+    def flujos_masa(self, ps, u, v):
+        """Flujos de masa del nucleo (mismas formulas que tendencias): F_u (N, F, C) por la cara oeste y F_v
+        (N, F-1, C) por la cara sur, en Pa m2/s; W (N+1, F, C) hacia abajo por los seminiveles, en Pa/s."""
+        Rj = self.Rj
+        dsig = self._d3
+        ps_u = 0.5 * (ps + self._oeste(ps))
+        ps_v = 0.5 * (ps[:-1] + ps[1:])
+        F_u = u * (dsig * ps_u[None]) * Rj.L_u
+        F_v = v * (dsig * ps_v[None]) * Rj.L_v
+        D = self._divergencia(F_u, F_v) / Rj.area
+        dps = -D.sum(axis=0)
+        W = np.zeros((self.N + 1,) + ps.shape)
+        W[1:-1] = -np.cumsum(D, axis=0)[:-1] - self.sh[1:-1, None, None] * dps[None]
+        return F_u, F_v, W
 
     def _rehacer_hinv(self):
         F = self.Rj.filas
@@ -478,7 +511,7 @@ class NucleoSeco:
         return T_n, u_n, v_n
 
     def _correccion_presion(self, T, ps, dt):
-        """dt nu4 sigma p_s (dT/dp) nabla^4 p_s: con ella, -nu4 nabla^4 T se aproxima a la difusion sobre
+        """~ dt nu4 sigma (dT/dp) nabla^4 p_s: con ella, -nu4 nabla^4 T se aproxima a la difusion sobre
         superficies de presion, nabla^4_p T = nabla^4_sigma T - (dT/dp) sigma nabla^4 p_s. Forma de CAM
         (difcor.F90 ✅): tcor_k = delps * 0.5/dp_k * [B_{k+1/2}(T_{k+1}-T_k) + B_{k-1/2}(T_k-T_{k-1})] * p_s,
         con un lado solo en la capa de arriba y en la de abajo, y B = sigma en sigma pura. En CAM delps es la
@@ -487,8 +520,16 @@ class NucleoSeco:
         ~ dt nu4 sigma (dT/dp) nabla^4 p_s."""
         if ps is None:
             raise ValueError("la correccion a superficies de presion necesita ps")
-        lap2 = self._laplaciano_escalar(self._laplaciano_escalar(ps))                 # nabla^4 p_s (Pa/m^4)
-        delps = dt * self.nu4 * lap2                                                     # Pa
+        # v3.1-pre11: delps con el MISMO operador implicito de la hiperdifusion aplicado a p_s (sin cambiar p_s):
+        # delps = p_s - p_s_difundida ~ dt nu4 nabla^4 p_s para campos suaves, y ACOTADO en la escala de la
+        # rejilla. La v3.1-pre10 usaba nabla^4 p_s explicito, que cerca de los polos (celdas estrechas) crece
+        # hasta ~1/cos^4 y hacia inestable el modelo acoplado (medido el 07/10: T de +-6e5 K en 4 pasos).
+        Is, _ = self._inversas_difusion(dt)
+        C = self.Rj.columnas
+        pk = np.ascontiguousarray(np.fft.rfft(ps, axis=-1).T)                         # (K, F)
+        ps_dif = np.fft.irfft((np.matmul(Is, pk[..., None].real)[..., 0]
+                               + 1j * np.matmul(Is, pk[..., None].imag)[..., 0]).T, n=C, axis=-1)
+        delps = ps - ps_dif                                                              # Pa
         sh = self.sh
         dT = np.zeros_like(T)
         dT[:-1] += sh[1:-1, None, None] * (T[1:] - T[:-1])                              # B_{k+1/2}(T_{k+1}-T_k)

@@ -31,6 +31,7 @@ import scipy.sparse as sp
 from scipy.sparse.linalg import splu
 
 from parametros import CONSTANTE_SB, ROTACION_PERIODO, P3N_GRAVEDAD, DURACION_HORA, FACTOR_ROTACION_D, S3N_TEMPERATURA
+from parametros import P3N_RADIO, OMEGA_SIDERAL
 from temperatura import PASO_TIEMPO as PASO_TIEMPO_POR_DEFECTO
 from rejilla import FILAS, COLUMNAS, LATITUDES_GRADOS, LONGITUDES_GRADOS
 from fase1_geografia import TIERRA, AGUA, correccion_altitud, GRADIENTE_TERMICO
@@ -61,6 +62,8 @@ INTERRUPTORES_FASE2B = {
     "suelo_termico_agua": False,    # I13: propiedades termicas del suelo segun su agua (CLM5; Farouki 1981)
     "albedo_espectral": False,      # I14: albedo de la nieve y del hielo con el espectro de la estrella
     "vapor_radiativo": False,       # I15 (PROTOTIPO): el infrarrojo depende del vapor del modelo (Byrne y O'Gorman 2013)
+    # v3.1-pre11 (Fase 6.3, DISENO_FASE6_3.md §6.7). APAGADO hasta validarlo; necesita I10 e I11:
+    "nucleo_dinamico": False,       # I16: nucleo dinamico propio (viento real) en vez de la difusion del aire y del vapor
 }
 INTERRUPTORES_APAGADOS = {k: False for k in INTERRUPTORES_FASE2B}
 
@@ -123,7 +126,8 @@ EMISIVIDAD_CL = 0.740
 EMISIVIDAD_TR = 0.661
 
 # Calor sensible
-VIENTO = 5.0                     # m/s, provisional hasta la Fase 6
+VIENTO = 5.0                     # m/s, provisional hasta la Fase 6 (con I16, el viento real del nucleo)
+TAU_HIPERDIFUSION_DIAS = 0.5     # I16: amortiguamiento de la onda mas corta (criterio de CESM, DISENO_FASE6_2.md §7)
 KARMAN = 0.4
 Z_REF = 10.0                     # m, altura de referencia del aire
 Z0M = {TIERRA: 0.01, AGUA: 2e-4}       # suelo desnudo (Carlos 02/10); oceano ~Charnock a 5 m/s
@@ -400,8 +404,15 @@ def preparar_luz(albedo_grid, tau, reparto_nuevo, mascara_agua=None, albedo_sola
 
     a_hielo = ALBEDO_HIELO if albedo_hielo is None else albedo_hielo   # v3.1 (I15): con el espectro de la estrella
 
-    def luz(toa, declinacion, ang_h_lon0, peso_hielo=None, nieve=None):
+    def luz(toa, declinacion, ang_h_lon0, peso_hielo=None, nieve=None, factor_masa_paso=None, viento=None):
         # nieve (v3.1): (fraccion cubierta, albedo de la nieve), arrays (F, C), o None
+        # v3.1-pre11 (I16): factor_masa_paso = p_s/p0 de ESTE paso (la p_s del nucleo cambia) y viento (F, C)
+        # para el albedo del oceano (Cox y Munk con el viento local). Sin ellos, exactamente como antes.
+        if factor_masa_paso is not None:
+            tc = tau * factor_masa_paso
+            tsc = np.exp(-tc * FACTOR_DIFUSIVIDAD)
+        elif factor_masa is not None:
+            tc, tsc = tau_celda, t_subida_celda
         ang_h = (ang_h_lon0 + lon_rad).reshape(1, -1)
         cos_cenital = sin_lat * np.sin(declinacion) + cos_lat * np.cos(declinacion) * np.cos(ang_h)
         cos_cenital = np.clip(cos_cenital, -1.0, 1.0)
@@ -413,11 +424,16 @@ def preparar_luz(albedo_grid, tau, reparto_nuevo, mascara_agua=None, albedo_sola
         if dia.any():
             h = altura_solar[dia]
             masa = 1 / np.sin(np.radians(h + 244 / (165 + 47 * h ** 1.1)))
-            transmitancia = np.exp(-masa * tau) if factor_masa is None else np.exp(-masa * tau_celda[dia])
+            transmitancia = np.exp(-masa * tau) if (factor_masa is None and factor_masa_paso is None) else np.exp(-masa * tc[dia])
             inst = toa * np.cos(cenital[dia])
             llega = inst * transmitancia
             if albedo_solar:
-                alb = np.where(mascara_agua[dia], albedo_oceano(np.cos(cenital[dia]), transmitancia), albedo_grid[dia])
+                if viento is None:
+                    alb = np.where(mascara_agua[dia], albedo_oceano(np.cos(cenital[dia]), transmitancia), albedo_grid[dia])
+                else:
+                    import fase6_superficie as _SUP
+                    alb = np.where(mascara_agua[dia], _SUP.albedo_oceano_viento(np.cos(cenital[dia]), transmitancia,
+                                                                                  viento[dia]), albedo_grid[dia])
             else:
                 alb = albedo_grid[dia]
             if nieve is not None:
@@ -435,7 +451,7 @@ def preparar_luz(albedo_grid, tau, reparto_nuevo, mascara_agua=None, albedo_sola
                 suelo[dia] = llega * uno_menos_albedo[dia]
             if reparto_nuevo:
                 reflejada = llega * alb
-                ts = t_subida if factor_masa is None else t_subida_celda[dia]
+                ts = t_subida if (factor_masa is None and factor_masa_paso is None) else tsc[dia]
                 atmos[dia] = FRACCION_ATENUADO_ABSORBIDA * (inst * (1 - transmitancia) + reflejada * (1 - ts))
         return suelo, atmos
 
@@ -478,6 +494,9 @@ def simular_fase2b(
         raise ValueError("I11-I13 e I15 necesitan atmosfera_multicapa (I10) y ciclo_agua (I11)")
     if I.get("albedo_espectral", False) and not multi:
         raise ValueError("albedo_espectral (I14) necesita atmosfera_multicapa (I10)")
+    din_on = I.get("nucleo_dinamico", False)
+    if din_on and not (multi and agua_on):
+        raise ValueError("nucleo_dinamico (I16) necesita atmosfera_multicapa (I10) y ciclo_agua (I11)")
     hielo_on = I.get("hielo_marino", False)
     if hielo_on and not (atm and I["calor_sensible"] and I["luz_absorbida"]):
         raise ValueError("hielo_marino necesita capacidad_atmosfera, calor_sensible y luz_absorbida")
@@ -495,7 +514,8 @@ def simular_fase2b(
         # v3.1: con la conveccion humeda (I12), el ajuste seco va al adiabatico SECO g/cp (fisica, a);
         # sin ella, al gradiente provisional de 6,5 K/km de la v3.0
         COL = M30.Columna(altitud_metros, gravedad=P3N_GRAVEDAD, n=n_capas_atm or M30.N_CAPAS_ATM,
-                          gradiente=(P3N_GRAVEDAD / CP_AIRE) if I.get("conveccion_humeda", False) else M30.GRADIENTE_CRITICO)
+                          gradiente=(P3N_GRAVEDAD / CP_AIRE) if I.get("conveccion_humeda", False) else M30.GRADIENTE_CRITICO,
+                          presion_capa="sb81" if I.get("nucleo_dinamico", False) else "media")   # I16: decision 1.2
         ALB_ESTRELLA = AG.albedos_estrella(S3N_TEMPERATURA if I.get("albedo_espectral", False) else AG.T_SOL)
         luz = preparar_luz(albedo_grid, tau, I["luz_absorbida"], ~es_tierra, I["albedo_oceano_solar"],
                            factor_masa=COL.ps / M30.P0,
@@ -598,6 +618,83 @@ def simular_fase2b(
         fact_vapor = splu((sp.diags(M_tr / (PASOS_VAPOR * paso_tiempo)) - L_atm30 / CP_AIRE).tocsc())
         AREA_REL = (np.cos(np.radians(LATITUDES_GRADOS)).reshape(-1, 1) * np.ones((1, COLUMNAS)))
         AREA_OCEANO_REL = (AREA_REL * es_agua).sum()
+
+    # ---- v3.1-pre11: nucleo dinamico (I16), DISENO_FASE6_3.md §6.7 ----
+    DIN = None
+    if din_on:
+        from fase6_nucleo import NucleoSeco
+        import fase6_capa_limite as CL
+        import fase6_superficie as SUP
+        from fase6_acoplamiento import viento_en_centros, tendencia_a_caras
+        from fase6_trazadores import transportar_3d
+        NUC = NucleoSeco(P3N_RADIO, OMEGA_SIDERAL, P3N_GRAVEDAD, R_AIRE, CP_AIRE, M30.sigma_seminiveles(COL.n),
+                         phis=P3N_GRAVEDAD * np.maximum(altitud_metros, 0.0), filas=FILAS)
+        assert NUC.Rj.columnas == COLUMNAS and np.allclose(np.degrees(NUC.Rj.phi_c), LATITUDES_GRADOS)
+        NUC.preparar_semiimplicito(paso_tiempo / 2)                 # 2 subpasos de la dinamica por paso de la fisica
+        NUC.preparar_hiperdifusion(TAU_HIPERDIFUSION_DIAS, calor_rozamiento=True, correccion_presion=True)
+        AREA_NUC = NUC.Rj.area
+        DSIG3 = NUC.dsig[:, None, None]
+        DIN = {"estado0": (COL.ps.copy(), np.array(T_cl, copy=True), np.zeros((COL.n, FILAS, COLUMNAS)),
+                           np.zeros((COL.n, FILAS - 1, COLUMNAS))),
+               "ant": None, "act": None, "F": None, "m_tr": None, "paridad": True,
+               "v_a": np.full((FILAS, COLUMNAS), VIENTO)}
+
+    def dinamica_y_transporte(q):
+        """I16: los 2 subpasos del nucleo (con la tendencia de la fisica del paso anterior como forzamiento
+        constante, decision 1.1), el transporte del vapor con los flujos de masa de cada subpaso (§5) y la
+        conciliacion con la masa del nucleo (el agua se conserva exactamente). Deja la columna con la p_s del
+        nivel n (donde vive el vapor: agua exacta) y devuelve la T del nivel n-1 (la fisica se evalua ahi por
+        estabilidad, como CAM) y el viento de ese nivel en los centros."""
+        F = DIN["F"]
+        forz = None if F is None else (lambda ps_, T_, u_, v_: F)
+        # balance de energia de la dinamica (diagnostico, §6.9): energia del nivel n antes y despues de los
+        # 2 subpasos, menos la del forzamiento de T aplicado (calculada como en energia_total)
+        E0 = None
+        if DIN["act"] is not None:
+            E0 = energia_dinamica(DIN["act"])
+            if F is not None:
+                E0 = E0 + float(((CP_AIRE * F[1] * paso_tiempo * NUC.dsig[:, None, None] * DIN["act"][0][None]
+                                  ).sum(axis=0) / P3N_GRAVEDAD * PESO).sum())
+        for _ in range(2):
+            if DIN["act"] is None:
+                base = DIN["estado0"]
+                Fu, Fv, Wv = NUC.flujos_masa(base[0], base[2], base[3])
+                DIN["m_tr"] = DSIG3 * base[0][None] * AREA_NUC[None]
+                DIN["ant"], DIN["act"] = NUC.arrancar(base, forz)
+            else:
+                ps_n, _, u_n, v_n = DIN["act"]
+                Fu, Fv, Wv = NUC.flujos_masa(ps_n, u_n, v_n)
+                DIN["ant"], DIN["act"] = NUC.avanzar(DIN["ant"], DIN["act"], forz)
+            dts = NUC.si_dt
+            q, DIN["m_tr"] = transportar_3d(q, DIN["m_tr"], Fu * dts, Fv * dts, Wv[1:-1] * AREA_NUC[None] * dts,
+                                            DIN["paridad"])
+            DIN["paridad"] = not DIN["paridad"]
+        DIN["residuo"] = 0.0 if E0 is None else (energia_dinamica(DIN["act"]) - E0) / paso_tiempo
+        ps_act = DIN["act"][0]
+        m_din = DSIG3 * ps_act[None] * AREA_NUC[None]
+        q = q * DIN["m_tr"] / m_din
+        DIN["m_tr"] = m_din
+        COL.actualizar_ps(ps_act.copy())
+        T_fis = np.array(DIN["ant"][1], copy=True)
+        u_c, v_c = viento_en_centros(DIN["ant"][2], DIN["ant"][3])
+        v_a = np.sqrt(u_c[-1] ** 2 + v_c[-1] ** 2)
+        DIN["v_a"] = v_a
+        return T_fis, q, u_c, v_c, v_a
+
+    def energia_dinamica(estado):
+        """I16: c_p T + energia cinetica + Phi_s p_s/g de un nivel del nucleo (J/m2, suma ponderada como
+        acum['abs']); la misma expresion que energia_total."""
+        ps_a, T_a, u_a, v_a_ = estado
+        dp_a = NUC.dsig[:, None, None] * ps_a[None]
+        e = ((CP_AIRE * T_a + NUC.energia_cinetica(u_a, v_a_)) * dp_a).sum(axis=0) / P3N_GRAVEDAD
+        e = e + NUC.phis * ps_a / P3N_GRAVEDAD
+        return float((e * PESO).sum())
+
+    def luz_extra():
+        """I16: p_s del paso y viento de la superficie para la luz. Sin I16, nada (la luz es la de siempre)."""
+        if DIN is None:
+            return {}
+        return {"factor_masa_paso": COL.ps / M30.P0, "viento": DIN["v_a"]}
 
     def nieve_actual():
         """(fraccion cubierta, albedo) de la nieve en tierra, para la luz (v3.1)."""
@@ -837,6 +934,13 @@ def simular_fase2b(
         S = AGUA_EST["S"].copy()
         cap1 = COL.cap[-1]
         m1 = m_capa_baja
+        if DIN is not None:
+            T_atm, q, u_c, v_c, v_a = dinamica_y_transporte(q)
+            cap1 = COL.cap[-1]
+            m1 = COL.dp[-1] / P3N_GRAVEDAD
+            T_fis0 = T_atm.copy()
+            z_a = CL.alturas(T_atm, COL.ph, COL.pm, R_AIRE, P3N_GRAVEDAD)[0][-1]
+            flujo_h_hielo = np.zeros((FILAS, COLUMNAS))
         if I.get("vapor_radiativo", False):
             COL.actualizar_tau_vapor(q, AG.A_LW_SECO, AG.B_LW_VAPOR)
         Ts = T_col[..., 0]
@@ -854,11 +958,19 @@ def simular_fase2b(
                 kh = K_HIELO / np.maximum(HIELO["h"], ESPESOR_MINIMO_CONDUCCION)
                 T = HIELO["Ts"]
                 tm = 0.5 * (T + th)
-                ri = P3N_GRAVEDAD * Z_REF * (th - T) / (tm * VIENTO ** 2)
-                fe = factor_estabilidad_louis(ri, c_n, z0m)
                 rho_h = COL.ps / (R_AIRE * th)
-                g_h = rho_h * CP_AIRE * c_hn * fe * VIENTO
-                g_qh = rho_h * c_hn * fe * VIENTO                      # kg/m2/s por unidad de q
+                if DIN is None:
+                    ri = P3N_GRAVEDAD * Z_REF * (th - T) / (tm * VIENTO ** 2)
+                    fe = factor_estabilidad_louis(ri, c_n, z0m)
+                    g_h = rho_h * CP_AIRE * c_hn * fe * VIENTO
+                    g_qh = rho_h * c_hn * fe * VIENTO                      # kg/m2/s por unidad de q
+                else:
+                    # I16: coeficientes a z_a con el viento real. ⚠️ Sobre el hielo, la rugosidad del oceano
+                    # (Charnock), como la v3.1 usaba los coeficientes del oceano: pendiente de una fuente
+                    cf = SUP.coeficientes(z_a, v_a, th, T, np.ones((FILAS, COLUMNAS), bool), Z0M[TIERRA], Z0H[TIERRA],
+                                          P3N_GRAVEDAD)
+                    g_h = rho_h * CP_AIRE * cf["c_h"] * v_a
+                    g_qh = rho_h * cf["c_h"] * v_a
                 q_a = q[-1]
                 for _ in range(4):
                     qsi, dqsi = AG.qs_y_derivada(T, COL.ps, hielo=True)
@@ -902,9 +1014,12 @@ def simular_fase2b(
         # ---- transporte horizontal ----
         T_antes = T_col[..., 0].copy()
         T_col[..., 0] = fact_sup.solve((C0.flatten() / dt) * T_col[..., 0].flatten()).reshape(FILAS, COLUMNAS)
-        X = (COL.aire_superficie(T_atm) + gz_cp).flatten()
-        X_nuevo = fact_atm30.solve((cap_tr / dt) * X)
-        T_atm[COL.capas_transporte] += (X_nuevo - X).reshape(FILAS, COLUMNAS)[None]
+        if DIN is None:
+            X = (COL.aire_superficie(T_atm) + gz_cp).flatten()
+            X_nuevo = fact_atm30.solve((cap_tr / dt) * X)
+            T_atm[COL.capas_transporte] += (X_nuevo - X).reshape(FILAS, COLUMNAS)[None]
+        else:
+            X = X_nuevo = np.zeros(FILAS * COLUMNAS)          # I16: el aire lo mueve el nucleo, no la difusion
         # vapor: cada capa del transporte (sigma >= 0,25, las mismas que reciben el calor seco) difunde su
         # propia humedad con la MISMA difusividad de remolinos que el calor, kappa = D / (cp * M_tr)
         # (M_tr = masa de esas capas): implicito, monotono (nunca negativo) y conservativo capa a capa
@@ -913,7 +1028,9 @@ def simular_fase2b(
         # Se hace cada PASOS_VAPOR pasos con un paso de PASOS_VAPOR*dt (implicito: estable con cualquier
         # paso; el tiempo de mezcla por remolinos es de dias, mucho mayor que esos ~1 h).
         AGUA_EST["contador_vapor"] += 1
-        if AGUA_EST["contador_vapor"] >= PASOS_VAPOR:
+        if DIN is not None:
+            dW = np.zeros((FILAS, COLUMNAS))                   # I16: el vapor lo transporta el nucleo
+        elif AGUA_EST["contador_vapor"] >= PASOS_VAPOR:
             AGUA_EST["contador_vapor"] = 0
             qk = q[CAPAS_TR_IDX].reshape(N_TR, -1).T                   # (celdas, capas)
             qk_nuevo = fact_vapor.solve(np.asfortranarray((M_tr / (PASOS_VAPOR * dt))[:, None] * qk))
@@ -934,10 +1051,16 @@ def simular_fase2b(
         theta_aire = COL.aire_superficie(T_atm)
         dif = Ts - theta_aire
         theta_media = 0.5 * (Ts + theta_aire)
-        ri = P3N_GRAVEDAD * Z_REF * (theta_aire - Ts) / (theta_media * VIENTO ** 2)
-        c_h = c_hn * factor_estabilidad_louis(ri, c_n, z0m)
+        if DIN is None:
+            ri = P3N_GRAVEDAD * Z_REF * (theta_aire - Ts) / (theta_media * VIENTO ** 2)
+            c_h = c_hn * factor_estabilidad_louis(ri, c_n, z0m)
+            viento_s = VIENTO
+        else:
+            COEF = SUP.coeficientes(z_a, v_a, theta_aire, Ts, es_agua, Z0M[TIERRA], Z0H[TIERRA], P3N_GRAVEDAD)
+            c_h = COEF["c_h"]
+            viento_s = v_a
         rho = COL.ps / (R_AIRE * theta_aire)
-        g = rho * CP_AIRE * c_h * VIENTO
+        g = rho * CP_AIRE * c_h * viento_s
         sin_hielo = ~(es_agua & (HIELO["h"] > 0)) if hielo_on else np.ones((FILAS, COLUMNAS), bool)
         g = np.where(sin_hielo, g, 0.0)
         a_s = C0 / dt
@@ -951,7 +1074,7 @@ def simular_fase2b(
         # E = rho*C_E*U*beta*(q_s(T_sup) - q_aire), C_E = C_H (Frierson 2007; Isca). Implicita en el
         # vapor de la capa baja (DISENO_FASE5A 3.3), explicita en la temperatura de la superficie.
         Ts = T_col[..., 0]
-        g_q = np.where(sin_hielo, rho * c_h * VIENTO, 0.0)
+        g_q = np.where(sin_hielo, rho * c_h * viento_s, 0.0)
         qs_l, _ = AG.qs_y_derivada(Ts, COL.ps)
         qs_i, _ = AG.qs_y_derivada(Ts, COL.ps, hielo=True)
         f_n = np.where(es_tierra, AG.fraccion_cubierta_nieve(S), 0.0)
@@ -969,6 +1092,21 @@ def simular_fase2b(
         T_col[..., 0] = T_col[..., 0] - dt / C0 * (AG.L_V * E_l + AG.L_S * E_i)
         W = np.where(es_tierra, W - E_l * dt, 0.0)
         S = S - E_i * dt
+
+        # ---- I16: capa limite (mezcla vertical y rozamiento con la superficie), antes de la conveccion
+        # (orden de lo lento a lo rapido, Beljaars et al. 2004, citado en Gross et al. 2018) ----
+        if DIN is not None:
+            T_sup_bl = np.where(hay_hielo, HIELO["Ts"], T_col[..., 0]) if hay_hielo is not None else T_col[..., 0]
+            f2 = lambda x: x.reshape(x.shape[0], -1)
+            u1, v1, T1, q1, dBL = CL.paso_capa_limite(
+                f2(u_c), f2(v_c), f2(T_atm), f2(COL.ph), f2(COL.pm), T_sup_bl.ravel(), COEF["z0m"].ravel(),
+                COEF["z0h"].ravel(), (flujo + flujo_h_hielo).ravel(), dt, P3N_GRAVEDAD, R_AIRE, CP_AIRE, q=f2(q))
+            T_atm = T1.reshape(T_atm.shape)
+            q = q1.reshape(q.shape)
+            F_u, F_v = tendencia_a_caras((u1.reshape(u_c.shape) - u_c) / dt, (v1.reshape(v_c.shape) - v_c) / dt)
+            if acumular is not None:
+                acumular["residuo_dinamica"] += DIN["residuo"]
+                acumular["calor_rozamiento"] += float((dBL["calor_rozamiento"].reshape(FILAS, COLUMNAS) * PESO).sum())
 
         # ---- conveccion humeda, condensacion de gran escala y ajuste seco ----
         P = np.zeros((FILAS, COLUMNAS))
@@ -1017,6 +1155,9 @@ def simular_fase2b(
             HIELO["h"] = h_nuevo
             T_col[..., 0] = np.where(es_agua, T_CONGELACION + np.maximum(E, 0.0) / C0, T_col[..., 0])
 
+        if DIN is not None:
+            # tendencia de la fisica: se aplica como forzamiento en los 2 subpasos del paso siguiente (1.1)
+            DIN["F"] = (np.zeros((FILAS, COLUMNAS)), (T_atm - T_fis0) / dt, F_u, F_v)
         AGUA_EST["q"] = q; AGUA_EST["W"] = W; AGUA_EST["S"] = S; AGUA_EST["T_sup"] = T_col[..., 0].copy()
         AGUA_EST["W_suma"] += W; AGUA_EST["n_suma"] += 1
         if acumular is not None:
@@ -1089,6 +1230,10 @@ def simular_fase2b(
             if I.get("suelo_termico_agua", False) and W_media_anterior is not None:
                 capacidades_reales, conductancias = AG.columna_suelo(es_tierra, W_media_anterior, *CAPACIDADES_BASE)
                 SUPERFICIE = preparar_superficie(capacidades_reales)
+        if DIN is not None:
+            DIN.update(guardado["DIN"])                      # I16: estado del nucleo y forzamiento pendiente
+            if DIN["act"] is not None:
+                COL.actualizar_ps(DIN["act"][0].copy())
         if DEPURAR:
             print(f"  -> se continua desde el año {ano_inicio} guardado en {archivo_estado}", flush=True)
 
@@ -1098,7 +1243,8 @@ def simular_fase2b(
         estado = {"huella": huella_estado, "ano": ano_hecho, "T_col": T_col, "T_cl": T_cl, "T_tr": T_tr,
                   "HIELO": HIELO, "historial_r": historial_r, "cambio_anterior": cambio_anterior, "saltos": saltos,
                   "W_media_anterior": W_media_anterior,
-                  "AGUA_EST": None if AGUA_EST is None else {k: v for k, v in AGUA_EST.items()}}
+                  "AGUA_EST": None if AGUA_EST is None else {k: v for k, v in AGUA_EST.items()},
+                  "DIN": None if DIN is None else {k: v for k, v in DIN.items()}}
         temporal = f"{archivo_estado}.{os.getpid()}.tmp"
         with open(temporal, "wb") as f:
             pickle.dump(estado, f)
@@ -1120,7 +1266,7 @@ def simular_fase2b(
             W0_ano = AGUA_EST["W"].copy()
             AGUA_EST["W_suma"][:] = 0.0; AGUA_EST["n_suma"] = 0
         for toa, decl, ang in datos_orbita:
-            s, a = luz(toa, decl, ang, peso_hielo_actual(), nieve_actual())
+            s, a = luz(toa, decl, ang, peso_hielo_actual(), nieve_actual(), **luz_extra())
             T_col, T_cl, T_tr = paso(T_col, T_cl, T_tr, s, a)
             if hielo_on:
                 conduccion_media += np.where(HIELO["h"] > 0, K_HIELO * (T_CONGELACION - HIELO["Ts"])
@@ -1190,8 +1336,9 @@ def simular_fase2b(
                 factor = r / (1 - r)
                 E1 = entalpia(T_col)
                 T_col = T_col + factor * (T_col - estado0[0])
-                T_cl = T_cl + factor * (T_cl - estado0[1])
-                T_tr = T_tr + factor * (T_tr - estado0[2])
+                if DIN is None:          # I16: el aire y el viento NO se extrapolan (DISENO_FASE6_3.md §6.3)
+                    T_cl = T_cl + factor * (T_cl - estado0[1])
+                    T_tr = T_tr + factor * (T_tr - estado0[2])
                 if agua_on:
                     # el agua del suelo tambien se extrapola (acotada); el vapor no (se reajusta en dias)
                     AGUA_EST["W"] = np.where(es_tierra, np.clip(AGUA_EST["W"] + factor * (AGUA_EST["W"] - W0_ano),
@@ -1235,6 +1382,8 @@ def simular_fase2b(
         acum.update({k: np.zeros((FILAS, COLUMNAS)) for k in
                      ("toa_neto", "conv_oceano", "conv_atmosfera", "olr_celda", "dlr", "sw_suelo", "sw_atm")})
         acum.update(T_atm=np.zeros((COL.n, FILAS, COLUMNAS)), n=0)
+    if DIN is not None:
+        acum.update(residuo_dinamica=0.0, calor_rozamiento=0.0)
     if agua_on:
         acum.update({k: np.zeros((FILAS, COLUMNAS)) for k in CLAVES_AGUA_V31})
         reg_agua = {k: [] for k in CLAVES_AGUA_V31}
@@ -1248,7 +1397,17 @@ def simular_fase2b(
         e = np.where(es_tierra, (caps * (T_col - 273.15)).sum(axis=-1), caps[..., 0] * (T_col[..., 0] - 273.15))
         if hielo_on:
             e = e - np.where(es_agua, RHO_L_HIELO * HIELO["h"], 0.0)
-        e = e + (COL.cap * T_atm).sum(axis=0)
+        if DIN is not None and DIN["act"] is not None:
+            # I16: c_p T + energia cinetica del nivel n del nucleo, mas Phi_s p_s/g; mas la energia de la
+            # tendencia de la fisica pendiente de aplicar (se aplica en los subpasos del paso siguiente)
+            ps_a, T_a, u_a, v_a_ = DIN["act"]
+            dp_a = NUC.dsig[:, None, None] * ps_a[None]
+            e = e + ((CP_AIRE * T_a + NUC.energia_cinetica(u_a, v_a_)) * dp_a).sum(axis=0) / P3N_GRAVEDAD
+            e = e + NUC.phis * ps_a / P3N_GRAVEDAD
+            if DIN["F"] is not None:
+                e = e + (CP_AIRE * DIN["F"][1] * paso_tiempo * dp_a).sum(axis=0) / P3N_GRAVEDAD
+        else:
+            e = e + (COL.cap * T_atm).sum(axis=0)
         if agua_on:
             e = e + AG.L_V * (AGUA_EST["q"] * COL.dp).sum(axis=0) / P3N_GRAVEDAD - AG.L_F * AGUA_EST["S"]
         return float((e * PESO).sum())
@@ -1296,7 +1455,7 @@ def simular_fase2b(
         if pasos_hora and p < pasos_registro_horario and p % pasos_hora == 0:
             horario_aire.append(a_celsius(temp_referencia(T_col, T_cl)).astype(np.float32))
             horario_sup.append(a_celsius(temp_superficie(T_col)).astype(np.float32))
-        s, a = luz(toa, decl, ang, peso_hielo_actual(), nieve_actual())
+        s, a = luz(toa, decl, ang, peso_hielo_actual(), nieve_actual(), **luz_extra())
         T_col, T_cl, T_tr = paso(T_col, T_cl, T_tr, s, a, acum)
         tref = temp_referencia(T_col, T_cl)
         mn = np.minimum(mn, tref); mx = np.maximum(mx, tref); suma = suma + tref
@@ -1323,6 +1482,18 @@ def simular_fase2b(
         # entra menos lo que sale por arriba (debe ser ~0; error de redondeo e integracion)
         energia_cierre = (energia_total(T_col, T_cl) - E_inicio_final - (acum["abs"] - acum["olr"]) * paso_tiempo) / (
             acum["abs"] * paso_tiempo)
+    energia_din = {}
+    if multi and DIN is not None:
+        # I16 (§6.9): lo que la dinamica no conserva (incluye la energia cinetica que quita el rozamiento) y el
+        # calor de rozamiento que devuelve la capa limite. Su suma es el error de energia de la dinamica y del
+        # acoplamiento; quitandolo, el resto del balance debe cerrar al nivel del redondeo (prueba).
+        n_area = len(datos_orbita) * float(PESO.sum())
+        energia_din = {
+            "residuo_dinamica_W_m2": acum["residuo_dinamica"] / n_area,
+            "calor_rozamiento_W_m2": acum["calor_rozamiento"] / n_area,
+            "error_dinamica_W_m2": (acum["residuo_dinamica"] + acum["calor_rozamiento"]) / n_area,
+            "cierre_sin_dinamica": energia_cierre - (acum["residuo_dinamica"] + acum["calor_rozamiento"]) / acum["abs"],
+        }
     agua = None
     if agua_on:
         # agua: totales del año final (kg/m2) y registros diarios. Cierres (kg/m2 de media, ponderados por area):
@@ -1387,6 +1558,6 @@ def simular_fase2b(
         "horario_superficie": np.array(horario_sup) if pasos_hora else None,
         "energia": {"absorbido": acum["abs"], "olr": acum["olr"],
                     "diferencia_relativa": abs(acum["abs"] - acum["olr"]) / acum["abs"],
-                    "cierre_relativo": energia_cierre},
+                    "cierre_relativo": energia_cierre, **energia_din},
         "agua": agua,
     }
