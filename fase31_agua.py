@@ -360,9 +360,18 @@ _CACHE_GEO = {}
 
 
 def _geometria_conveccion(pf, ph):
-    """Logaritmos y potencias de la presion (fijos en el tiempo): se calculan una vez por columna."""
-    clave = (id(pf), id(ph), pf.shape, float(pf.ravel()[0]), float(pf.ravel()[-1]), float(ph.ravel()[-1]))
-    if clave not in _CACHE_GEO:
+    """Logaritmos y potencias de la presion: se calculan una vez y se reutilizan mientras pf y ph no cambien.
+    v3.1-pre9: la cache compara el CONTENIDO completo de pf y ph (np.array_equal con una copia guardada).
+    Antes la clave era id() de los arrays y tres valores sueltos: con la presion en superficie variable del
+    nucleo dinamico (I16) Python puede reutilizar las direcciones de memoria y p_s puede cambiar solo en celdas
+    interiores, y la conveccion habria usado en silencio la geometria de un paso anterior."""
+    if _CACHE_GEO:
+        pf_c, ph_c = _CACHE_GEO["pf"], _CACHE_GEO["ph"]
+        vigente = (pf_c.shape == pf.shape and ph_c.shape == ph.shape
+                   and np.array_equal(pf_c, pf) and np.array_equal(ph_c, ph))
+    else:
+        vigente = False
+    if not vigente:
         n = pf.shape[0]
         pf2 = np.ascontiguousarray(pf.reshape(n, -1)); ph2 = np.ascontiguousarray(ph.reshape(n + 1, -1))
         lpf = np.log(pf2)
@@ -371,8 +380,9 @@ def _geometria_conveccion(pf, ph):
             dl = np.where(ph2[:-1] > 0, np.log(ph2[1:] / np.where(ph2[:-1] > 0, ph2[:-1], 1.0)),
                           2.0 * np.log(ph2[1:] / pf2))
         _CACHE_GEO.clear()
-        _CACHE_GEO[clave] = (pf2, ph2, np.ascontiguousarray(lpf), np.ascontiguousarray(pk), np.ascontiguousarray(dl))
-    return _CACHE_GEO[clave]
+        _CACHE_GEO["pf"] = np.array(pf, copy=True); _CACHE_GEO["ph"] = np.array(ph, copy=True)
+        _CACHE_GEO["geo"] = (pf2, ph2, np.ascontiguousarray(lpf), np.ascontiguousarray(pk), np.ascontiguousarray(dl))
+    return _CACHE_GEO["geo"]
 
 
 def conveccion_humeda(T, q, pf, ph, dt, gravedad, rh_ref=None, tau=None):

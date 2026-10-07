@@ -161,20 +161,50 @@ if HAY_NUMBA:
     _pav_columnas_vapor = njit(cache=True)(_pav_columnas_vapor)
 
 
-class Columna:
-    """Geometria vertical de todas las celdas (fija en el tiempo)."""
+def alfa_simmons_burridge(sh):
+    """alfa_k de Simmons y Burridge (1981) en sigma pura, igual que fase6_nucleo.NucleoSeco: alfa_0 = ln 2
+    (tope a p = 0); alfa_k = 1 - sigma_{k-1/2}/dsigma_k ln(sigma_{k+1/2}/sigma_{k-1/2})."""
+    n = len(sh) - 1
+    dsig = np.diff(sh)
+    dln = np.zeros(n)
+    dln[1:] = np.log(sh[2:] / sh[1:-1])
+    alfa = np.empty(n)
+    alfa[0] = math.log(2.0)
+    alfa[1:] = 1.0 - sh[1:-1] / dsig[1:] * dln[1:]
+    return alfa
 
-    def __init__(self, altitud_metros, gravedad=P3N_GRAVEDAD, n=N_CAPAS_ATM, gradiente=GRADIENTE_CRITICO):
+
+class Columna:
+    """Geometria vertical de todas las celdas. Fija en el tiempo salvo que se llame a actualizar_ps
+    (v3.1-pre9: con el nucleo dinamico, la presion en superficie cambia en cada paso)."""
+
+    def __init__(self, altitud_metros, gravedad=P3N_GRAVEDAD, n=N_CAPAS_ATM, gradiente=GRADIENTE_CRITICO,
+                 presion_capa="media"):
         # gradiente (K/m): el del ajuste convectivo SECO. v3.0: 6,5 K/km provisional; v3.1 con la
         # conveccion humeda (I13): el adiabatico seco g/cp de cada planeta (fisica, a)
+        # presion_capa (v3.1-pre9, DISENO_FASE6_3.md §6.2, decision 1.2): "media" = media aritmetica de los
+        # seminiveles (la de la v3.0/v3.1, por defecto: sin cambios); "sb81" = la de Simmons y Burridge
+        # (1981), la del nucleo dinamico: ln p_k = ln p_{k+1/2} - alfa_k.
+        if presion_capa not in ("media", "sb81"):
+            raise ValueError("presion_capa debe ser 'media' o 'sb81'")
         self.n = n
         self.gradiente = gradiente
         self.g = gravedad
         self.forma = altitud_metros.shape
-        self.ps = presion_superficie(altitud_metros, gravedad)                  # (F, C)
+        self.presion_capa = presion_capa
+        self.actualizar_ps(presion_superficie(altitud_metros, gravedad))
+
+    def actualizar_ps(self, ps):
+        """Recalcula TODO lo que depende de la presion en superficie ps (F, C). Con el nucleo dinamico
+        (I16) se llama en cada paso de la fisica con la p_s del nucleo."""
+        n, gravedad, gradiente = self.n, self.g, self.gradiente
+        self.ps = ps                                                             # (F, C)
         sh = sigma_seminiveles(n)
         self.ph = sh[:, None, None] * self.ps[None]                              # (n+1, F, C)
-        self.pm = 0.5 * (self.ph[1:] + self.ph[:-1])                             # (n, F, C)
+        if self.presion_capa == "media":
+            self.pm = 0.5 * (self.ph[1:] + self.ph[:-1])                         # (n, F, C)
+        else:
+            self.pm = (sh[1:] * np.exp(-alfa_simmons_burridge(sh)))[:, None, None] * self.ps[None]
         self.dp = np.diff(self.ph, axis=0)                                       # (n, F, C)
         self.cap = self.dp / gravedad * CP_AIRE                                  # J/m2/K de cada capa
         self.sigma_media = 0.5 * (sh[1:] + sh[:-1])

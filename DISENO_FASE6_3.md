@@ -366,3 +366,80 @@ Perfil de 600 pasos con los niveles de M3N:
   - Sustituir las operaciones de BLAS rompería la igualdad bit a bit (su orden interno de suma no es reproducible), y compilar el resto ahorraría ~1–2 ms con bastante código nuevo. **Decisión: parar aquí.**
 - **Consecuencia para el coste** (§6.3, estimación ⚠️ por medir con el modelo acoplado): con la física de la v3.1, ~36 ms por paso de física en el entorno de la IA, hoy la parte más cara, el paso acoplado queda en ~20 ms en el PC de Carlos frente a ~25 → ~8 min por año de P3N; con el arranque caliente (~16 años), ~2,1 h. Si hace falta bajar más, lo siguiente sería la física de columna, no el núcleo.
 - `USAR_NUMBA = False` (en `fase6_nucleo.py`) vuelve a la versión de numpy; sin numba instalado se usa sola.
+
+### 6.7 Paso 5: acoplamiento física–núcleo (interruptor I16 `nucleo_dinamico`) — DISEÑO (07/10/2026)
+
+Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aquí por ser técnico va marcado 🔶 y se puede revisar.
+
+#### 6.7.1 Arquitectura
+- I16 será un **paso nuevo dentro de `simular_fase2b`** (`paso_acoplado`), como `paso_agua` para la v3.1.
+  - Así se reutilizan la superficie, el hielo, el registro horario, la caché, los puntos de control y los diagnósticos.
+  - Necesita I10 e I11 (y admite I12–I14).
+  - **Con I16 apagado, todo es idéntico bit a bit** (prueba T1).
+- **Estado nuevo:** el par leapfrog del núcleo (`ant`, `act`: p_s, T, u, v). T_atm pasa a ser la T del núcleo. La forzante de la física del paso anterior va en el estado y en el punto de control.
+
+#### 6.7.2 Orden de un paso de la física (Δt = 992 s en P3N, 900 s en modo Tierra)
+1. **Dinámica:** 2 subpasos de Δt/2 (leapfrog semiimplícito + RAW + hiperdifusión). La tendencia de la física del paso anterior entra como forzamiento constante en los dos subpasos, así que cada cadena del leapfrog la recibe una vez (§6.2, decisión 1.1). Se acumulan los flujos de masa (F_u, F_v, W)·Δt de los dos subpasos.
+2. **Vapor:** transporte 3D positivo y conservativo con esos flujos (`fase6_trazadores.py`) y conciliación q ← q·m_tr/Δp_núcleo (§5).
+3. **Columna:** `COL.actualizar_ps(p_s del núcleo)` con `presion_capa="sb81"` (decisión 1.2). También se recalcula lo que en la v3.1 se fijaba una sola vez y depende de p_s:
+   - la masa de la capa baja;
+   - el factor de masa de la luz (`preparar_luz(factor_masa=COL.ps/P0)`) ⚠️: hoy se fija al empezar; habrá que pasarlo en cada paso;
+   - las capacidades.
+4. **Física de columna**, en el orden de `paso_agua`:
+   - radiación, superficie e hielo;
+   - calor sensible y evaporación, con el **viento real** de la capa más baja (en los centros) y la **altura real** z_a (§6.5, hallazgo 1);
+   - convección y condensación; lluvia y nieve; suelo; hielo;
+   - **capa límite** (`fase6_capa_limite.py`) sobre u, v, T y q, con el arrastre y el calor por rozamiento local y positivo.
+   - **Se apagan** la difusión horizontal del aire (`fact_atm30`) y la del vapor (`fact_vapor`). **El océano conserva su difusión** hasta la Fase 6b.
+5. **Tendencias de la física:**
+   - F_T = (T después − T antes)/Δt;
+   - F_u y F_v: las de la capa límite, de los centros a las caras (`tendencia_a_caras`);
+   - F_ps = 0 🔶: la física no cambia la masa de aire seco. La masa del vapor que llueve o se evapora no se resta de p_s, como en muchos modelos de "masa seca"; hay que medir su orden de magnitud.
+
+#### 6.7.3 Superficie con viento real (§6.2, decisiones 1.3 y 1.4)
+- Coeficientes con z_a, la estabilidad de Louis para el calor y para el viento (`fase6_capa_limite.py`), y |v_a| del núcleo, sin ráfaga (solo el mínimo numérico).
+- **Albedo del océano (Cox-Munk) con el viento local:** hoy es una tabla en μ para 5 m/s; pasa a ser una tabla en (μ, viento).
+- **Rugosidad del océano por Charnock:** z₀ = 0,11 ν/u* + 0,018 u*²/g (§6.5 ✅), iterada con u*.
+- El hielo marino y la nieve usan los mismos coeficientes.
+
+#### 6.7.4 Energía (§6.2, decisión 1.8)
+- E = Σ (c_p T + K + L_v q) Δp/g + Φ_s p_s/g + las entalpías de la superficie, del hielo y de la nieve.
+- **Pérdidas declaradas en el diagnóstico, cada una medida por separado:**
+  - filtro RAW;
+  - filtro polar;
+  - hiperdifusión: su energía cinética se devolverá como calor, con la corrección de la difusión de T a superficies de presión (decisión 1.7); hay que añadirlas al núcleo como opciones, apagadas en Held y Suarez;
+  - residuo de la conversión caras-centros (medido el 07/10: ~0,2 % del calor por rozamiento, ~0,004 W/m², §6.7.6).
+- **Criterio:** la suma de las pérdidas no explicadas < 0,05 W/m² 🔶. Si se supera, se estudia con fuente un corrector global (decisión 1.8).
+
+#### 6.7.5 Agua
+- Cierre exacto, como en la v3.1 (~10⁻¹³). El transporte y la conciliación conservan la masa de agua exactamente (§5).
+
+#### 6.7.6 Piezas ya hechas (v3.1-pre9, 07/10)
+- **`Columna.actualizar_ps`** y la opción `presion_capa="sb81"`.
+  - Con la opción por defecto, los 18 atributos de la columna y los 28 resultados de una simulación corta de la v3.1 (agua y convección) son **idénticos bit a bit** a los de la v3.1-pre8.
+  - Con "sb81", p_m = la del núcleo bit a bit.
+- **Bug latente corregido:** la caché de la geometría de la convección húmeda (`fase31_agua._geometria_conveccion`) usaba como clave `id()` de los arrays y tres valores sueltos. Con p_s variable habría devuelto en silencio la geometría de otro paso. Ahora compara el contenido completo; lo comprueba una prueba que cambia una sola celda interior.
+- **`fase6_acoplamiento.py`:** `viento_en_centros`, `tendencia_a_caras` (su traspuesta sin pesos) y `calor_rozamiento_exacto` (diagnóstico).
+- **Medido tras 30 días de Held y Suarez** con los niveles de M3N (capa límite en los centros, Δt = 992 s):
+  - el momento zonal quitado en los centros frente al de las caras difiere un **1,6·10⁻⁴** relativo;
+  - el calor por rozamiento: 1,568 W/m² (positivo, en los centros) frente a 1,572 W/m² (la pérdida de K con la definición del núcleo);
+  - aplicar la segunda celda a celda enfriaba el 1,2 % de las (celda, capa), hasta 5·10⁻³ K por paso, y escalarla por columnas sale muy mal condicionado (factores de 0,46 a > 10⁵).
+  - **Decisión 🔶:** calor local y positivo de la capa límite; el residuo global se declara.
+- Pruebas: `test_fase6_acoplamiento.py` (6).
+
+#### 6.7.7 Pruebas del acoplamiento (antes de validar en modo Tierra)
+- **T1:** I16 apagado = v3.1-pre8 bit a bit (todas las pruebas existentes).
+- **T2:** energía con I16 encendido (2 días): ΔE = TOA neto·Δt + las pérdidas declaradas, con el resto < 0,05 W/m².
+- **T3:** agua exacta (10⁻¹²).
+- **T4:** atmósfera isoterma en reposo sobre montañas, sin radiación: sigue en reposo.
+- **T5:** modo computacional, física evaluada en n−1 frente a n (decisión 1.1): amplitud de la oscilación par-impar.
+- **T6:** punto de control: cortar y reanudar da lo mismo bit a bit.
+
+#### 6.7.8 Entregas previstas
+| Versión | Contenido |
+|---|---|
+| pre9 (hecha) | Columna con p_s variable, caché corregida, conversión caras-centros, este diseño |
+| pre10 | Opciones del núcleo (energía cinética de la hiperdifusión → calor; corrección de T a superficies de presión); luz con p_s variable; superficie con z_a y viento real (Cox-Munk 2D, Charnock) como funciones probadas, sin conectar |
+| pre11 | `paso_acoplado` (I16) con T1–T6 |
+| pre12 | Equilibrio y climatología (§6.3), arranque caliente, prueba corta en modo Tierra |
+| — | Paso 6: validación en modo Tierra en el PC de Carlos, con los criterios del §2 escritos antes |

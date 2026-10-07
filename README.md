@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `v3.1-pre8`** (octubre de 2026). Igual que la v3.1-pre2 más el **núcleo dinámico propio de la Fase 6 en desarrollo** (módulos `fase6_*.py`, todavía sin conectar al modelo: no cambia el clima). La v3.1-pre2 es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 (calibrada en modo Tierra: D_atm = 1,55, D_oc = 0,27) y el ciclo del agua de la v3.1 (Fase 5a), programado y probado, con un prototipo de vapor radiativo (I15). Todo sigue **apagado** (I10–I15) hasta validarlas: el clima exportado es el de la v2.4.3, con la corrección de la capa de mezcla (`DISENO_V3.0.md` §14, `DISENO_V3.1.md`).
+**Versión actual: `v3.1-pre9`** (octubre de 2026). Igual que la v3.1-pre2 más el **núcleo dinámico propio de la Fase 6 en desarrollo** (módulos `fase6_*.py`, todavía sin conectar al modelo: no cambia el clima). La v3.1-pre2 es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 (calibrada en modo Tierra: D_atm = 1,55, D_oc = 0,27) y el ciclo del agua de la v3.1 (Fase 5a), programado y probado, con un prototipo de vapor radiativo (I15). Todo sigue **apagado** (I10–I15) hasta validarlas: el clima exportado es el de la v2.4.3, con la corrección de la capa de mezcla (`DISENO_V3.0.md` §14, `DISENO_V3.1.md`).
 
 ---
 
@@ -107,6 +107,7 @@ Los resultados se guardan en `outputs/`, que **no se sube a GitHub**.
 | `fase6_nucleo_nb.py` | v3.1-pre8: las tendencias del núcleo compiladas con numba, idénticas bit a bit a las de numpy (~1,4 veces más rápido el paso completo) |
 | `fase6_forzamientos.py` | Fase 6.2: estado de Jablonowski y Williamson (2006) y forzamiento de Held y Suarez (1994) |
 | `fase6_trazadores.py` | Fase 6.3: transporte del vapor positivo y conservativo (forma de flujo, Courant zonal arbitrario) |
+| `fase6_acoplamiento.py` | Fase 6.3: piezas del acoplamiento física–núcleo (viento de las caras a los centros y vuelta; diagnóstico del calor por rozamiento). Aún sin conectar |
 | `fase6_capa_limite.py` | Fase 6.3: capa límite en columna (arrastre de Louis a la altura real de la capa más baja, mezcla vertical de Frierson et al. 2006 implícita, calor por rozamiento exacto y positivo). Aún sin conectar |
 
 ### Herramientas
@@ -124,6 +125,7 @@ Los resultados se guardan en `outputs/`, que **no se sube a GitHub**.
 | `test_fase6_1.py` | Fase 6.1: masa y energía exactas, casos 2 y 6 de Williamson, orden de convergencia, filtro polar, estabilidad de RAW | ~15 s |
 | `test_fase6_2.py` | Fase 6.2: energía exacta, reposo sobre montañas, onda de Lamb, equilibrio de JW06, semiimplícito, hiperdifusión, puntos de control | ~10 s |
 | `test_fase6_3.py` | Fase 6.3: transporte del vapor (positivo, conservativo, polos) | Segundos |
+| `test_fase6_acoplamiento.py` | Fase 6.3: columna con p_s variable, presión de capa de SB81, caché de la convección, conversión caras–centros, calor por rozamiento | ~10 s |
 | `test_fase6_capa_limite.py` | Fase 6.3: capa límite (Louis, Monin-Obukhov, energía, momento y vapor exactos, calor por rozamiento positivo, perfil logarítmico) | ~15 s |
 
 Las validaciones de cada fase que exigen simular un clima completo (por ejemplo, "con todo apagado, el modelo da lo mismo que la versión anterior") están documentadas, con sus resultados, en los `DISENO_FASE*.md`.
@@ -165,7 +167,7 @@ Las validaciones de cada fase que exigen simular un clima completo (por ejemplo,
 | v3.0 | Atmósfera de N capas (adelantada de la Fase 8, decisión del 04/10/2026), en seco | 🔧 programada, calibrada y validada en modo Tierra: polos demasiado cálidos y sin hielo → **apagada** hasta la Fase 6 (`DISENO_V3.0.md` §13 bis) |
 | v3.1 | Fase 5a: humedad, evaporación, precipitación (sobre las N capas) | 🔧 programada, probada y validada en modo Tierra: el mismo fallo de los polos y aire demasiado húmedo → **apagada** hasta la Fase 6 (`DISENO_V3.1.md` §10 bis) |
 | v3.2 | Fase 5b: nubes | ⏳ |
-| v3.1-pre3 a pre8 | Fase 6 (núcleo dinámico propio, decisión del 05/10/2026): 6.1 ✅, 6.2 ✅ (cerrada con Held y Suarez a 5° y 2,5°), 6.3 en marcha (decisiones aprobadas el 06/10; núcleo con los niveles de M3N sin capa esponja; capa límite en columna hecha; núcleo compilado con numba, idéntico bit a bit: `DISENO_FASE6_3.md` §6) | 🔧 en desarrollo, sin conectar |
+| v3.1-pre3 a pre9 | Fase 6 (núcleo dinámico propio, decisión del 05/10/2026): 6.1 ✅, 6.2 ✅ (cerrada con Held y Suarez a 5° y 2,5°), 6.3 en marcha (decisiones aprobadas el 06/10; núcleo con los niveles de M3N sin capa esponja; capa límite en columna hecha; núcleo compilado con numba, idéntico bit a bit; primeras piezas del acoplamiento y su diseño: `DISENO_FASE6_3.md` §6) | 🔧 en desarrollo, sin conectar |
 | después | Fase 6.3–6.4 (acoplamiento y P3N), Fase 6b: corrientes oceánicas; Fase 7 / 7b: biomas | ⏳ |
 
 Al terminar M3N está previsto un **barrido final de parámetros** (masa de la estrella, órbita, presión, emisividades) para fijar el mundo definitivo. Los valores actuales son provisionales.
