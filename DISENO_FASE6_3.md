@@ -697,3 +697,45 @@ Medido:
 
 **Pendiente:** que la simulación larga en modo Tierra pase el año completo (en el PC de Carlos, `diagnostico_tierra.py` y después `clima_dinamico.py --tierra`).
 
+
+### 6.13 v3.1-pre15 (07/10/2026): corrector global de energía de la dinámica
+
+**Lo que pasó con la pre14.** La simulación larga en modo Tierra ya es estable: pasa varios años sin romperse. Pero el balance en el tope de la atmósfera (N) se queda en **+2 W/m²** mientras la temperatura del aire a 2 m está quieta (18,5–18,6 °C en los años 3 a 5). Si el planeta recibe 2 W/m² más de los que pierde y no se calienta, esa energía se pierde por algún sitio. Con N así, el criterio de equilibrio (|N| < 0,2) no se cumpliría nunca.
+
+**Medido** (`bench/energia_tierra.py`: modo Tierra desde el arranque caliente de Carlos, 12 días + 12 registrados):
+- **Error de la dinámica: −8,2 W/m².** Es la energía que la dinámica no conserva, incluida la cinética que quita el rozamiento, menos el calor de rozamiento que devuelve la capa límite:
+  - residuo: −9,9 W/m²;
+  - rozamiento: +1,7 W/m².
+- Sin la corrección de presión de la hiperdifusión, el error es −5,4 W/m². La mayor parte es la propia hiperdifusión y la discretización (leapfrog + filtro RAW).
+- El resto del balance cierra al redondeo: `cierre_sin_dinamica` −2,6·10⁻¹².
+- La ventana incluye el ajuste inicial. En el equilibrio, N = −(error de la dinámica), y eso explica los ~+2 W/m² de Carlos.
+
+**Fuente.** Los núcleos de los modelos de clima no conservan la energía total. En CAM, el error de la dinámica va de −0,6 a −1,1 W/m², según el núcleo y la resolución. Por eso todos aplican un **corrector global de energía** ("energy fixer"): en cada paso devuelven lo perdido con un incremento **uniforme** de T en toda la atmósfera (Lauritzen y Williamson 2019, *JAMES* 11, doi:10.1029/2018MS001549). Corresponde a la decisión 1.8 (§6: núcleo con las mismas convenciones que CAM).
+- M3N tiene un error mayor que CAM porque es una rejilla gruesa (5°) con 20 capas y una hiperdifusión fuerte (τ = 0,5 días).
+- El corrector es la solución estándar. **No es un ajuste de parámetros.**
+
+**Decisión (técnica, tomada por la IA a petición de Carlos el 07/10).** En cada paso de la física con I16, después de los 2 subpasos de la dinámica:
+- error = residuo de la dinámica en ese paso + calor de rozamiento devuelto por la capa límite en el paso anterior (el que la dinámica acaba de recibir como forzamiento);
+- **ΔT = −error·Δt / (c_p·Σ p_s/g)**, sumado a los dos niveles del leapfrog;
+- se acumula como `correccion_energia_W_m2` en el diagnóstico de energía;
+- `error_dinamica_W_m2` se sigue declarando **antes** del corrector, para poder vigilar el núcleo;
+- se apaga con `CORRECTOR_ENERGIA_I16 = False` (constante del módulo).
+
+**Medido con el corrector** (misma ventana):
+- `correccion_energia_W_m2`: +7,96;
+- `error_dinamica_W_m2`: −7,96;
+- **cierre relativo del balance total: −3,9·10⁻⁶** (sin el corrector, del orden del 3 %: ~8 W/m² sobre los ~240 absorbidos).
+
+Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio se compensa. Ahora N ya puede tender a 0 en el equilibrio.
+
+**Sin cambios:**
+- Sin I16, todo es idéntico bit a bit: los 28 resultados de la v3.1 son iguales a los de la pre14.
+- Los puntos de control guardan el calor de rozamiento pendiente. Un punto de control de la pre14 se puede continuar: su primer paso usa 0, y después todo sigue igual.
+
+**Prueba nueva:**
+- con el corrector, lo corregido compensa el error de la dinámica (dentro del 5 %), y el cierre total es menos del 5 % del que hay sin él;
+- sin el corrector, la corrección es 0 y el resto cierra al redondeo.
+
+**Suite: 101.**
+
+**Pendiente:** continuar la simulación larga en modo Tierra con la pre15 y comprobar que N tiende a 0 en el equilibrio.

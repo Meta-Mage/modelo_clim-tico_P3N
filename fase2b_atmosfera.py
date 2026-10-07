@@ -129,6 +129,7 @@ EMISIVIDAD_TR = 0.661
 # Calor sensible
 VIENTO = 5.0                     # m/s, provisional hasta la Fase 6 (con I16, el viento real del nucleo)
 TAU_HIPERDIFUSION_DIAS = 0.5     # I16: amortiguamiento de la onda mas corta (criterio de CESM, DISENO_FASE6_2.md §7)
+CORRECTOR_ENERGIA_I16 = True     # v3.1-pre15: corrector global de energia de la dinamica (decision 1.8, §6.13)
 KARMAN = 0.4
 Z_REF = 10.0                     # m, altura de referencia del aire
 Z0M = {TIERRA: 0.01, AGUA: 2e-4}       # suelo desnudo (Carlos 02/10); oceano ~Charnock a 5 m/s
@@ -689,6 +690,19 @@ def simular_fase2b(
                                             DIN["paridad"])
             DIN["paridad"] = not DIN["paridad"]
         DIN["residuo"] = 0.0 if E0 is None else (energia_dinamica(DIN["act"]) - E0) / paso_tiempo
+        # v3.1-pre15: CORRECTOR GLOBAL DE ENERGIA (decision 1.8; DISENO_FASE6_3.md §6.13). Lo que la dinamica y el
+        # acoplamiento no conservan en este paso (su residuo, incluida la energia cinetica que quita el rozamiento,
+        # mas el calor de rozamiento que devolvio la capa limite) se devuelve como un incremento UNIFORME de T en
+        # toda la atmosfera, como el "energy fixer" de CAM (Lauritzen y Williamson 2019, JAMES). Asi el planeta
+        # no pierde energia por la numerica y el balance en el tope (N) puede tender a 0 en el equilibrio.
+        DIN["fijado"] = 0.0
+        if E0 is not None and CORRECTOR_ENERGIA_I16:
+            error = DIN["residuo"] + DIN.get("roz", 0.0)                         # W (suma ponderada como acum['abs'])
+            masa = float((DIN["act"][0] / P3N_GRAVEDAD * PESO).sum())             # kg (suma ponderada)
+            dT_fix = -error * paso_tiempo / (CP_AIRE * masa)
+            DIN["ant"] = (DIN["ant"][0], DIN["ant"][1] + dT_fix, DIN["ant"][2], DIN["ant"][3])
+            DIN["act"] = (DIN["act"][0], DIN["act"][1] + dT_fix, DIN["act"][2], DIN["act"][3])
+            DIN["fijado"] = -error
         ps_act = DIN["act"][0]
         m_din = DSIG3 * ps_act[None] * AREA_NUC[None]
         q = q * DIN["m_tr"] / m_din
@@ -1123,9 +1137,11 @@ def simular_fase2b(
             T_atm = T1.reshape(T_atm.shape)
             q = q1.reshape(q.shape)
             F_u, F_v = tendencia_a_caras((u1.reshape(u_c.shape) - u_c) / dt, (v1.reshape(v_c.shape) - v_c) / dt)
+            DIN["roz"] = float((dBL["calor_rozamiento"].reshape(FILAS, COLUMNAS) * PESO).sum())
             if acumular is not None:
                 acumular["residuo_dinamica"] += DIN["residuo"]
-                acumular["calor_rozamiento"] += float((dBL["calor_rozamiento"].reshape(FILAS, COLUMNAS) * PESO).sum())
+                acumular["calor_rozamiento"] += DIN["roz"]
+                acumular["energia_corregida"] += DIN["fijado"]
 
         # ---- conveccion humeda, condensacion de gran escala y ajuste seco ----
         P = np.zeros((FILAS, COLUMNAS))
@@ -1291,7 +1307,7 @@ def simular_fase2b(
                          ("toa_neto", "conv_oceano", "conv_atmosfera", "olr_celda", "dlr", "sw_suelo", "sw_atm")})
             acum.update(T_atm=np.zeros((COL.n, FILAS, COLUMNAS)), n=0)
         if DIN is not None:
-            acum.update(residuo_dinamica=0.0, calor_rozamiento=0.0)
+            acum.update(residuo_dinamica=0.0, calor_rozamiento=0.0, energia_corregida=0.0)
         if agua_on:
             acum.update({k: np.zeros((FILAS, COLUMNAS)) for k in CLAVES_AGUA_V31})
         return acum
@@ -1456,7 +1472,7 @@ def simular_fase2b(
                      ("toa_neto", "conv_oceano", "conv_atmosfera", "olr_celda", "dlr", "sw_suelo", "sw_atm")})
         acum.update(T_atm=np.zeros((COL.n, FILAS, COLUMNAS)), n=0)
     if DIN is not None:
-        acum.update(residuo_dinamica=0.0, calor_rozamiento=0.0)
+        acum.update(residuo_dinamica=0.0, calor_rozamiento=0.0, energia_corregida=0.0)
     if agua_on:
         acum.update({k: np.zeros((FILAS, COLUMNAS)) for k in CLAVES_AGUA_V31})
         reg_agua = {k: [] for k in CLAVES_AGUA_V31}
@@ -1567,7 +1583,9 @@ def simular_fase2b(
             "residuo_dinamica_W_m2": acum["residuo_dinamica"] / n_area,
             "calor_rozamiento_W_m2": acum["calor_rozamiento"] / n_area,
             "error_dinamica_W_m2": (acum["residuo_dinamica"] + acum["calor_rozamiento"]) / n_area,
-            "cierre_sin_dinamica": energia_cierre - (acum["residuo_dinamica"] + acum["calor_rozamiento"]) / acum["abs"],
+            "correccion_energia_W_m2": acum["energia_corregida"] / n_area,
+            "cierre_sin_dinamica": energia_cierre - (acum["residuo_dinamica"] + acum["calor_rozamiento"]
+                                                     + acum["energia_corregida"]) / acum["abs"],
         }
     agua = None
     if agua_on:

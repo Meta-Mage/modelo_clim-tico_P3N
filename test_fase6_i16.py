@@ -5,7 +5,8 @@
 # Son simulaciones MUY cortas (unos pocos pasos de la fisica por "año"): comprueban propiedades que deben
 # cumplirse en CADA paso, no el clima.
 #   - el agua de la atmosfera y la del suelo se conservan EXACTAMENTE (redondeo);
-#   - el balance de energia cierra (los residuos declarados son mucho menores que la cota);
+#   - el balance de energia cierra (los residuos declarados son mucho menores que la cota) y, desde la pre15,
+#     el corrector global de energia devuelve lo que la dinamica no conserva;
 #   - una simulacion interrumpida y retomada desde el punto de control da EXACTAMENTE lo mismo;
 #   - con I16 apagado no se crea nada del nucleo (lo de siempre).
 # El clima no se puede juzgar aqui: con una orbita recortada a unos pocos pasos, el estado inicial (el
@@ -62,6 +63,20 @@ def test_i16_energia_cierra_salvo_la_dinamica(corrida):
     e = corrida["energia"]
     assert abs(e["cierre_sin_dinamica"]) < 1e-9
     assert np.isfinite(e["error_dinamica_W_m2"]) and e["calor_rozamiento_W_m2"] > 0
+
+
+def test_i16_corrector_de_energia(corrida, monkeypatch):
+    """v3.1-pre15 (DISENO_FASE6_3.md §6.13): el corrector global devuelve a la atmosfera lo que la dinamica no
+    conserva, con un incremento uniforme de T. Con el, el balance TOTAL cierra (salvo el desfase de un paso del
+    calor de rozamiento, que en el equilibrio se compensa); sin el, el error de la dinamica queda en el balance."""
+    e = corrida["energia"]
+    assert e["correccion_energia_W_m2"] != 0.0
+    assert abs(e["correccion_energia_W_m2"] + e["error_dinamica_W_m2"]) < 0.05 * abs(e["error_dinamica_W_m2"])
+    monkeypatch.setattr(F, "CORRECTOR_ENERGIA_I16", False)
+    arg, kw = _argumentos()
+    sin = F.simular_fase2b(*arg, max_anos=2, **kw)["energia"]
+    assert sin["correccion_energia_W_m2"] == 0.0 and abs(sin["cierre_sin_dinamica"]) < 1e-9
+    assert abs(e["cierre_relativo"]) < 0.05 * abs(sin["cierre_relativo"])
 
 
 def test_i16_punto_de_control_da_lo_mismo(tmp_path):
