@@ -363,7 +363,7 @@ class NucleoSeco:
         for n in range(n0, pasos):
             nue = self.paso_semiimplicito(ant, act, forzamiento)
             if dif:                                  # hiperdifusion implicita sobre el salto de 2 dt
-                T_d, u_d, v_d = self.aplicar_hiperdifusion(nue[1], nue[2], nue[3], 2 * dt)
+                T_d, u_d, v_d = self.aplicar_hiperdifusion(nue[1], nue[2], nue[3], 2 * dt, ps=nue[0])
                 nue = (nue[0], T_d, u_d, v_d)
             corr = tuple(0.5 * nu * (a - 2 * b + c) for a, b, c in zip(ant, act, nue))
             ant = tuple(b + RAW_ALFA * c for b, c in zip(act, corr))
@@ -408,7 +408,7 @@ class NucleoSeco:
         Lv = (d[..., :-1, :] - d[..., 1:, :]) / Rj.dy + (np.roll(z_int, -1, axis=-1) - z_int) / Rj.L_v
         return Lu, Lv
 
-    def preparar_hiperdifusion(self, tau_dias=0.5, dt_efectivo=None):
+    def preparar_hiperdifusion(self, tau_dias=0.5, dt_efectivo=None, calor_rozamiento=False, correccion_presion=False):
         """Hiperdifusion nabla^4 IMPLICITA sobre T, u y v: (I + dt nu4 L^2) x_nuevo = x, resuelta exactamente
         para cada onda zonal (los operadores no dependen de la longitud). nu4 se fija para que la onda
         zonal mas corta en el ecuador (autovalor discreto -4/dx^2) se amortigue en tau_dias."""
@@ -417,6 +417,12 @@ class NucleoSeco:
         dx_ec = Rj.a * Rj.dlam                                                   # anchura en el ecuador
         self.nu4 = 1.0 / (tau_dias * 86400.0 * (4.0 / dx_ec ** 2) ** 2)
         self.dif_dt = dt_efectivo
+        # v3.1-pre10 (DISENO_FASE6_3.md §6.2, decisiones 1.7 y 1.8; apagadas por defecto: Held y Suarez no
+        # cambia). calor_rozamiento: la energia cinetica que quita la hiperdifusion vuelve como calor en la
+        # misma celda y capa (como CAM, difcor.F90 ✅). correccion_presion: la difusion de T actua como sobre
+        # superficies de presion (CAM, difcor.F90 ✅, en sigma pura B = sigma), explicita como en CAM.
+        self.dif_calor = calor_rozamiento
+        self.dif_corr_p = correccion_presion
         nK = C // 2 + 1
         lam = Rj.lam_c                                                           # mismas fases para todas las filas
         Ls = np.zeros((nK, F, F), complex)
@@ -450,8 +456,9 @@ class NucleoSeco:
                                     np.linalg.inv(Iv[None] + a * self._Lvec @ self._Lvec))
         return self._dif_inv[clave]
 
-    def aplicar_hiperdifusion(self, T, u, v, dt):
-        """Paso implicito de la hiperdifusion de duracion dt (separado del resto de la dinamica)."""
+    def aplicar_hiperdifusion(self, T, u, v, dt, ps=None):
+        """Paso implicito de la hiperdifusion de duracion dt (separado del resto de la dinamica).
+        Con las opciones de preparar_hiperdifusion (v3.1-pre10) necesita ps."""
         Rj = self.Rj
         F, C = Rj.filas, Rj.columnas
         Is, Iv = self._inversas_difusion(dt)
@@ -464,7 +471,30 @@ class NucleoSeco:
         w_n = np.matmul(Iv, np.ascontiguousarray(w.transpose(2, 1, 0))).transpose(2, 1, 0)
         u_n = np.fft.irfft(w_n[:, :F] * fu, n=C, axis=-1)
         v_n = np.fft.irfft(w_n[:, F:] * fh, n=C, axis=-1)
+        if getattr(self, "dif_corr_p", False):
+            T_n = T_n + self._correccion_presion(T, ps, dt)
+        if getattr(self, "dif_calor", False):
+            T_n = T_n - (self.energia_cinetica(u_n, v_n) - self.energia_cinetica(u, v)) / self.cp
         return T_n, u_n, v_n
+
+    def _correccion_presion(self, T, ps, dt):
+        """dt nu4 sigma p_s (dT/dp) nabla^4 p_s: con ella, -nu4 nabla^4 T se aproxima a la difusion sobre
+        superficies de presion, nabla^4_p T = nabla^4_sigma T - (dT/dp) sigma nabla^4 p_s. Forma de CAM
+        (difcor.F90 ✅): tcor_k = delps * 0.5/dp_k * [B_{k+1/2}(T_{k+1}-T_k) + B_{k-1/2}(T_k-T_{k-1})] * p_s,
+        con un lado solo en la capa de arriba y en la de abajo, y B = sigma en sigma pura. En CAM delps es la
+        difusion de ln p_s (sin dimensiones), y por eso multiplica por p_s; aqui se difunde p_s (Pa) y ese
+        factor no va: tcor_k = dt nu4 (nabla^4 p_s) * 0.5/dp_k * [sigma_{k+1/2}(T_{k+1}-T_k) + ...]
+        ~ dt nu4 sigma (dT/dp) nabla^4 p_s."""
+        if ps is None:
+            raise ValueError("la correccion a superficies de presion necesita ps")
+        lap2 = self._laplaciano_escalar(self._laplaciano_escalar(ps))                 # nabla^4 p_s (Pa/m^4)
+        delps = dt * self.nu4 * lap2                                                     # Pa
+        sh = self.sh
+        dT = np.zeros_like(T)
+        dT[:-1] += sh[1:-1, None, None] * (T[1:] - T[:-1])                              # B_{k+1/2}(T_{k+1}-T_k)
+        dT[1:] += sh[1:-1, None, None] * (T[1:] - T[:-1])                               # B_{k-1/2}(T_k-T_{k-1})
+        dp = self._d3 * ps[None]
+        return delps[None] * 0.5 / dp * dT
 
     # ------------------------------------------------------------------ avance (explicito)
     def integrar(self, ps, T, u, v, dt, pasos, forzamiento=None, cada=None, al_registrar=None):

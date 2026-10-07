@@ -169,3 +169,37 @@ def test_held_suarez_20_pasos_numba_igual_que_numpy():
         return m.integrar_si(ps, T, np.zeros((m.N, 36, 72)), np.zeros((m.N, 35, 72)), 20, forzamiento=hsf)
     for x, y in zip(corre(False), corre(True)):
         assert np.array_equal(_bits(x), _bits(y))
+
+
+# ---------------- v3.1-pre10: opciones de la hiperdifusion (apagadas por defecto) ----------------
+
+def test_hiperdifusion_calor_cierra_la_energia():
+    m = _nucleo()
+    rng = np.random.default_rng(4)
+    ps = 1e5 * (1 + 0.01 * rng.standard_normal((36, 72)))
+    T = 250 + 10 * rng.standard_normal((m.N, 36, 72))
+    u = 10 * rng.standard_normal((m.N, 36, 72)); v = 10 * rng.standard_normal((m.N, 35, 72))
+    resultados = {}
+    for calor in (False, True):
+        m.preparar_hiperdifusion(0.5, calor_rozamiento=calor)
+        e0 = m.integrales(ps, T, u, v)["energia"]
+        Tn, un, vn = m.aplicar_hiperdifusion(T, u, v, 900.0, ps=ps)
+        resultados[calor] = abs(m.integrales(ps, Tn, un, vn)["energia"] - e0) / e0
+    # sin calor se pierde la energia cinetica quitada; con calor el resto es >= 100 veces menor (DISENO §6.7)
+    assert resultados[True] < resultados[False] / 100
+
+
+def test_hiperdifusion_correccion_presion_reduce_el_calentamiento_falso_sobre_montanas():
+    _, _, _, hs = caso5()
+    m = _nucleo(phis=G_TIERRA * hs)
+    ps = 1e5 * np.exp(-hs / 8000.0)
+    from fase6_forzamientos import sigma_capas
+    T = 288.0 * (sigma_capas(m)[:, None, None] * ps[None] / 1e5) ** 0.19       # T solo depende de p
+    z = (np.zeros((m.N, 36, 72)), np.zeros((m.N, 35, 72)))
+    dT = {}
+    for corr in (False, True):
+        m.preparar_hiperdifusion(0.5, correccion_presion=corr)
+        Tn, _, _ = m.aplicar_hiperdifusion(T, *z, 900.0, ps=ps)
+        dT[corr] = np.abs(Tn - T).max()
+    # medido el 07/10: 3,4e-2 K -> 8,3e-3 K por paso de 900 s (x4,1; la correccion de CAM es de primer orden)
+    assert dT[True] < dT[False] / 3.5

@@ -443,3 +443,36 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 | pre11 | `paso_acoplado` (I16) con T1–T6 |
 | pre12 | Equilibrio y climatología (§6.3), arranque caliente, prueba corta en modo Tierra |
 | — | Paso 6: validación en modo Tierra en el PC de Carlos, con los criterios del §2 escritos antes |
+
+### 6.8 v3.1-pre10 (07/10/2026): piezas del núcleo y de la superficie para el acoplamiento (sin conectar)
+
+**Núcleo** (`fase6_nucleo.py`). Dos opciones de `preparar_hiperdifusion`, **apagadas por defecto**: Held y Suarez, 300 pasos, sigue idéntico bit a bit a la v3.1-pre7.
+- `calor_rozamiento=True` (decisión 1.8): la energía cinética que quita la hiperdifusión vuelve como calor en la misma celda y capa, con la definición del núcleo, como CAM (`difcor.F90` ✅).
+  - **Medido:** el cambio relativo de la energía total en un paso pasa de 2,4·10⁻⁶ (justo la energía cinética quitada) a 1,8·10⁻⁹.
+- `correccion_presion=True` (decisión 1.7): corrección de CAM (`difcor.F90` ✅) para que la difusión de T actúe como sobre superficies de presión, en σ pura.
+  - **Corrección de unidades:** en CAM, `delps` es la difusión de ln p_s, y por eso su fórmula lleva un factor p_s. Aquí se difunde p_s (Pa) y ese factor no va; con él, la corrección habría salido ~10⁵ veces demasiado grande.
+  - **Medido:** atmósfera con T función solo de p sobre la montaña del caso 5 de Williamson; el calentamiento falso de la hiperdifusión baja de 3,4·10⁻² a 8,3·10⁻³ K por paso de 900 s (×4,1). La corrección es de primer orden: no elimina la curvatura de T(p) ni los bordes bruscos del relieve a 5°.
+  - **Pendiente ⚠️:** medirlo con el mapa real (pizarra1) en el acoplamiento. Una mejora posible es difundir solo la desviación respecto a un perfil de referencia T_ref(p), que en ese caso da cero exacto; queda **sin implementar hasta encontrar una fuente** (el `mix_full_fields` de WRF hace algo parecido, pero en la mezcla vertical, no en la difusión horizontal).
+
+**Superficie con viento real** (`fase6_superficie.py`, decisiones 1.3 y 1.4):
+- **Rugosidad del océano del ECMWF** (IFS Cy31r1/40r1; implementación de NEMO, `sbcblk_algo_ecmwf.F90` ✅):
+  - z₀ = 0,11 ν/u* + 0,018 u*²/g; z₀ₕ = 0,40 ν/u*; z₀_q = 0,62 ν/u*;
+  - las tres acotadas a ≤ 10⁻³ m, como NEMO; ν = 1,5·10⁻⁵ m²/s (ECMWF TM 630 ✅).
+- **Coeficientes** a la altura real z_a con Louis para el momento y para el calor. Sobre el océano, z₀ ↔ u* se resuelve por punto fijo (cambio final < 10⁻¹²).
+- **Valores neutros a 10 m sobre el mar** (comprobación):
+
+  | U (m/s) | 3 | 5 | 10 | 15 | 20 |
+  |---|---|---|---|---|---|
+  | C_D·10³ | 1,01 | 1,11 | 1,45 | 1,76 | 1,89 |
+  | C_H·10³ | 1,06 | 1,06 | 1,14 | 1,21 | 1,23 |
+
+  - C_H coincide con el 1,1·10⁻³ fijo que usa hoy M3N (Large y Pond 1982).
+  - C_D con 10 m/s sale algo alto frente a Large y Pond (~1,2·10⁻³) porque α = 0,018 (el del ECMWF) es mayor que el de Smith (1988, 0,011). Es una sensibilidad conocida; queda documentada.
+- **Albedo directo de Cox y Munk** con el viento local: tabla en (μ, U) de 0 a 25 m/s, cada 1 m/s.
+  - Con U = 5 m/s es **idéntico bit a bit** al de la v3.1.
+  - Con el sol bajo (μ = 0,1), el mar en calma refleja más: 0,42 a 1 m/s, 0,32 a 5 m/s y 0,23 a 15 m/s.
+  - La tabla tarda ~40 s en construirse (entorno de la IA): se guarda en `outputs/cache/` y al cargarla se comprueban exactamente 5 valores recalculados. La interpolación está vectorizada por tramos de viento (1,2 ms para 2592 celdas).
+
+**Pregunta para Carlos (cambio de una decisión ya tomada):** la v3.1 decidió C_E = C_H (Frierson 2007). El ECMWF usa rugosidades distintas para el calor (z₀ₕ) y para el vapor (z₀_q = 1,55·z₀ₕ), y eso da una C_E algo mayor. `fase6_superficie.py` calcula z₀_q pero **mantiene C_E = C_H** hasta que lo decidas.
+
+**Pruebas:** 2 nuevas en `test_fase6_2.py` y `test_fase6_superficie.py` (4).
