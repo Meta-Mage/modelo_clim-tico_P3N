@@ -211,3 +211,39 @@ def test_climatologia_cortada_y_retomada_da_lo_mismo(tmp_path, monkeypatch):
     assert np.array_equal(seguida["extremos"]["reg_max"], retomada["extremos"]["reg_max"])
     assert np.array_equal(seguida["climatologia"]["bandas_aire2m_C"], retomada["climatologia"]["bandas_aire2m_C"])
     assert seguida["climatologia"]["equilibrio"]["anos"] == retomada["climatologia"]["equilibrio"]["anos"] == 1
+
+
+def test_correccion_presion_limitada_en_escalones_de_relieve():
+    """v3.1-pre13 (§6.11): junto a un escalon de ~2800 m (Antartida a 5 grados) la correccion de la difusion
+    de T a superficies de presion equivaldria a desplazar el perfil ~3 capas (fuera de su validez, e inestable);
+    se limita a media capa. Con relieve suave (montaña del caso 5 de Williamson) no cambia nada."""
+    import fase30_multicapa as M30
+    import fase6_nucleo as N6
+    from fase6_aguas_someras import caso5, A_TIERRA, OMEGA_TIERRA, G_TIERRA
+    sh = M30.sigma_seminiveles(20)
+    sig_m = 0.5 * (np.asarray(sh[1:]) + np.asarray(sh[:-1]))
+    T = 290.0 - 40.0 * (1 - sig_m)[:, None, None] * np.ones((1, 36, 72))     # T que cambia con la altura
+    for alto, cambia in ((np.where((np.arange(36)[:, None] >= 31) & (np.abs(np.arange(72)[None] - 36) < 6), 2800.0, 0.0), True),
+                         (caso5()[3], False)):
+        m = N6.NucleoSeco(A_TIERRA, OMEGA_TIERRA, G_TIERRA, 287.0, 1004.0, sh, phis=G_TIERRA * alto)
+        m.preparar_semiimplicito(450.0)
+        m.preparar_hiperdifusion(0.5, calor_rozamiento=True, correccion_presion=True)
+        ps = 1e5 * np.exp(-G_TIERRA * alto / (287.0 * 260.0))
+        corr = m._correccion_presion(T, ps, 900.0)
+        lim = N6.LIMITE_CORRECCION_PRESION
+        N6.LIMITE_CORRECCION_PRESION = np.inf
+        try:
+            libre = m._correccion_presion(T, ps, 900.0)
+        finally:
+            N6.LIMITE_CORRECCION_PRESION = lim
+        assert np.isfinite(corr).all()
+        if cambia:
+            assert np.abs(corr).max() < np.abs(libre).max()
+            dT = np.zeros_like(T)
+            dT[:-1] += np.asarray(sh)[1:-1, None, None] * (T[1:] - T[:-1])
+            dT[1:] += np.asarray(sh)[1:-1, None, None] * (T[1:] - T[:-1])
+            delps = corr / (0.5 / (m._d3 * ps[None]) * np.where(dT == 0, 1.0, dT))       # delps efectivo
+            c = (np.abs(delps) * sig_m[:, None, None] / (m._d3 * ps[None])).max(axis=0)
+            assert c.max() <= lim * (1 + 1e-12)
+        else:
+            assert np.array_equal(corr, libre)

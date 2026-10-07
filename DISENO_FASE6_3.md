@@ -628,3 +628,29 @@ Medido:
    - el coste por año.
 2. Validación en modo Tierra con los criterios del §2 escritos antes (paso 6).
 3. Exportación a `m3n-clima`.
+
+### 6.11 v3.1-pre13 (07/10/2026): la corrección de presión, limitada junto a los escalones de relieve
+
+**Lo que pasó.** Primera simulación larga en modo Tierra, en el PC de Carlos, arrancando desde el equilibrio del modelo de 2 capas: se rompió en el año 1, al ~1,8 % (unos 6–7 días). Con el estado de partida que guardó, se reproduce aquí exactamente.
+- **Dónde:** una celda de océano helado junto a la meseta antártica (82,5° S, 62,5° O), pegada a celdas de 2800 m.
+- **Qué:** la temperatura de las 3–4 capas más bajas oscila cada vez más, con periodo de unos 6 pasos de la física. La física (capa límite, ajuste seco) se limita a mezclarla: la oscilación sale de la dinámica. Al final el aire baja de 0 K y los coeficientes de superficie dan NaN.
+
+**La causa.** La corrección de la difusión de T a superficies de presión (decisión 1.7, `difcor.F90` de CAM ✅) es el primer término de un desarrollo de Taylor.
+- Equivale a desplazar el perfil de T en la vertical δσ ≈ σ·delps/p_s; en capas, c_k = |delps|·σ_k/Δp_k.
+- Junto a un escalón de 0 a 2800 m en una sola celda de 5°, delps llega a 143 hPa y c ≈ 3,3 capas en la capa baja. Fuera de su validez, y siendo un término explícito, se vuelve inestable.
+- En modo Tierra hay 42 columnas con c > 0,5 y 16 con c > 1. En el mapa de pruebas (escalones de 600 m), ninguna problemática.
+- CAM no lo sufre porque suaviza su relieve.
+- **Comprobado:** la misma simulación, desde el mismo estado, **sin la corrección** o **sin relieve**, pasa de 9000 subpasos (~47 días) sin problemas.
+
+**Decisión (técnica, tomada por la IA a petición de Carlos el 07/10):** la corrección se limita en cada columna para que el desplazamiento no pase de **media capa** (`LIMITE_CORRECCION_PRESION = 0,5` en `fase6_nucleo.py`). Donde ya era menor, no cambia nada.
+- **Por qué este y no otro:**
+  - Mantiene la corrección exactamente donde su desarrollo vale, que es casi todo el planeta.
+  - Solo la reduce donde, en sentido estricto, ya no era una corrección válida.
+  - Media capa es el desplazamiento hasta el que una interpolación lineal entre capas vecinas sigue siendo una aproximación razonable.
+- **Probados 0,5 y 1,0:** los dos aguantan al menos 36 días donde antes se rompía a los 6–7. Se elige el más conservador.
+- **Precio:** en esas ~40 columnas de acantilado vuelve parte del calentamiento falso de la difusión sobre superficies σ. Queda localizado; se medirá en la validación.
+- **Alternativa no elegida:** suavizar el relieve de la dinámica, como CAM. Cambiaría el mapa de Carlos en los bordes de las montañas, así que es una decisión de modelo que no se toma sin él.
+- **Sin cambios en el resto:** Held y Suarez no usa la corrección, y las 99 pruebas anteriores siguen pasando (también la de la montaña del caso 5, sin cambios).
+- **Prueba nueva** (100): con una meseta de 2800 m, el desplazamiento queda ≤ 0,5 capas y la corrección se reduce; con la montaña del caso 5, la corrección es idéntica bit a bit a la de antes.
+- `clima_dinamico.py` también para con un mensaje claro si aparecen valores no válidos (IndexError o ValueError por NaN).
+

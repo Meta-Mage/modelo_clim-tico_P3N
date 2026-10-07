@@ -115,7 +115,7 @@ def main():
 
     F.AL_PASO = al_paso
     F.AL_ACABAR_ANO = al_acabar_ano
-    informar(f"=== M3N v3.1-pre12 con nucleo dinamico | {'modo Tierra' if args.tierra else 'P3N, mapa ' + nombre_mapa} | "
+    informar(f"=== M3N v3.1-pre13 con nucleo dinamico | {'modo Tierra' if args.tierra else 'P3N, mapa ' + nombre_mapa} | "
              f"arranque {args.arranque} | {len(orbita)} pasos por año | carpeta {carpeta}")
     try:
         prueba = {} if not args.dias else dict(          # prueba: pocos años y sin exigir equilibrio
@@ -125,7 +125,7 @@ def main():
     except KeyboardInterrupt:
         informar("Interrumpido. Para seguir, lanza la MISMA orden: continua desde el ultimo año guardado.")
         sys.exit(1)
-    except (AssertionError, FloatingPointError) as e:
+    except (AssertionError, FloatingPointError, IndexError, ValueError) as e:      # valores no validos
         informar(f"ERROR: la simulacion se ha vuelto inestable ({e}). Pasale a Claude {f_reg}.")
         sys.exit(2)
     with open(os.path.join(carpeta, "resultado.pkl"), "wb") as f:

@@ -20,6 +20,8 @@ import numpy as np
 from fase6_aguas_someras import Rejilla, _filtro_fourier, LAT_FILTRO_DEFECTO, RAW_NU, RAW_ALFA
 from fase6_nucleo_nb import HAY_NUMBA, _tendencias_sin_filtro
 
+LIMITE_CORRECCION_PRESION = 0.5     # v3.1-pre13: desplazamiento maximo (en capas) de la correccion de T (§6.11)
+
 # v3.1-pre8: con numba, las tendencias explicitas se calculan con la version compilada de fase6_nucleo_nb.py,
 # IDENTICA BIT A BIT a la de numpy de este archivo (test_fase6_2.py). Poner a False para usar la de numpy.
 USAR_NUMBA = True
@@ -535,6 +537,16 @@ class NucleoSeco:
         dT[:-1] += sh[1:-1, None, None] * (T[1:] - T[:-1])                              # B_{k+1/2}(T_{k+1}-T_k)
         dT[1:] += sh[1:-1, None, None] * (T[1:] - T[:-1])                               # B_{k-1/2}(T_k-T_{k-1})
         dp = self._d3 * ps[None]
+        # v3.1-pre13: LIMITE DE VALIDEZ. La correccion equivale a desplazar el perfil de T en la vertical
+        # dsigma ~ sigma delps/p_s (desarrollo de Taylor de 1.er orden); en capas, c_k = |delps| sigma_k / dp_k.
+        # Solo vale si ese desplazamiento es pequeño frente a la capa. Junto a escalones de relieve de casi 3 km
+        # (Antartida a 5 grados) llega a ~3 capas: el desarrollo deja de valer y el termino, explicito, se vuelve
+        # inestable (medido el 07/10 en modo Tierra, DISENO_FASE6_3.md §6.11). En cada columna se reduce delps
+        # para que max_k c_k <= LIMITE_CORRECCION_PRESION (media capa); donde ya es menor, no cambia nada.
+        sig_m = (0.5 * (self.sh[1:] + self.sh[:-1]))[:, None, None]
+        c = (np.abs(delps)[None] * sig_m / dp).max(axis=0)
+        delps = np.where(c > LIMITE_CORRECCION_PRESION,
+                         delps * (LIMITE_CORRECCION_PRESION / np.where(c > 0, c, 1.0)), delps)
         return delps[None] * 0.5 / dp * dT
 
     # ------------------------------------------------------------------ avance (explicito)
