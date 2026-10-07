@@ -122,3 +122,50 @@ def test_punto_de_control_identico():
     reanudado = m.integrar_si(None, None, None, None, 12, forzamiento=hs, reanudar=(guardado["n"], guardado["a"], guardado["b"]))
     for x, y in zip(seguido, reanudado):
         assert np.array_equal(x, y)
+
+
+# ---------------- v3.1-pre8: version compilada (numba) y filtros en lote: IDENTICAS bit a bit ----------------
+
+def _bits(x):
+    return np.ascontiguousarray(x).view(np.int64)
+
+
+def test_tendencias_compiladas_identicas_bit_a_bit():
+    from fase6_nucleo_nb import HAY_NUMBA
+    if not HAY_NUMBA:
+        return                                                   # sin numba se usa la version de numpy
+    _, _, _, hs = caso5()
+    m = _nucleo(phis=G_TIERRA * hs)
+    est = _estado_aleatorio(m, hs)
+    m.usar_numba = True
+    a = m.tendencias(*est)
+    b = m._tendencias_numpy(*est)
+    for x, y in zip(a, b):
+        assert np.array_equal(_bits(x), _bits(y))
+
+
+def test_filtro_en_lote_identico_bit_a_bit():
+    _, _, _, hs = caso5()
+    m = _nucleo(phis=G_TIERRA * hs)
+    ps, T, u, v = _estado_aleatorio(m, hs)
+    a = m._filtro_varios((ps, T, u), m.Rj.cos_c)
+    for x, y in zip(a, (m._filtro3(ps, m.Rj.cos_c), m._filtro3(T, m.Rj.cos_c), m._filtro3(u, m.Rj.cos_c))):
+        assert np.array_equal(_bits(x), _bits(y))
+
+
+def test_held_suarez_20_pasos_numba_igual_que_numpy():
+    from fase6_nucleo_nb import HAY_NUMBA
+    if not HAY_NUMBA:
+        return
+    def corre(nb):
+        m = _nucleo()
+        m.usar_numba = nb
+        hsf = HeldSuarez(m)
+        m.preparar_semiimplicito(450.0)
+        m.preparar_hiperdifusion(0.5)
+        rng = np.random.default_rng(1)
+        ps = np.full((36, 72), 1e5)
+        T = hsf.T_equilibrio(ps) + 0.1 * rng.standard_normal((m.N, 36, 72))
+        return m.integrar_si(ps, T, np.zeros((m.N, 36, 72)), np.zeros((m.N, 35, 72)), 20, forzamiento=hsf)
+    for x, y in zip(corre(False), corre(True)):
+        assert np.array_equal(_bits(x), _bits(y))

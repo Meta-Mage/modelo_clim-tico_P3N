@@ -351,3 +351,18 @@ Perfil de 600 pasos con los niveles de M3N:
   2. agrupar las FFT de varios campos en una sola llamada;
   3. sustituir `np.roll` por índices.
 - **Estimación ⚠️ (por medir):** ~2 veces más rápido el núcleo.
+
+**Resultado de la optimización (v3.1-pre8, 07/10/2026):**
+- **`tendencias` compilada con numba** (`fase6_nucleo_nb.py`):
+  - cada expresión reproduce el orden de operaciones de numpy → resultado **idéntico bit a bit**;
+  - en el entorno de la IA, de 14,3 a 2,4 ms por llamada (×5,9).
+- **Hallazgo:** el `np.log` vectorizado de numpy y el `log` que usa numba pueden diferir en el último bit. Aparecía en cuanto p_s dejaba de ser uniforme (1 ulp en dT, du, dv desde el paso 1). Por eso `log(p_s)` se calcula con numpy y se pasa al kernel.
+- **Filtros polares en lote** (`_filtro_varios`): las FFT de cada fila son independientes; de 16 a 8 llamadas por paso, idéntico bit a bit.
+- **Comprobaciones:**
+  - Held y Suarez con los niveles de M3N: 300 pasos con la v3.1-pre8 = 300 pasos con la v3.1-pre7, **bit a bit** (p_s, T, u, v);
+  - pruebas nuevas en `test_fase6_2.py`: tendencias compiladas = numpy (con montañas), filtro en lote = uno a uno, 20 pasos de Held y Suarez con numba = sin numba, todo bit a bit.
+- **Paso completo** (entorno de la IA, Held y Suarez con los niveles de M3N): de 33 a 24 ms. **×1,4, no ×2 como se estimó en el §6.6.** Era una estimación sin medir y queda corregida.
+  - Lo que queda son bloques de < 1 ms: las partes lineales del semiimplícito, los productos de matrices (BLAS), la resolución por ondas, la hiperdifusión (~3,7 ms, sobre todo productos complejos con BLAS) y la aritmética de RAW.
+  - Sustituir las operaciones de BLAS rompería la igualdad bit a bit (su orden interno de suma no es reproducible), y compilar el resto ahorraría ~1–2 ms con bastante código nuevo. **Decisión: parar aquí.**
+- **Consecuencia para el coste** (§6.3, estimación ⚠️ por medir con el modelo acoplado): con la física de la v3.1, ~36 ms por paso de física en el entorno de la IA, hoy la parte más cara, el paso acoplado queda en ~20 ms en el PC de Carlos frente a ~25 → ~8 min por año de P3N; con el arranque caliente (~16 años), ~2,1 h. Si hace falta bajar más, lo siguiente sería la física de columna, no el núcleo.
+- `USAR_NUMBA = False` (en `fase6_nucleo.py`) vuelve a la versión de numpy; sin numba instalado se usa sola.

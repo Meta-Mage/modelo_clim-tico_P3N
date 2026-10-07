@@ -18,6 +18,11 @@ import math
 import numpy as np
 
 from fase6_aguas_someras import Rejilla, _filtro_fourier, LAT_FILTRO_DEFECTO, RAW_NU, RAW_ALFA
+from fase6_nucleo_nb import HAY_NUMBA, _tendencias_sin_filtro
+
+# v3.1-pre8: con numba, las tendencias explicitas se calculan con la version compilada de fase6_nucleo_nb.py,
+# IDENTICA BIT A BIT a la de numpy de este archivo (test_fase6_2.py). Poner a False para usar la de numpy.
+USAR_NUMBA = True
 
 
 class NucleoSeco:
@@ -43,6 +48,7 @@ class NucleoSeco:
         self.cos_ref = math.cos(math.radians(lat_filtro))
         self.filtrar = lat_filtro < 90.0
         self._d3 = self.dsig[:, None, None]
+        self.usar_numba = HAY_NUMBA and USAR_NUMBA
 
     # ------------------------------------------------------------------ utilidades
     @staticmethod
@@ -81,6 +87,19 @@ class NucleoSeco:
 
     # ------------------------------------------------------------------ tendencias explicitas completas
     def tendencias(self, ps, T, u, v, diag=None):
+        if self.usar_numba and diag is None:
+            Rj = self.Rj
+            dps, dT, du, dv = _tendencias_sin_filtro(
+                ps, np.log(ps), T, u, v, self.phis, self.dsig, self.dln, self.alfa, self.sh, Rj.L_u, Rj.L_v[:, 0],
+                Rj.area[:, 0], Rj.dx_u[:, 0], Rj.dy, Rj.A_u[:, 0], Rj.A_v[:, 0], Rj.L_n[:, 0],
+                Rj.area_dual[:, 0], self.f_esq[:, 0], self.R, self.cp)
+            if self.filtrar:
+                dps, dT, du = self._filtro_varios((dps, dT, du), Rj.cos_c)
+                dv = self._filtro3(dv, Rj.cos_v)
+            return dps, dT, du, dv
+        return self._tendencias_numpy(ps, T, u, v, diag)
+
+    def _tendencias_numpy(self, ps, T, u, v, diag=None):
         Rj, R, cp = self.Rj, self.R, self.cp
         N = self.N
         dsig = self._d3
@@ -141,9 +160,7 @@ class NucleoSeco:
         if diag is not None:
             diag.update(W=W, D=D, Phi=Phi, F_u=F_u, F_v=F_v)
         if self.filtrar:
-            dps = self._filtro3(dps, Rj.cos_c)
-            dT = self._filtro3(dT, Rj.cos_c)
-            du = self._filtro3(du, Rj.cos_c)
+            dps, dT, du = self._filtro_varios((dps, dT, du), Rj.cos_c)
             dv = self._filtro3(dv, Rj.cos_v)
         return dps, dT, du, dv
 
@@ -170,6 +187,18 @@ class NucleoSeco:
         out = x.copy()
         out[..., filas, :] = np.fft.irfft(np.fft.rfft(x[..., filas, :], axis=-1) * S, n=x.shape[-1], axis=-1)
         return out
+
+    def _filtro_varios(self, campos, cos_filas):
+        """v3.1-pre8: _filtro3 de varios campos con las mismas filas en UNA sola pareja de FFT (las FFT de cada
+        fila son independientes: el resultado es identico bit a bit al de filtrarlos uno a uno, test_fase6_2)."""
+        formas = [c.shape for c in campos]
+        pila = np.concatenate([c.reshape((-1,) + c.shape[-2:]) for c in campos], axis=0)
+        f = self._filtro3(pila, cos_filas)
+        salida, i0 = [], 0
+        for fo in formas:
+            n = int(np.prod(fo[:-2])) if len(fo) > 2 else 1
+            salida.append(f[i0:i0 + n].reshape(fo)); i0 += n
+        return tuple(salida)
 
     # ------------------------------------------------------------------ diagnosticos
     def integrales(self, ps, T, u, v):
@@ -281,7 +310,6 @@ class NucleoSeco:
         ps1, T1, u1, v1 = act
         p_ref = self.si_pref
         filt = (lambda x, c: self._filtro3(x, c)) if self.filtrar else (lambda x, c: x)
-        filt2 = (lambda x: self._filtro3(x, Rj.cos_c)) if self.filtrar else (lambda x: x)
         # parte lineal en n y n-1
         def L(ps, T, u, v):
             gu, gv = self._grad(self._lineal_P(T, ps))
@@ -289,8 +317,10 @@ class NucleoSeco:
             return (-p_ref * np.tensordot(self.dsig, delta, axes=1),
                     -np.tensordot(self.si_tau, delta, axes=1), -gu, -gv)
         L1 = L(*act); L0 = L(*ant)
-        L1 = (filt2(L1[0]), filt(L1[1], Rj.cos_c), filt(L1[2], Rj.cos_c), filt(L1[3], Rj.cos_v))
-        L0 = (filt2(L0[0]), filt(L0[1], Rj.cos_c), filt(L0[2], Rj.cos_c), filt(L0[3], Rj.cos_v))
+        if self.filtrar:            # v3.1-pre8: los 8 filtros en 2 llamadas (identico bit a bit)
+            a = self._filtro_varios((L1[0], L1[1], L1[2], L0[0], L0[1], L0[2]), Rj.cos_c)
+            b_ = self._filtro_varios((L1[3], L0[3]), Rj.cos_v)
+            L1 = (a[0], a[1], a[2], b_[0]); L0 = (a[3], a[4], a[5], b_[1])
         A = [x0 + 2 * dt * (d - l1) + 2 * dt * (1 - beta) * l0
              for x0, d, l1, l0 in zip(ant, (dps, dT, du, dv), L1, L0)]
         A_ps, A_T, A_u, A_v = A

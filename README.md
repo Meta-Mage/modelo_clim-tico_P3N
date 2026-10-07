@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `v3.1-pre7`** (octubre de 2026). Igual que la v3.1-pre2 más el **núcleo dinámico propio de la Fase 6 en desarrollo** (módulos `fase6_*.py`, todavía sin conectar al modelo: no cambia el clima). La v3.1-pre2 es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 (calibrada en modo Tierra: D_atm = 1,55, D_oc = 0,27) y el ciclo del agua de la v3.1 (Fase 5a), programado y probado, con un prototipo de vapor radiativo (I15). Todo sigue **apagado** (I10–I15) hasta validarlas: el clima exportado es el de la v2.4.3, con la corrección de la capa de mezcla (`DISENO_V3.0.md` §14, `DISENO_V3.1.md`).
+**Versión actual: `v3.1-pre8`** (octubre de 2026). Igual que la v3.1-pre2 más el **núcleo dinámico propio de la Fase 6 en desarrollo** (módulos `fase6_*.py`, todavía sin conectar al modelo: no cambia el clima). La v3.1-pre2 es el modelo de la v2.4.3 (día de 19,84 h), más la atmósfera de N capas de la v3.0 (calibrada en modo Tierra: D_atm = 1,55, D_oc = 0,27) y el ciclo del agua de la v3.1 (Fase 5a), programado y probado, con un prototipo de vapor radiativo (I15). Todo sigue **apagado** (I10–I15) hasta validarlas: el clima exportado es el de la v2.4.3, con la corrección de la capa de mezcla (`DISENO_V3.0.md` §14, `DISENO_V3.1.md`).
 
 ---
 
@@ -43,7 +43,7 @@ source venv/bin/activate
 pip install numpy scipy matplotlib pytest numba global-land-mask
 ```
 
-- `numba` compila el ajuste convectivo de la v3.0 (unas 20 veces más rápido; sin él funciona igual, más lento). `global-land-mask` da el mapa de la Tierra del modo Tierra.
+- `numba` compila el ajuste convectivo de la v3.0 (unas 20 veces más rápido) y, desde la v3.1-pre8, las tendencias del núcleo dinámico. Sin él funciona igual (mismo resultado), más lento. `global-land-mask` da el mapa de la Tierra del modo Tierra.
 
 - `venv` es un entorno virtual: una carpeta con las librerías solo de este proyecto. **Cada vez que abras una terminal nueva**, actívalo con `source venv/bin/activate` (verás `(venv)` al principio de la línea).
 - Editor recomendado: **VSCodium** (`codium .` dentro de la carpeta).
@@ -104,6 +104,7 @@ Los resultados se guardan en `outputs/`, que **no se sube a GitHub**.
 | `exportar_clima.py` | Exportación del clima para H3N (formato `m3n-clima`, ver `DISENO_FASE4.md`) |
 | `fase6_aguas_someras.py` | Fase 6.1: aguas someras en la esfera (rejilla C, filtro polar, leapfrog + RAW) y casos de Williamson et al. (1992) |
 | `fase6_nucleo.py` | Fase 6.2: núcleo dinámico seco de 20 capas (Simmons y Burridge, semiimplícito, hiperdifusión, puntos de control). Aún sin conectar a la física |
+| `fase6_nucleo_nb.py` | v3.1-pre8: las tendencias del núcleo compiladas con numba, idénticas bit a bit a las de numpy (~1,4 veces más rápido el paso completo) |
 | `fase6_forzamientos.py` | Fase 6.2: estado de Jablonowski y Williamson (2006) y forzamiento de Held y Suarez (1994) |
 | `fase6_trazadores.py` | Fase 6.3: transporte del vapor positivo y conservativo (forma de flujo, Courant zonal arbitrario) |
 | `fase6_capa_limite.py` | Fase 6.3: capa límite en columna (arrastre de Louis a la altura real de la capa más baja, mezcla vertical de Frierson et al. 2006 implícita, calor por rozamiento exacto y positivo). Aún sin conectar |
@@ -164,7 +165,7 @@ Las validaciones de cada fase que exigen simular un clima completo (por ejemplo,
 | v3.0 | Atmósfera de N capas (adelantada de la Fase 8, decisión del 04/10/2026), en seco | 🔧 programada, calibrada y validada en modo Tierra: polos demasiado cálidos y sin hielo → **apagada** hasta la Fase 6 (`DISENO_V3.0.md` §13 bis) |
 | v3.1 | Fase 5a: humedad, evaporación, precipitación (sobre las N capas) | 🔧 programada, probada y validada en modo Tierra: el mismo fallo de los polos y aire demasiado húmedo → **apagada** hasta la Fase 6 (`DISENO_V3.1.md` §10 bis) |
 | v3.2 | Fase 5b: nubes | ⏳ |
-| v3.1-pre3 a pre7 | Fase 6 (núcleo dinámico propio, decisión del 05/10/2026): 6.1 ✅, 6.2 ✅ (cerrada con Held y Suarez a 5° y 2,5°), 6.3 en marcha (decisiones aprobadas el 06/10; núcleo con los niveles de M3N sin capa esponja; capa límite en columna hecha: `DISENO_FASE6_3.md` §6) | 🔧 en desarrollo, sin conectar |
+| v3.1-pre3 a pre8 | Fase 6 (núcleo dinámico propio, decisión del 05/10/2026): 6.1 ✅, 6.2 ✅ (cerrada con Held y Suarez a 5° y 2,5°), 6.3 en marcha (decisiones aprobadas el 06/10; núcleo con los niveles de M3N sin capa esponja; capa límite en columna hecha; núcleo compilado con numba, idéntico bit a bit: `DISENO_FASE6_3.md` §6) | 🔧 en desarrollo, sin conectar |
 | después | Fase 6.3–6.4 (acoplamiento y P3N), Fase 6b: corrientes oceánicas; Fase 7 / 7b: biomas | ⏳ |
 
 Al terminar M3N está previsto un **barrido final de parámetros** (masa de la estrella, órbita, presión, emisividades) para fijar el mundo definitivo. Los valores actuales son provisionales.
