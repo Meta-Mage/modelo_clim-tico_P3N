@@ -88,7 +88,7 @@ def main():
         n_med = 0; n1 = 0
         reanudar = None
         n0 = 1
-    print(f"Held y Suarez | {180 / a.filas:g} grados | niveles {a.niveles} (techo {sig.min() * 1000:.2f} hPa) | "
+    print(f"Held y Suarez | {180 / a.filas:g} grados | niveles {a.niveles} (centro de la capa de arriba {sig.min() * 1000:.2f} hPa) | "
           f"tau = {a.tau:g} dias | {a.dias} dias = {total} pasos de {DT:.0f} s | media desde el dia {DIA_INICIO_MEDIA}")
     alto = sig < 0.02          # capas por encima de ~20 hPa (solo existen con --niveles m3n): vigilancia del techo
 

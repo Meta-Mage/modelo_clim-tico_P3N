@@ -1,6 +1,6 @@
 # Fase 6.3 de M3N: acoplar el núcleo dinámico con la física de M3N (BORRADOR v1)
 
-**Estado: v2 (06/10/2026).** Las decisiones del §1 están revisadas con fuentes y **aprobadas por Carlos** (§6). El transporte del vapor está hecho (§5). El paso 2 del §3 (núcleo con los niveles de M3N) está en marcha (v3.1-pre6). La 6.2 está cerrada (`DISENO_FASE6_2.md`).
+**Estado: v2 (06–07/10/2026).** Las decisiones del §1 están revisadas con fuentes y **aprobadas por Carlos** (§6). Hechos: el transporte del vapor (§5), el paso 2 del §3 (núcleo con los niveles de M3N: **sin capa esponja**, §6.4) y la capa límite en columna (paso 4, §6.5). La 6.2 está cerrada (`DISENO_FASE6_2.md`).
 
 Etiquetas:
 - ✅ verificado;
@@ -257,6 +257,22 @@ Criterio de Carlos para todo este apartado: "que todo lo que se haga se haga des
 
   Si falla 1 o 2, se diseña la capa esponja (1.6). Si falla solo 3, se analiza antes de decidir.
 
+**Resultado (PC de Carlos, 07/10/2026; 25 min; media de los días 200 a 1200):**
+
+| | Niveles iguales (6.2) | **Niveles de M3N** |
+|---|---|---|
+| Chorro N | 37,3 m/s en 28,9°, σ = 0,22 | **36,6 m/s en 29,3°, σ = 0,26** (mitades: 37,0 en 29,1° / 36,2 en 29,4°) |
+| Chorro S | 37,2 m/s en 29,0° | **36,8 m/s en 29,2°** (mitades: 36,8 en 29,2° / 36,7 en 29,3°) |
+| Viento del oeste en superficie | 3,3–3,5 m/s en 33,5° | **4,0 m/s en 34,0–34,1°** |
+| Calor por remolinos (máx., σ = 0,85) | 33,1° | 33,9–34,0° |
+| Momento por remolinos hacia el polo (máx., σ = 0,25) | 34–35 m²/s² en 24° | 37,4–37,9 m²/s² en 24,3° |
+| Capas altas (centro < 20 hPa), \|u zonal medio\| máx. | — | **9,9 m/s** (mitades: 10,3 / 9,7; −6 %) |
+
+- Registro cada 20 días: T entre 189 y 312 K y p_s entre 959 y 1030 hPa durante los 1200 días; el máximo instantáneo de |u| en las capas altas, entre 13 y 22 m/s desde el día ~100, sin tendencia.
+- **Criterios:** 1 ✅ (estable); 2 ✅ (−6 %, por debajo del 10 %, y bajando); 3 ✅ (diferencias de 0,4–0,7 m/s y de 0,2–0,4°).
+- **Decisión: sin capa esponja.** El viento algo mayor en superficie es coherente con las capas más finas abajo de M3N.
+- **Límite de la prueba:** Held y Suarez fuerza una estratosfera isoterma y sin estaciones; no puede mostrar un chorro estratosférico de invierno, que aparecerá con la radiación de M3N. En la validación en modo Tierra (§2) se vigilará el viento de las capas altas con el mismo criterio 2; si se desboca, se diseña la esponja (1.6) con la fuente del §6.5.
+
 ### Referencias de este apartado
 
 - CAM, descripción del núcleo euleriano (www2.cesm.ucar.edu/models/atm-cam/docs/description/node9.html) ✅.
@@ -265,3 +281,73 @@ Criterio de Carlos para todo este apartado: "que todo lo que se haga se haga des
 - Frierson, D. M. W., Held, I. M., y Zurita-Gotor, P. (2006), J. Atmos. Sci. 63, 2548–2566 ✅ (detalles verificados en la tesis de Frierson).
 - Louis, J.-F., Tiedtke, M., y Geleyn, J.-F. (1982), ECMWF Workshop on Planetary Boundary Layer Parameterization, Tabla 1 ✅ (vía LMDZ, `cdrag_mod.F90`).
 - Mendonça, J. M., et al. (2016), THOR (arXiv:1607.05535) ✅: Held y Suarez, chorros hacia ~45° y ~250 hPa.
+
+### 6.5 Paso 4: capa límite en columna (`fase6_capa_limite.py`, 06–07/10/2026)
+
+Módulo autónomo, **sin conectar** (eso es el paso 5, con I16). Pruebas: `test_fase6_capa_limite.py` (7).
+
+**Fuentes verificadas para este módulo** (además de las del §6.2):
+- Perfil de K: `diffusivity.F90` de GFDL/Isca (opción `do_simple`, la de Frierson et al. 2006) ✅:
+  - z < f h: difusividad de Monin-Obukhov;
+  - f h ≤ z < h: K(f h)·(z/f h)·[1 − (z − f h)/(h − f h)]²;
+  - z ≥ h: 0;
+  - f = 0,1 y Ri_c = 1. h, con el Ri global desde la capa más baja e interpolación lineal.
+- φ de Monin-Obukhov: `monin_obukhov.F90` de GFDL/Isca ✅:
+  - inestable: φ_m = (1 − 16ζ)^(−1/4), φ_h = (1 − 16ζ)^(−1/2);
+  - estable: 1 + ζ(5 + b ζ)/(1 + ζ), con b = 1/rich_crit = 0,5.
+- Charnock (para el paso 5): z₀ = 0,11 ν/u* + α u*²/g, con α típico 0,018 ✅ (ECMWF, "Sea surface roughness and drag coefficient as function of neutral wind speed", 2010). α varía con el estado del mar (de 0,01 a 0,04); 0,018 es el valor típico que cita el ECMWF.
+- Capa esponja (si hiciera falta): Shepherd, Semeniuk y Koshyk (1996, JGR, doi:10.1029/96JD01994) ✅ (existencia y resumen). Una esponja de relajación se acopla de forma artificial con la dinámica de abajo; la forma concreta, solo si el §6.4 la exige.
+
+**Tres hallazgos de este paso:**
+1. **La v3.0 calcula el intercambio con la superficie con coeficientes a 10 m (`Z_REF`), pero con la temperatura de la capa más baja,** cuyo centro está a ~184 m. Con la rugosidad de M3N, C_N(10 m)/C_N(184 m) = 2,02 sobre tierra y 1,61 sobre el mar. Los coeficientes se sobreestiman en ese factor.
+   - El módulo usa la altura real de la capa más baja (z_a), como Frierson et al. y los GCM.
+   - Al conectarlo (paso 5) cambiarán los flujos de la superficie, y se medirá cuánto.
+   - El modelo de 2 capas no se toca.
+2. **Difundir s = cp T + g z da un flujo de calor falso en una columna neutra:** con la hidrostática discreta, s no es constante en una columna isentrópica (hasta 77 J/kg entre las 5 capas bajas de M3N). Con K ~ 100 m²/s serían varios W/m².
+   - **Solución:** el flujo de calor se calcula con el gradiente de θ (H = −ρ c_p K Π ∂θ/∂z, la forma de la teoría K) y se aplica en forma conservativa de energía (masa·Π como "masa" y D·Π_interfaz como conductancia).
+   - Una columna neutra queda exactamente sin flujo, y Σ m c_p T se conserva exactamente.
+3. **Calor por rozamiento: devolverlo capa a capa como −ΔKE (como `difcor.F90`) puede enfriar** una capa que recibe momento de otra, porque eso es transporte, no disipación.
+   - Demostración propia, para Euler implícito y sumando por partes:
+     Σ m (KE₁ − KE₀) = −dt Σ_i D_i |v₁,ᵢ − v₁,ᵢ₊₁|² − dt·c_s·|v₁,ₐ|² − ½ Σ m |v₁ − v₀|².
+   - Cada término es ≥ 0 y se deposita donde ocurre:
+     - lo de cada interfaz, a medias entre sus dos capas;
+     - lo del suelo, en la capa más baja;
+     - lo del paso implícito, en su capa.
+   - El calentamiento es positivo en cada capa y la energía total cierra a redondeo.
+
+**Pruebas** (`test_fase6_capa_limite.py`, todas superadas):
+- Louis para el calor = `factor_estabilidad_louis` de M3N, bit a bit.
+- f(0) = 1; las dos funciones de Louis son monótonas; en estable, el momento se frena menos que el calor.
+- φ en valores exactos.
+- Energía Σ m (c_p T + KE) conservada a < 10⁻¹⁴ (relativo), en columnas inestables, estables y mixtas.
+- Momento: solo cambia por la tensión en superficie (10⁻¹⁰).
+- Vapor: conservado (10⁻¹³) y ≥ 0.
+- Calor por rozamiento ≥ 0 en cada capa, y su suma igual al diagnóstico.
+- Columna en reposo e isentrópica: no cambia nada (< 10⁻¹⁰ K).
+- **Perfil logarítmico:** columna neutra fina (80 niveles de 2 a 2000 m), estado estacionario con una fuerza uniforme. El salto de viento entre 5 y 60 m coincide con la solución exacta con un error de **0,04 %** (tolerancia del 1 %).
+
+**Comprobación de cordura** (columna con los 20 niveles de M3N, atmósfera estándar, viento de 10 m/s, z₀ = 0,01 m):
+- **De día** (suelo +3 K, 200 W/m²): h = 971 m, u* = 0,45 m/s, Ri = −0,19, K_m máx. = 79 m²/s.
+- **De noche** (suelo −4 K, −30 W/m²): u* = 0,25 m/s, Ri = +0,25, C_m 3,3 veces menor, K_m máx. = 3 m²/s.
+- z_a = 185 m.
+
+**Nota sobre la rejilla de M3N.** La capa más baja tiene el centro a ~185 m. Con h ~ 1 km, f h ~ 100 m queda **por debajo** de ella: en M3N, la ley logarítmica entre z₀ y z_a la lleva la fórmula del arrastre, y las interfaces caen en la parte cuadrática del perfil de K. Por eso la prueba del perfil logarítmico se hace en una columna fina (el módulo vale para cualquier rejilla).
+
+### 6.6 Coste del núcleo: dónde se va el tiempo (06–07/10, entorno de la IA, sin cambiar nada)
+
+Perfil de 600 pasos con los niveles de M3N:
+
+| Parte | Porcentaje del tiempo |
+|---|---|
+| `tendencias` (lado derecho explícito) | ~37 % |
+| FFT (40 transformadas pequeñas por paso: filtro polar, semiimplícito, hiperdifusión) | ~13 % |
+| `aplicar_hiperdifusion` | ~13 % |
+| `np.roll` (21 llamadas por paso) | ~6 % |
+| RAW y resto | el resto |
+
+- Con campos de ~52 000 valores domina el coste de llamar a cada operación de numpy, no la aritmética.
+- **Plan de optimización** (cada paso con su prueba de igualdad bit a bit o de diferencia medida y acotada):
+  1. fusionar `tendencias` en núcleos de numba;
+  2. agrupar las FFT de varios campos en una sola llamada;
+  3. sustituir `np.roll` por índices.
+- **Estimación ⚠️ (por medir):** ~2 veces más rápido el núcleo.
