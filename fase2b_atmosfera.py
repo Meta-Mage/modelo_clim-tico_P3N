@@ -28,6 +28,7 @@ import math
 import os
 import numpy as np
 import scipy.sparse as sp
+import fase6_equilibrio as EQ
 from scipy.sparse.linalg import splu
 
 from parametros import CONSTANTE_SB, ROTACION_PERIODO, P3N_GRAVEDAD, DURACION_HORA, FACTOR_ROTACION_D, S3N_TEMPERATURA
@@ -138,6 +139,9 @@ LOUIS_B, LOUIS_C, LOUIS_D = 5.0, 5.0, 5.0
 DEPURAR = False
 # v3.1: funcion opcional f(año, estado) que se llama al acabar cada año (seguimiento de simulaciones largas)
 AL_ACABAR_ANO = None
+# v3.1-pre12: funcion opcional f(año, paso, pasos_del_año, registrado) que se llama tras cada paso de la fisica
+# (barra de progreso de las simulaciones largas; no cambia nada de la simulacion)
+AL_PASO = None
 
 # Difusion reubicada (I6), v2.2c: coeficientes PROPIOS de la atmosfera
 # (sobre la troposfera) y del oceano (sobre su capa de mezcla). El 0.55
@@ -464,7 +468,7 @@ def simular_fase2b(
     interruptores=None, K_difusividad=K_DIFUSIVIDAD_TIERRA, n_capas=N_CAPAS_DEFECTO,
     paso_tiempo=PASO_TIEMPO_POR_DEFECTO, max_anos=50, tolerancia_convergencia=0.015,
     eps_cl=EMISIVIDAD_CL, eps_tr=EMISIVIDAD_TR, d_atmosfera=None, d_oceano=None,
-    acelerar=True, estado_inicial="libre", n_capas_atm=None, archivo_estado=None,
+    acelerar=True, estado_inicial="libre", n_capas_atm=None, archivo_estado=None, guardar_al_terminar=False,
 ):
     """
     Simulacion de la Fase 2b. Devuelve un dict con:
@@ -582,6 +586,21 @@ def simular_fase2b(
 
     # Estado del hielo (Fase 3): espesor h (m) y temperatura de su superficie.
     HIELO = {"h": np.zeros((FILAS, COLUMNAS)), "Ts": np.full((FILAS, COLUMNAS), T_CONGELACION)}
+    if isinstance(estado_inicial, dict):
+        # v3.1-pre12: ARRANQUE CALIENTE (DISENO_FASE6_3.md §6.3 y §6.10): el oceano, el suelo y el hielo salen
+        # de otra simulacion en equilibrio (el modelo de 2 capas con el mismo mapa y los mismos parametros); el
+        # aire arranca en reposo con el perfil inicial de siempre, ahora sobre esa superficie.
+        T_col0 = np.asarray(estado_inicial["T_col"], dtype=float)
+        if T_col0.shape != T_col.shape:
+            raise ValueError(f"arranque caliente: T_col {T_col0.shape} no encaja con esta simulacion {T_col.shape}")
+        T_col = T_col0.copy()
+        HIELO = {"h": np.array(estado_inicial["HIELO"]["h"], dtype=float),
+                 "Ts": np.array(estado_inicial["HIELO"]["Ts"], dtype=float)}
+        Ts = T_col[..., 0].copy()
+        T_tr = (Ts ** 4 / 2) ** 0.25
+        T_cl = Ts - desfase_theta
+        # el aire parte de la temperatura REAL de la superficie (la del hielo donde lo hay)
+        T_sup_inicial = np.where(es_agua & (HIELO["h"] > 0), HIELO["Ts"], T_col[..., 0]) if hielo_on else T_col[..., 0]
     if hielo_on and estado_inicial == "helado":
         # Prueba de biestabilidad: TODO el oceano cubierto de 5 m de hielo
         # y el planeta frio (agua a punto de congelarse, aire acorde).
@@ -592,7 +611,7 @@ def simular_fase2b(
         # v3.0: el "T_cl" pasa a ser la atmosfera entera (N capas, F, C) y el
         # "T_tr", su media ponderada en masa (solo para el criterio de
         # convergencia; se recalcula en cada paso).
-        T_cl = COL.perfil_inicial(T_col[..., 0])
+        T_cl = COL.perfil_inicial(T_sup_inicial if isinstance(estado_inicial, dict) else T_col[..., 0])
         if hielo_on and estado_inicial == "helado":
             T_cl = np.minimum(T_cl, 250.0)
         T_tr = COL.media_masa(T_cl)
@@ -1204,15 +1223,22 @@ def simular_fase2b(
     anos = max_anos
     convergido = False
     W_media_anterior = None
+    # v3.1-pre12: con I16, medias globales anuales para el criterio de equilibrio (fase6_equilibrio.py)
+    serie_equilibrio = {k: [] for k in EQ.CLAVES} if DIN is not None else None
+    equilibrio_valores = {}
 
     # v3.1: PUNTO DE CONTROL (opcional). Con archivo_estado, al acabar cada año se guarda el estado
     # completo; si el archivo ya existe al empezar (y es de ESTA misma simulacion: mismos
     # interruptores, D, mapa, orbita y paso), la simulacion continua desde el ultimo año guardado.
     # El resultado es el mismo que sin interrupcion (lo comprueba test_v31).
     import pickle, hashlib
+    huella_inicial = estado_inicial if not isinstance(estado_inicial, dict) else hashlib.sha256(
+        np.ascontiguousarray(estado_inicial["T_col"], dtype=float).tobytes()
+        + np.ascontiguousarray(estado_inicial["HIELO"]["h"], dtype=float).tobytes()
+        + np.ascontiguousarray(estado_inicial["HIELO"]["Ts"], dtype=float).tobytes()).hexdigest()
     huella_estado = hashlib.sha256(pickle.dumps((
         sorted(I.items()), d_atmosfera, d_oceano, D, n_capas, paso_tiempo, tolerancia_convergencia, acelerar,
-        estado_inicial, n_capas_atm, np.asarray(tipo_superficie).tobytes(), np.asarray(altitud_metros).tobytes(),
+        huella_inicial, n_capas_atm, np.asarray(tipo_superficie).tobytes(), np.asarray(altitud_metros).tobytes(),
         len(datos_orbita), float(datos_orbita[0][0]), float(datos_orbita[-1][0])))).hexdigest()
     ano_inicio = 0
     if archivo_estado is not None and os.path.exists(archivo_estado):
@@ -1224,6 +1250,7 @@ def simular_fase2b(
         HIELO = guardado["HIELO"]
         historial_r, cambio_anterior, saltos = guardado["historial_r"], guardado["cambio_anterior"], guardado["saltos"]
         W_media_anterior = guardado["W_media_anterior"]
+        serie_equilibrio = guardado.get("serie_equilibrio", serie_equilibrio)
         ano_inicio = guardado["ano"]
         if AGUA_EST is not None:
             AGUA_EST.update(guardado["AGUA_EST"])
@@ -1237,12 +1264,13 @@ def simular_fase2b(
         if DEPURAR:
             print(f"  -> se continua desde el año {ano_inicio} guardado en {archivo_estado}", flush=True)
 
-    def guardar_estado(ano_hecho):
+    def guardar_estado(ano_hecho, registrado=False):
         if archivo_estado is None:
             return
         estado = {"huella": huella_estado, "ano": ano_hecho, "T_col": T_col, "T_cl": T_cl, "T_tr": T_tr,
+                  "convergido": convergido, "registrado": registrado,
                   "HIELO": HIELO, "historial_r": historial_r, "cambio_anterior": cambio_anterior, "saltos": saltos,
-                  "W_media_anterior": W_media_anterior,
+                  "W_media_anterior": W_media_anterior, "serie_equilibrio": serie_equilibrio,
                   "AGUA_EST": None if AGUA_EST is None else {k: v for k, v in AGUA_EST.items()},
                   "DIN": None if DIN is None else {k: v for k, v in DIN.items()}}
         temporal = f"{archivo_estado}.{os.getpid()}.tmp"
@@ -1255,6 +1283,21 @@ def simular_fase2b(
             return np.where(es_agua & (HIELO["h"] > 0), HIELO["Ts"], T_col[..., 0])
         return T_col[..., 0]
 
+    def nuevo_acum():
+        """Acumuladores de un año (los mismos que los del año final con registro)."""
+        acum = {"abs": 0.0, "olr": 0.0}
+        if multi:
+            acum.update({k: np.zeros((FILAS, COLUMNAS)) for k in
+                         ("toa_neto", "conv_oceano", "conv_atmosfera", "olr_celda", "dlr", "sw_suelo", "sw_atm")})
+            acum.update(T_atm=np.zeros((COL.n, FILAS, COLUMNAS)), n=0)
+        if DIN is not None:
+            acum.update(residuo_dinamica=0.0, calor_rozamiento=0.0)
+        if agua_on:
+            acum.update({k: np.zeros((FILAS, COLUMNAS)) for k in CLAVES_AGUA_V31})
+        return acum
+    PESO_OCEANO = float((PESO * es_agua).sum())
+    PESO_TIERRA = float((PESO * es_tierra).sum())
+
     for ano in range(ano_inicio, max_anos):
         Ts0, Tt0 = T_col[..., 0].copy(), T_tr.copy()
         estado0 = (T_col.copy(), T_cl.copy(), T_tr.copy())
@@ -1265,9 +1308,24 @@ def simular_fase2b(
         if agua_on:
             W0_ano = AGUA_EST["W"].copy()
             AGUA_EST["W_suma"][:] = 0.0; AGUA_EST["n_suma"] = 0
-        for toa, decl, ang in datos_orbita:
+        acum_ano = nuevo_acum() if DIN is not None else None
+        suma_eq = {"T2m": 0.0, "hielo": 0.0, "agua_suelo": 0.0}
+        for p_ano, (toa, decl, ang) in enumerate(datos_orbita):
             s, a = luz(toa, decl, ang, peso_hielo_actual(), nieve_actual(), **luz_extra())
-            T_col, T_cl, T_tr = paso(T_col, T_cl, T_tr, s, a)
+            if AL_PASO is not None:
+                AL_PASO(ano + 1, p_ano, len(datos_orbita), False)
+            if acum_ano is None:
+                T_col, T_cl, T_tr = paso(T_col, T_cl, T_tr, s, a)
+            else:
+                T_col, T_cl, T_tr = paso(T_col, T_cl, T_tr, s, a, acum_ano)
+                # I16: medias globales del año para el criterio de equilibrio (aire a 2 m como temp_referencia)
+                Tsup_e = temp_superficie(T_col)
+                suma_eq["T2m"] += float(((Tsup_e + fraccion_2m * (COL.aire_superficie(T_cl) - Tsup_e)) * PESO).sum())
+                if hielo_on and PESO_OCEANO > 0:
+                    suma_eq["hielo"] += float((PESO * (es_agua & (HIELO["h"] > 0))).sum()) / PESO_OCEANO
+                if PESO_TIERRA > 0:
+                    suma_eq["agua_suelo"] += float((PESO * np.where(es_tierra, AGUA_EST["W"], 0.0)).sum()) / (
+                        PESO_TIERRA * AG.W_CAMPO)
             if hielo_on:
                 conduccion_media += np.where(HIELO["h"] > 0, K_HIELO * (T_CONGELACION - HIELO["Ts"])
                                              / np.maximum(HIELO["h"], ESPESOR_MINIMO_CONDUCCION), 0.0)
@@ -1327,7 +1385,18 @@ def simular_fase2b(
         if agua_on:
             # 1 kg/m2 de cambio de la media anual del cubo (0,7 % de su capacidad) cuenta como la tolerancia
             cambio = max(cambio, cambio_agua / UMBRAL_CAMBIO_CUBO * tolerancia_convergencia)
-        if atm and acelerar and cambio >= tolerancia_convergencia:
+        en_equilibrio = False
+        if DIN is not None:
+            # I16 (§6.3): equilibrio por medias globales anuales en una ventana de 5 años. La aceleracion
+            # geometrica de la v3.1 NO se usa con I16: su razon entre cambios anuales celda a celda no tiene
+            # sentido con tiempo meteorologico (§6.10).
+            n_p = len(datos_orbita)
+            serie_equilibrio["N"].append((acum_ano["abs"] - acum_ano["olr"]) / (n_p * float(PESO.sum())))
+            serie_equilibrio["T2m"].append(suma_eq["T2m"] / (n_p * float(PESO.sum())))
+            serie_equilibrio["hielo"].append(suma_eq["hielo"] / n_p if (hielo_on and PESO_OCEANO > 0) else None)
+            serie_equilibrio["agua_suelo"].append(suma_eq["agua_suelo"] / n_p if PESO_TIERRA > 0 else None)
+            en_equilibrio, equilibrio_valores = EQ.evaluar(serie_equilibrio)
+        if atm and acelerar and cambio >= tolerancia_convergencia and DIN is None:
             if cambio_anterior is not None:
                 historial_r.append(cambio / cambio_anterior)
             cambio_anterior = cambio
@@ -1366,12 +1435,16 @@ def simular_fase2b(
                                     "hielo_h": HIELO["h"].copy(), "cambio": cambio,
                                     "q": None if AGUA_EST is None else AGUA_EST["q"].copy(),
                                     "nieve": None if AGUA_EST is None else AGUA_EST["S"].copy(),
-                                    "cubo": None if AGUA_EST is None else AGUA_EST["W"].copy()})
+                                    "cubo": None if AGUA_EST is None else AGUA_EST["W"].copy(),
+                                    **({} if DIN is None else {"equilibrio": (en_equilibrio, equilibrio_valores),
+                                                               "serie_equilibrio": serie_equilibrio})})
         # v2.4.1: el año del salto del hielo no puede ser el ultimo (el estado
         # acaba de cambiar y el cambio medido es de antes del salto).
-        if cambio < tolerancia_convergencia and not salto_hielo_este_ano:
+        if (en_equilibrio if DIN is not None else cambio < tolerancia_convergencia) and not salto_hielo_este_ano:
             anos = ano + 1
             convergido = True
+            if guardar_al_terminar:
+                guardar_estado(anos)           # el estado en equilibrio, antes del año registrado
             break
         guardar_estado(ano + 1)
 
@@ -1456,6 +1529,8 @@ def simular_fase2b(
             horario_aire.append(a_celsius(temp_referencia(T_col, T_cl)).astype(np.float32))
             horario_sup.append(a_celsius(temp_superficie(T_col)).astype(np.float32))
         s, a = luz(toa, decl, ang, peso_hielo_actual(), nieve_actual(), **luz_extra())
+        if AL_PASO is not None:
+            AL_PASO(anos + 1, p, len(datos_orbita), True)
         T_col, T_cl, T_tr = paso(T_col, T_cl, T_tr, s, a, acum)
         tref = temp_referencia(T_col, T_cl)
         mn = np.minimum(mn, tref); mx = np.maximum(mx, tref); suma = suma + tref
@@ -1541,6 +1616,15 @@ def simular_fase2b(
         # geometria vertical, para los diagnosticos del perfil (presion en el centro de cada capa, Pa)
         flujos["p_capas"] = COL.pm.copy()
         flujos["p_superficie"] = COL.ps.copy()
+    if guardar_al_terminar and archivo_estado is not None:
+        # v3.1-pre12: el estado al acabar el año registrado tambien va al punto de control (como un año mas):
+        # llamando otra vez con max_anos = ese año, se simula directamente el SIGUIENTE año registrado. Asi
+        # fase6_clima.py encadena los años de la climatologia (§6.10). El punto de control anterior (el del
+        # comienzo de este año) se conserva en "<archivo>.previo" hasta que fase6_clima.py guarde el año.
+        if os.path.exists(archivo_estado):
+            import shutil
+            shutil.copyfile(archivo_estado, archivo_estado + ".previo")
+        guardar_estado(anos + 1, registrado=True)
     return {
         "anos": anos, "saltos": saltos, "flujos": flujos, "convergido": convergido,
         # v3.1: coeficientes de difusion que se han usado DE VERDAD (W/m2/K, ya escalados con la rotacion)
@@ -1560,4 +1644,7 @@ def simular_fase2b(
                     "diferencia_relativa": abs(acum["abs"] - acum["olr"]) / acum["abs"],
                     "cierre_relativo": energia_cierre, **energia_din},
         "agua": agua,
+        # v3.1-pre12: estado final del oceano, el suelo y el hielo (para arrancar en caliente otra simulacion)
+        "estado_final": {"T_col": T_col.copy(), "HIELO": {k: np.array(v, copy=True) for k, v in HIELO.items()}},
+        "equilibrio": None if DIN is None else {"serie": serie_equilibrio, "valores": equilibrio_valores},
     }

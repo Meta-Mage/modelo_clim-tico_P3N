@@ -441,7 +441,7 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 | pre9 (hecha) | Columna con p_s variable, caché corregida, conversión caras-centros, este diseño |
 | pre10 | Opciones del núcleo (energía cinética de la hiperdifusión → calor; corrección de T a superficies de presión); luz con p_s variable; superficie con z_a y viento real (Cox-Munk 2D, Charnock) como funciones probadas, sin conectar |
 | pre11 (hecha, §6.9) | I16 dentro de `paso_agua`, con T1–T6; diagnóstico de energía de la dinámica |
-| pre12 | Equilibrio y climatología (§6.3), arranque caliente, prueba corta en modo Tierra |
+| pre12 (hecha, §6.10) | Equilibrio y climatología (§6.3), arranque caliente, `clima_dinamico.py` para la simulación larga en el PC (con ella, la prueba en modo Tierra) |
 | — | Paso 6: validación en modo Tierra en el PC de Carlos, con los criterios del §2 escritos antes |
 
 ### 6.8 v3.1-pre10 (07/10/2026): piezas del núcleo y de la superficie para el acoplamiento (sin conectar)
@@ -543,7 +543,7 @@ Medido:
   - Si hiciera falta más robustez, lo que hay en la literatura es una capa esponja como la de CAM (∇² en las 3 capas de arriba) o repartir la tendencia de la física en más subpasos (Gross et al. 2018 §6.2). La decisión "sin capa esponja" del §6.4 se tomó con Held y Suarez, que es seco: **revisarla si la validación en modo Tierra lo pide**.
 - **No se ha tocado ningún parámetro** para que funcione.
 
-**Decisión técnica 🔶: la física ve T en n−1 y q en n.**
+**Decisión técnica (aprobada por Carlos el 07/10): la física ve T en n−1 y q en n.**
 - La T y el viento que ve la física son los del nivel n−1, por estabilidad. El vapor es el del transporte, que va de dos niveles y está en n, con la p_s de n; así el agua cierra exacta.
 - Isca (`idealized_moist_phys.F90` ✅) evalúa toda la física con T, q y p del mismo nivel (`previous`).
 - **Medido:** la variante "todo en el mismo nivel" (q a medio paso, incremento aplicado con la masa) necesita recortar vapor negativo, hasta −9·10⁻⁵, y entonces el agua deja de cerrar exacta. En 30 días cambia la precipitación global un −0,3 %, el agua precipitable un +0,7 %, la evaporación un −1,2 % y T hasta +0,15 K.
@@ -556,3 +556,75 @@ Medido:
 - Isca, `src/atmos_spectral/driver/solo/idealized_moist_phys.F90` y `atmosphere.F90` (GitHub ExeClim/Isca ✅): niveles de tiempo de la física.
 - CAM 3.0 (Collins et al. 2004), §3.1.6: ∇² en las 3 capas de arriba como esponja ✅.
 
+### 6.10 v3.1-pre12 (07/10/2026): equilibrio, arranque caliente y climatología con I16
+
+#### 6.10.1 Equilibrio (`fase6_equilibrio.py`)
+- El criterio del §6.3: medias globales anuales en una ventana de los últimos 5 años, con las cuatro condiciones a la vez:
+  - |N| < 0,2 W/m²;
+  - pendiente del aire a 2 m < 0,02 K/año;
+  - pendiente del hielo marino < 0,001 del océano por año;
+  - pendiente del agua del suelo < 0,01 de su capacidad por año.
+  - La pendiente es la de mínimos cuadrados. Una magnitud que no existe (sin océano, sin tierra) no cuenta.
+- En `simular_fase2b`, con I16, la serie anual se acumula cada año y decide la convergencia. Se guarda en el punto de control y se devuelve en `r["equilibrio"]`.
+- **Sin I16 no cambia nada:** los 28 resultados de la simulación corta de la v3.1 son idénticos bit a bit a los de la pre11.
+
+#### 6.10.2 Arranque caliente
+- `estado_inicial` puede ser un dict con `T_col` y `HIELO`: el `r["estado_final"]` (clave nueva) de otra simulación.
+  - El océano, el suelo y el hielo salen de ahí.
+  - El aire arranca en reposo, con el perfil inicial de siempre, a partir de la temperatura **real** de la superficie (la del hielo donde lo hay) 🔶.
+  - La huella del punto de control incluye el contenido de ese estado.
+- Por defecto, la superficie sale del modelo de 2 capas (decisión del §6.3).
+- **Observación** en el mapa de pruebas (continente rectangular de 600 m, P3N): el equilibrio del modelo de 2 capas tiene el ecuador a ~45 °C y los polos con hielo. El de la v3.1 sin núcleo tiene el ecuador a ~31 °C. Es decir, la superficie de partida está ~14 K más caliente en el ecuador.
+  - Desde la superficie de la v3.1, I16 es estable (§6.9).
+  - Desde la del modelo de 2 capas **no se ha podido comprobar** en el entorno de la IA: se reinició durante la prueba. Lo dirá la primera simulación en el PC.
+  - Por si fallara, hay una **alternativa 🔶**: `arranque="v31"` (`--arranque v31` en `clima_dinamico.py`). Arranca desde el equilibrio de la v3.1 con los mismos interruptores y sin núcleo. Cuesta más (la v3.1 es más lenta que el modelo de 2 capas), pero su superficie está mucho más cerca.
+
+#### 6.10.3 Aceleración con I16 (cambio de lo decidido el 06/10; aprobado por Carlos el 07/10)
+- Con I16 **no se usa el salto geométrico de la v3.1.** Se dispara con la razón entre los cambios máximos celda a celda de dos años seguidos. Con tiempo meteorológico esa razón es casi solo ruido, y el salto (hasta ×9 el último cambio) extrapolaría ruido en el océano.
+- **Se mantiene el salto del hielo grueso** (años 15, 30, ...), porque usa medias anuales.
+- Una aceleración robusta al ruido solo se añadiría con fuente y validada frente a la simulación sin acelerar, si la primera simulación en el PC muestra que hace falta.
+
+#### 6.10.4 Climatología de N años (`fase6_clima.py`; detalles aprobados por Carlos el 07/10)
+- **Cadena:** arranque caliente → I16 hasta el equilibrio → años registrados, uno tras otro.
+  - En cada año registrado se acumulan las medias por día del año, los extremos absolutos, las sumas de cuadrados (para la desviación entre años) y las medias horarias por día y hora.
+  - Se para cuando el error de la media cumple el criterio en todas las bandas.
+- **Criterio:**
+  - banda = cada una de las 36 filas (media zonal de la media anual);
+  - error = σ/√N_eff, con N_eff = N (1 − ρ₁)/(1 + ρ₁): aproximación para una serie AR(1) de Wilks (2011, 3.ª ed.) ✅. Zwiers y von Storch (1995) dan una versión más exacta. ρ₁ es la autocorrelación de un año al siguiente, acotada a ≥ 0;
+  - aire a 2 m < 0,1 K; precipitación < 5 % **o** < 0,05 mm/día (las bandas casi secas no pueden cumplir el 5 %);
+  - **mínimo de 5 años, máximo de 30**. Si no se cumple, se devuelve con el error alcanzado y `cumple_criterio = False`.
+- **Punto de control exacto:**
+  - `simular_fase2b(..., guardar_al_terminar=True)` guarda el estado en equilibrio antes del año registrado (con la marca `convergido`) y el del final del año registrado (marca `registrado`). El anterior se conserva en `.previo`.
+  - `fase6_clima` guarda sus acumuladores después de cada año. Si el corte cae entre los dos guardados, vuelve al `.previo` y repite ese año, idéntico.
+  - **Probado:** con cortes en cualquier punto (también repetidos 6 veces), el resultado final es idéntico bit a bit al de una ejecución seguida (`test_fase6_i16.py` y `clima_dinamico.py --dias 1`).
+- **Resultado:** un dict como el de `simular_fase2b`, con las medias de N años, más:
+  - `extremos`: el mínimo de los mínimos y el máximo de los máximos de cada día;
+  - `desviacion_entre_anos` (aire a 2 m diario y precipitación);
+  - `climatologia`: años promediados, errores, criterio, equilibrio, energía y agua de cada año, y las bandas de cada año.
+- **Exportación a `m3n-clima`:** todavía no. Se hará cuando el modelo con I16 esté validado en modo Tierra (las claves están decididas en el §6.3).
+
+#### 6.10.5 `clima_dinamico.py`: la simulación larga en el PC de Carlos
+- `python clima_dinamico.py --tierra` (modo Tierra, mapa de la Tierra) o `python clima_dinamico.py` (P3N, mapa activo de C3N). Interruptores I10–I14 e I16; I15 apagado.
+- **Barra de progreso** con la fase, el año, el % del año, la velocidad y el tiempo restante del año. Se apoya en `fase2b_atmosfera.AL_PASO`, un gancho nuevo que no cambia nada de la simulación.
+- Una línea por año en pantalla y en `registro.txt`.
+- Punto de control: la misma orden continúa donde iba.
+- Al final escribe `resumen.txt` (equilibrio, climatología, energía y agua de cada año, bandas) y `resultado.pkl`.
+- Si la simulación se vuelve inestable, lo dice y para.
+- `--dias N` sirve solo para probar que todo funciona.
+
+#### 6.10.6 Pruebas
+- `test_fase6_i16.py`: 4 nuevas (8 en total). Cubren:
+  - el criterio de equilibrio;
+  - la cadena 2 capas → I16 con punto de control;
+  - el error de la media (ruido blanco y AR(1) sintéticos, bandas ruidosas y casi secas);
+  - la climatología cortada y retomada.
+- **Suite completa: 99.**
+
+#### 6.10.7 Lo que falta para cerrar la Fase 6.3
+1. Primera simulación larga en modo Tierra en el PC. Dice:
+   - si el arranque desde el modelo de 2 capas es estable;
+   - cuántos años tarda en equilibrarse;
+   - el ruido real de las medias anuales (para fijar en firme los umbrales 🔶 del §6.3);
+   - el coste por año.
+2. Validación en modo Tierra con los criterios del §2 escritos antes (paso 6).
+3. Exportación a `m3n-clima`.
