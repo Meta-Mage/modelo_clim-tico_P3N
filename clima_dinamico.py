@@ -8,6 +8,8 @@
 #     --arranque v31    arranque caliente desde la v3.1 SIN nucleo en vez del modelo de 2 capas (alternativa,
 #                       solo si la opcion por defecto se vuelve inestable)
 #     --dias N          SOLO PARA PROBAR que todo funciona: "años" de N dias (no da un clima)
+#     --anos N          3.15.0: climatologia EXPLORATORIA de N años registrados (N >= 12; por defecto 30, la
+#                       normal de la OMM, que es la que vale para el clima oficial). Va a su propia carpeta.
 #     --carpeta RUTA    donde va todo (por defecto outputs/clima_dinamico/<tierra|p3n>_<arranque>)
 #
 # - Barra de progreso: fase, año, % del año, velocidad y tiempo restante del año.
@@ -26,8 +28,11 @@ ap = argparse.ArgumentParser(description="M3N con nucleo dinamico (I16): equilib
 ap.add_argument("--tierra", action="store_true", help="modo Tierra (mapa y parametros terrestres)")
 ap.add_argument("--arranque", choices=("dos_capas", "v31"), default="dos_capas")
 ap.add_argument("--dias", type=int, default=None, help="solo para probar: años de N dias")
+ap.add_argument("--anos", type=int, default=None, help="climatologia exploratoria de N años (N >= 12)")
 ap.add_argument("--carpeta", default=None)
 args = ap.parse_args()
+if args.anos is not None and args.anos < 12 and not args.dias:
+    sys.exit("--anos: una climatologia exploratoria necesita al menos 12 años (WMO-No. 1203 §5.2.3)")
 if args.tierra:
     os.environ["M3N_MODO"] = "tierra"            # antes de importar parametros
 elif os.environ.get("M3N_MODO", "").strip().lower() == "tierra":
@@ -46,7 +51,7 @@ from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from cache_simulacion import precalcular_orbita_cacheada
 from rejilla import LATITUDES_GRADOS
 
-VERSION = "3.14.0"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
+VERSION = "3.15.0"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
 
 
 def main():
@@ -65,7 +70,9 @@ def main():
         tipo, alt, nombre_mapa = cargar_mapa_activo_de_c3n()
         nombre = "p3n"
     carpeta = args.carpeta or os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "clima_dinamico",
-                                           f"{nombre}_{args.arranque}" + (f"_prueba{args.dias}d" if args.dias else ""))
+                                           f"{nombre}_{args.arranque}" + (f"_prueba{args.dias}d" if args.dias else "")
+                                           + (f"_exploratoria{args.anos}" if args.anos and args.anos != C.ANOS_CLIMATOLOGIA
+                                              and not args.dias else ""))
     os.makedirs(carpeta, exist_ok=True)
     f_reg = os.path.join(carpeta, "registro.txt")
 
@@ -123,8 +130,10 @@ def main():
              f"arranque {args.arranque} | {len(orbita)} pasos por año | carpeta {carpeta}")
     try:
         prueba = {} if not args.dias else dict(          # prueba: pocos años y sin exigir equilibrio
-            max_anos_equilibrio=2, min_anos=2, max_anos=2, opciones_dos_capas={"max_anos": 2},
+            max_anos_equilibrio=2, anos=2, opciones_dos_capas={"max_anos": 2},
             exigir_equilibrio_dos_capas=False)
+        if not args.dias:
+            prueba = {"anos": args.anos or C.ANOS_CLIMATOLOGIA}
         r = C.simular_clima(argumentos, I, carpeta, informar=informar, arranque=args.arranque, version=VERSION,
                             **prueba)
     except KeyboardInterrupt:
@@ -157,12 +166,28 @@ def escribir_resumen(r, carpeta, segundos, pasos_ano):
     s = eq["serie"]
     L.append("  serie anual N (W/m2):    " + " ".join(f"{x:+.3f}" for x in s["N"]))
     L.append("  serie anual aire 2 m (C): " + " ".join(f"{x - 273.15:.3f}" for x in s["T2m"]))
-    L += ["", f"CLIMATOLOGIA: {c['anos_promediados']} años, cumple el criterio: {c['cumple_criterio']}",
-          f"  error maximo aire 2 m {c['error_T_max_K']:.3f} K | precipitacion {c['error_P_max_mm_dia']:.3f} mm/dia "
-          f"({100 * c['error_P_rel_max']:.1f} %) | bandas sin cumplir: T {c['bandas_T_sin_cumplir']}, P {c['bandas_P_sin_cumplir']}",
+    objetivo = c.get("anos_objetivo", c["anos_promediados"])
+    tipo = ("EXPLORATORIA (no vale como clima oficial)" if c.get("exploratoria")
+            else "normal climatologica de la OMM (WMO-No. 1203)" if objetivo == 30 else "")
+    L += ["", f"CLIMATOLOGIA: {c['anos_promediados']} años registrados de {objetivo} | {tipo}",
+          f"  error de la media (sigma/raiz(N_eff), informativo): maximo aire 2 m {c['error_T_max_K']:.3f} K | "
+          f"precipitacion {c['error_P_max_mm_dia']:.3f} mm/dia ({100 * c['error_P_rel_max']:.1f} %) | bandas por encima "
+          f"de la referencia (0,1 K; 5 % o 0,05 mm/dia): T {c['bandas_T_sin_cumplir']}, P {c['bandas_P_sin_cumplir']}",
           f"  aire 2 m medio global {float((T * peso).sum() / peso.sum()):.3f} C | precipitacion media global "
-          f"{float((Pz * peso).sum() / peso.sum()):.3f} mm/dia", "",
-          "POR AÑO REGISTRADO (energia y agua):"]
+          f"{float((Pz * peso).sum() / peso.sum()):.3f} mm/dia", ""]
+    d = c.get("deriva")
+    if d:
+        f = lambda t: (f"{t['pendiente']:+.4f} +- {t['error']:.4f} /año (p {t['p']:.3f})"
+                       + (" SIGNIFICATIVA" if t["significativa"] else ""))
+        L.append(f"DERIVA de los años registrados ({d['metodo']}; FDR {d['alfa_fdr']}):")
+        L.append(f"  aire 2 m global: {f(d['global_T'])} K | precipitacion global: {f(d['global_P'])} mm/dia")
+        malas = [(la, t) for la, t in zip(LATITUDES_GRADOS, d["bandas_T"]) if t["significativa"]]
+        L.append("  bandas con deriva significativa: " + (", ".join(f"{la:+.1f} ({t['pendiente']:+.4f} K/año)"
+                                                                 for la, t in malas) if malas else "ninguna"))
+        L.append("  -> " + ("AVISO: hay deriva; la climatologia no es de un estado en equilibrio" if d["hay_deriva"]
+                            else "sin deriva significativa"))
+        L.append("")
+    L += ["POR AÑO REGISTRADO (energia y agua):"]
     for i, d in enumerate(c["por_ano"]):
         e = d["energia"]
         L.append(f"  {i + 1:2d}: cierre energia {e.get('cierre_relativo', float('nan')):+.2e} | error dinamica "

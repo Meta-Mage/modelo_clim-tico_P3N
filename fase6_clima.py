@@ -5,9 +5,11 @@
 #      suelo y su hielo son el ARRANQUE CALIENTE (el aire arranca en reposo).
 #   2. Modelo con I16 desde ese estado hasta el equilibrio (fase6_equilibrio.py: medias globales anuales en
 #      una ventana de 5 años).
-#   3. Años REGISTRADOS, uno tras otro, hasta que el error de la media de la climatologia cumple el criterio
-#      en todas las bandas de latitud (o se llega al maximo de años): media de N años por dia del año,
-#      extremos absolutos, desviacion entre años, medias horarias.
+#   3. Años REGISTRADOS, uno tras otro: media de N años por dia del año, extremos absolutos, desviacion entre
+#      años, medias horarias y, desde la 3.15.0, el viento y la humedad de la capa baja. Desde la 3.15.0 son
+#      30 años FIJOS (la normal climatologica estandar de la OMM, WMO-No. 1203, 2017, §3; la misma duracion
+#      que la referencia CRU 1961-1990), o N >= 12 en una climatologia EXPLORATORIA (WMO-No. 1203 §5.2.3:
+#      10-12 años dan una capacidad predictiva parecida a la de 30 para las medias). DISENO_FASE_6.3.md §6.17.
 #
 # Todo con PUNTO DE CONTROL en una carpeta: si se corta (Ctrl+C, apagon...), la misma orden continua donde iba
 # y el resultado es el mismo bit a bit.
@@ -19,6 +21,9 @@
 #     Atmospheric Sciences, 3.a ed.) ✅; Zwiers y von Storch (1995, J. Climate) dan una version mas exacta;
 #   - aire a 2 m: error < 0,1 K; precipitacion: error < 5 % o < 0,05 mm/dia (bandas casi secas);
 #   - minimo 5 años registrados, maximo 30.
+# 3.15.0: ese criterio ya NO decide cuantos años se registran (en las bandas polares exigiria del orden de 80
+# años; §6.16-§6.17): el error de cada banda se calcula y se informa, y los umbrales quedan como referencia.
+# Ademas, comprobacion de DERIVA a posteriori de los años registrados (deriva_climatologia, abajo).
 
 import hashlib
 import json
@@ -30,9 +35,13 @@ import shutil
 import numpy as np
 
 import fase2b_atmosfera as F
+from rejilla import LATITUDES_GRADOS
 
-MIN_ANOS = 5
+MIN_ANOS = 5              # (referencia del criterio informativo del error; no decide cuantos años se registran)
 MAX_ANOS = 30
+ANOS_CLIMATOLOGIA = 30    # 3.15.0: normal climatologica estandar de la OMM (WMO-No. 1203, §3)
+ANOS_MIN_EXPLORATORIA = 12   # 3.15.0: WMO-No. 1203 §5.2.3 (10-12 años, para medias)
+ALFA_DERIVA = 0.05        # 3.15.0: tasa de falsos descubrimientos (Benjamini y Hochberg 1995) de la deriva
 ERROR_T = 0.1             # K
 ERROR_P_REL = 0.05
 ERROR_P_ABS = 0.05        # mm/dia
@@ -43,6 +52,9 @@ DIARIOS = (("reg_media", None), ("reg_min", "min"), ("reg_max", "max"), ("suelo_
            ("suelo_min", "min"), ("suelo_max", "max"), ("cl_media", None), ("tr_media", None),
            ("hielo_espesor", None))
 HORARIOS = ("horario_aire2m", "horario_superficie")
+# 3.15.0: medias diarias del viento (m/s) y la humedad (g/kg, %) de la capa baja (fase2b_atmosfera, con I16)
+DIARIOS_I16 = (("viento_u_baja", None), ("viento_v_baja", None), ("viento_rapidez_baja", "max"),
+               ("humedad_especifica_baja", None), ("humedad_relativa_baja", None))
 
 
 def autocorrelacion_1(y):
@@ -81,6 +93,71 @@ def criterio_climatologia(bandas_T, bandas_P, min_anos=MIN_ANOS):
     return bool(n >= min_anos and okT.all() and okP.all()), info
 
 
+def tendencia_santer(y):
+    """3.15.0: tendencia lineal de una serie anual y su significacion, con el metodo de Santer et al. (2000,
+    JGR 105, 7337, §4.1) que corrige la autocorrelacion ("AdjSE + AdjDF"): residuos e(t) del ajuste por minimos
+    cuadrados, r1 = su autocorrelacion de retardo 1 (aqui acotada a >= 0), n_e = n (1 - r1)/(1 + r1) (su Eq. 6),
+    s'_e^2 = sum e^2 / (n_e - 2), s'_b = s'_e / sqrt(sum (t - media)^2), t' = b / s'_b, contrastado con una t de
+    Student de n_e - 2 grados de libertad (dos colas). Devuelve (b por año, s'_b, p, r1); NaN si n_e <= 2."""
+    from scipy.stats import t as t_student
+    y = np.asarray(y, dtype=float)
+    n = len(y)
+    nan = (float("nan"),) * 4
+    if n < 4:
+        return nan
+    x = np.arange(n, dtype=float) - (n - 1) / 2
+    b = float((x * (y - y.mean())).sum() / (x * x).sum())
+    e = y - y.mean() - b * x
+    den = float((e * e).sum())
+    r1 = max(float((e[1:] * e[:-1]).sum() / den), 0.0) if den > 0 else 0.0
+    n_e = n * (1 - r1) / (1 + r1)
+    if n_e <= 2 or den == 0:
+        return (b, float("nan"), float("nan"), r1)
+    sb = float(np.sqrt(den / (n_e - 2)) / np.sqrt((x * x).sum()))
+    p = float(2 * t_student.sf(abs(b / sb), n_e - 2))
+    return b, sb, p, r1
+
+
+def benjamini_hochberg(p, alfa=ALFA_DERIVA):
+    """Contraste multiple con control de la tasa de falsos descubrimientos (Benjamini y Hochberg 1995, J. R.
+    Stat. Soc. B 57, 289; Wilks 2016: "should be adopted whenever the results of simultaneous multiple hypothesis
+    tests are reported"). p: valores p (NaN = no contrastable). Devuelve un array booleano: significativo."""
+    p = np.asarray(p, dtype=float)
+    ok = np.isfinite(p)
+    sig = np.zeros(p.shape, dtype=bool)
+    m = int(ok.sum())
+    if m == 0:
+        return sig
+    idx = np.where(ok)[0][np.argsort(p[ok])]
+    umbral = alfa * np.arange(1, m + 1) / m
+    bajo = np.where(p[idx] <= umbral)[0]
+    if len(bajo):
+        sig[idx[:bajo[-1] + 1]] = True
+    return sig
+
+
+def deriva_climatologia(bandas_T, bandas_P, latitudes):
+    """3.15.0 (DISENO_FASE_6.3.md §6.17): ¿los años registrados tienen todavia deriva? Tendencia (Santer et al.
+    2000) del aire a 2 m medio global, de cada banda de latitud y de la precipitacion media global, con el
+    contraste multiple de Benjamini y Hochberg sobre todas a la vez (ALFA_DERIVA). Devuelve un dict."""
+    T = np.asarray(bandas_T, dtype=float)
+    P = np.asarray(bandas_P, dtype=float)
+    w = np.cos(np.radians(np.asarray(latitudes, dtype=float)))
+    gT = (T * w).sum(axis=1) / w.sum()
+    gP = (P * w).sum(axis=1) / w.sum()
+    series = [gT] + [T[:, i] for i in range(T.shape[1])] + [gP]
+    res = [tendencia_santer(y) for y in series]
+    sig = benjamini_hochberg([r[2] for r in res])
+    tupla = lambda i: {"pendiente": res[i][0], "error": res[i][1], "p": res[i][2], "r1": res[i][3],
+                       "significativa": bool(sig[i])}
+    nb = T.shape[1]
+    return {"anos": int(T.shape[0]), "alfa_fdr": ALFA_DERIVA,
+            "metodo": "Santer et al. 2000 (AdjSE + AdjDF) y Benjamini-Hochberg sobre global T, bandas T y global P",
+            "global_T": tupla(0), "global_P": tupla(nb + 1),
+            "bandas_T": [tupla(1 + i) for i in range(nb)],
+            "hay_deriva": bool(sig.any())}
+
+
 class Acumulador:
     """Sumas, minimos, maximos y sumas de cuadrados de los años registrados (para el punto de control)."""
 
@@ -103,6 +180,12 @@ class Acumulador:
         for k in HORARIOS:
             if r.get(k) is not None:
                 self._sumar(k, np.asarray(r[k], dtype=float))
+        for k, modo in DIARIOS_I16:                    # 3.15.0: viento y humedad de la capa baja
+            if r.get(k) is not None:
+                x = np.asarray(r[k], dtype=float)
+                self._sumar(k, x)
+                if modo is not None:
+                    self.ext[k] = x.copy() if k not in self.ext else np.maximum(self.ext[k], x)
         a = r["agua"]
         for k in ("precipitacion", "nieve", "evaporacion", "escorrentia", "agua_precipitable",
                   "diario_precipitacion", "diario_nieve", "diario_evaporacion"):
@@ -198,14 +281,20 @@ def _escribir_json(obj, ruta):
 
 def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_anos=MAX_ANOS,
                   max_anos_equilibrio=MAX_ANOS_EQUILIBRIO, informar=print, opciones_dos_capas=None,
-                  exigir_equilibrio_dos_capas=True, estado_inicial=None, arranque="dos_capas", version=None):
+                  exigir_equilibrio_dos_capas=True, estado_inicial=None, arranque="dos_capas", version=None,
+                  anos=None):
     """argumentos: los 8 posicionales de simular_fase2b (orbita, tipo, altitud, emisividad, albedos,
     inercias, profundidad optica, D). interruptores: con I16 encendido. Devuelve un dict como el de
     simular_fase2b con las MEDIAS de los años registrados, mas 'extremos', 'desviacion_entre_anos' y
     'climatologia' (años promediados, errores, criterio, equilibrio, diagnosticos de cada año y, desde la
-    3.14.0, 'procedencia': los tramos de procedencia.json). version: la de M3N, para la procedencia."""
+    3.14.0, 'procedencia': los tramos de procedencia.json). version: la de M3N, para la procedencia.
+    anos (3.15.0): años registrados, FIJOS; por defecto ANOS_CLIMATOLOGIA (30). min_anos/max_anos solo se usan
+    si anos es None y se pasa max_anos explicito (pruebas antiguas): entonces anos = max_anos."""
     if not interruptores.get("nucleo_dinamico", False):
         raise ValueError("simular_clima es para el modelo con nucleo dinamico (I16)")
+    if anos is None:
+        anos = max_anos if max_anos != MAX_ANOS else ANOS_CLIMATOLOGIA
+    anos = int(anos)
     os.makedirs(carpeta, exist_ok=True)
     # estado_inicial (dict con T_col y HIELO): para arrancar desde otro estado en vez del modelo de 2 capas
     # arranque="dos_capas" (decidido, §6.3): oceano, suelo y hielo del equilibrio del modelo de 2 capas.
@@ -236,8 +325,8 @@ def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_ano
         acum, equilibrio, ano_esperado = d["acum"], d["equilibrio"], d["ano_sim"]
         informar(f"-> continua: {acum.n} años registrados")
         cumple, info = criterio_climatologia(acum.bandas_T, acum.bandas_P, min_anos)
-        if cumple or acum.n >= max_anos:               # ya estaba terminada: no se simula nada mas
-            return combinar(acum, equilibrio, info, cumple, leer_procedencia(carpeta))
+        if acum.n >= anos:                             # ya estaba terminada: no se simula nada mas
+            return combinar(acum, equilibrio, info, cumple, leer_procedencia(carpeta), anos)
     from cache_simulacion import huella_codigo, MODULOS_I16
     ck0 = leer(f_sim) if os.path.exists(f_sim) else None
     tramos = registrar_procedencia(carpeta, version, huella_codigo(MODULOS_I16), ck0["ano"] if ck0 else 0, acum.n,
@@ -280,13 +369,13 @@ def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_ano
             os.remove(f_previo)
         informar(f"3/3 Año registrado {acum.n}: error aire 2 m {info['error_T_max_K']:.3f} K, "
                  f"precipitacion {info['error_P_max_mm_dia']:.3f} mm/dia ({100 * info['error_P_rel_max']:.1f} %)"
-                 + (" -> CUMPLE" if cumple else ""))
-        if cumple or acum.n >= max_anos:
+                 + f" ({acum.n}/{anos})")
+        if acum.n >= anos:
             break
-    return combinar(acum, equilibrio, info, cumple, tramos)
+    return combinar(acum, equilibrio, info, cumple, tramos, anos)
 
 
-def combinar(acum, equilibrio, info, cumple, procedencia=None):
+def combinar(acum, equilibrio, info, cumple, procedencia=None, anos=None):
     n = acum.n
     m = {k: v / n for k, v in acum.suma.items()}
     r = {k: m[k] for k, _ in DIARIOS}
@@ -294,6 +383,8 @@ def combinar(acum, equilibrio, info, cumple, procedencia=None):
         r[k] = m.get(k)
     r["agua"] = {k[5:]: v for k, v in m.items() if k.startswith("agua_")}
     r["flujos"] = {k[7:]: v for k, v in m.items() if k.startswith("flujos_")}
+    for k, _ in DIARIOS_I16:                        # 3.15.0 (None si los años no los tenian)
+        r[k] = m.get(k)
     r["extremos"] = {k: v for k, v in acum.ext.items()}
     # varianza entre años (n-1), con las desviaciones respecto al primer año: sum(d^2) - (sum d)^2 / n
     var = lambda k: np.maximum(acum.suma2[k] - acum.suma2[k + "_d"] ** 2 / n, 0.0) / max(n - 1, 1)
@@ -302,5 +393,9 @@ def combinar(acum, equilibrio, info, cumple, procedencia=None):
     r["climatologia"] = {"anos_promediados": n, "cumple_criterio": cumple, **info,
                          "equilibrio": equilibrio, "por_ano": acum.por_ano,
                          "bandas_aire2m_C": np.array(acum.bandas_T), "bandas_precipitacion": np.array(acum.bandas_P),
-                         "procedencia": list(procedencia or [])}
+                         "procedencia": list(procedencia or []),
+                         # 3.15.0: años fijos (30 = normal de la OMM; menos = exploratoria) y deriva a posteriori
+                         "anos_objetivo": int(anos if anos is not None else n),
+                         "exploratoria": bool((anos if anos is not None else n) < ANOS_CLIMATOLOGIA),
+                         "deriva": deriva_climatologia(acum.bandas_T, acum.bandas_P, LATITUDES_GRADOS)}
     return r

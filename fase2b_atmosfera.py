@@ -1517,6 +1517,20 @@ def simular_fase2b(
     pasos_hora = round(DURACION_HORA / paso_tiempo) if DURACION_HORA % paso_tiempo == 0 else None
     pasos_registro_horario = (len(datos_orbita) // pasos_dia) * pasos_dia
     horario_aire, horario_sup = [], []
+    # 3.15.0 (DISENO_FASE_6.3.md §6.17): con I16, medias DIARIAS del viento y de la humedad de la capa mas baja
+    # del modelo (sigma ~0,98, unos 200 m sobre el suelo), para la climatologia y la exportacion. Solo se LEEN
+    # del estado: no cambian nada de la simulacion (prueba bit a bit). El viento es el que ve la fisica (nivel
+    # n-1 del nucleo, en los centros); la humedad relativa, respecto al agua liquida (convenio de la OMM).
+    CLAVES_DIAG_I16 = ("viento_u_baja", "viento_v_baja", "viento_rapidez_baja", "humedad_especifica_baja",
+                       "humedad_relativa_baja")
+    reg_i16 = {k: [] for k in CLAVES_DIAG_I16} if (DIN is not None and agua_on) else None
+
+    def diagnostico_i16(T_cl):
+        """(u, v, |v|, q en g/kg, HR en %) de la capa mas baja en este paso (I16 con agua)."""
+        uc_, vc_ = viento_en_centros(DIN["ant"][2][-1], DIN["ant"][3][-1])
+        qb = AGUA_EST["q"][-1]
+        qs_b, _ = AG.qs_y_derivada(T_cl[-1], COL.pm[-1])
+        return uc_, vc_, DIN["v_a"], 1000.0 * qb, 100.0 * qb / qs_b
 
     def temp_referencia(T_col, T_cl):
         Ts = temp_superficie(T_col)
@@ -1542,6 +1556,11 @@ def simular_fase2b(
                     for k in CLAVES_AGUA_V31:
                         reg_agua[k].append((acum[k] - dia_previo[k]).astype(np.float32))
                         dia_previo[k] = acum[k].copy()
+                if reg_i16 is not None:
+                    for k, x in zip(CLAVES_DIAG_I16, diag_suma):
+                        reg_i16[k].append((x / cnt).astype(np.float32))
+            if reg_i16 is not None:
+                diag_suma = [np.zeros((FILAS, COLUMNAS)) for _ in CLAVES_DIAG_I16]
             mn = np.full((FILAS, COLUMNAS), np.inf); mx = -mn; suma = np.zeros((FILAS, COLUMNAS))
             smn = mn.copy(); smx = mx.copy(); ssuma = suma.copy(); cl_suma = suma.copy(); tr_suma = suma.copy(); cnt = 0
             h_suma = suma.copy()
@@ -1561,6 +1580,8 @@ def simular_fase2b(
         else:
             cl_suma = cl_suma + T_cl; tr_suma = tr_suma + T_tr
         h_suma = h_suma + HIELO["h"]; cnt += 1
+        if reg_i16 is not None:
+            diag_suma = [a_ + b_ for a_, b_ in zip(diag_suma, diagnostico_i16(T_cl))]
     if cnt == pasos_dia:
         for clave, valor in (("min", mn), ("max", mx), ("s_min", smn), ("s_max", smx)):
             reg[clave].append(a_celsius(valor))
@@ -1570,6 +1591,9 @@ def simular_fase2b(
         if agua_on:
             for k in CLAVES_AGUA_V31:
                 reg_agua[k].append((acum[k] - dia_previo[k]).astype(np.float32))
+        if reg_i16 is not None:
+            for k, x in zip(CLAVES_DIAG_I16, diag_suma):
+                reg_i16[k].append((x / cnt).astype(np.float32))
 
     energia_cierre = None
     if multi:
@@ -1666,6 +1690,8 @@ def simular_fase2b(
                     "diferencia_relativa": abs(acum["abs"] - acum["olr"]) / acum["abs"],
                     "cierre_relativo": energia_cierre, **energia_din},
         "agua": agua,
+        # 3.15.0: con I16 y agua, medias diarias del viento (m/s) y la humedad (g/kg, %) de la capa baja; si no, None
+        **{k: (np.array(reg_i16[k]) if reg_i16 is not None else None) for k in CLAVES_DIAG_I16},
         # v3.10.0: estado final del oceano, el suelo y el hielo (para arrancar en caliente otra simulacion)
         "estado_final": {"T_col": T_col.copy(), "HIELO": {k: np.array(v, copy=True) for k, v in HIELO.items()}},
         "equilibrio": None if DIN is None else {"serie": serie_equilibrio, "valores": equilibrio_valores},

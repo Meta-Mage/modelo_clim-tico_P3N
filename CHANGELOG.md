@@ -7,6 +7,28 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.15.0] — 2026-10-09
+
+- Fase: 6.3.
+- Clima exportado: no cambia (el modelo es idéntico bit a bit; climatología, diagnósticos y documentación).
+- Pruebas: 121.
+
+### Añadido
+- Climatología de 30 años fijos (normal climatológica estándar de la OMM, WMO-No. 1203 §3); `clima_dinamico.py --anos N` (N ≥ 12, WMO-No. 1203 §5.2.3) para una climatología exploratoria en su propia carpeta, marcada en el resumen.
+- Comprobación de deriva a posteriori en el resumen (`fase6_clima.deriva_climatologia`): tendencia de Santer et al. (2000) del aire a 2 m global, de cada banda y de la precipitación global, con el contraste múltiple de Benjamini y Hochberg (1995).
+- Medias diarias del viento (u, v, rapidez) y la humedad (específica y relativa) de la capa baja con I16, acumuladas en la climatología (`DISENO_FASE_6.3.md` §6.17).
+- Fase 6.6 (arrastre de ondas de gravedad que conserva el momento, después de la 5.2) en el plan; sustituye a la capa esponja prevista (Shaw y Shepherd 2007).
+- `DISENO_FASE_6.3.md` §6.17: las decisiones del 09/10 (umbrales, estratosfera, 4.0.0 provisional tras la 6.4) y su justificación con fuentes.
+- 2 pruebas (tendencia de Santer y Benjamini-Hochberg; deriva) y comprobaciones del viento y la humedad en la de la climatología.
+
+### Cambiado
+- El criterio de error de la media ya no decide cuántos años se registran; el error de cada banda se informa.
+- Volver a lanzar `clima_dinamico.py` con una climatología terminada rehace el resumen sin simular.
+
+### Corregido
+- `DISENO_FASE_6.3.md` §6.16: las cifras del ruido del equilibrio salieron de años sin equilibrar (σ 0,074 K); en equilibrio, σ = 0,036 K (§6.17).
+- `NOMENCLATURA.md`: commit de la v3.14.0 y paquete 025.
+
 ## [3.14.0] — 2026-10-08
 
 - Fase: 6.3.

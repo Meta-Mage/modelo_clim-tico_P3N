@@ -274,7 +274,7 @@ Criterio de Carlos para todo este apartado: "que todo lo que se haga se haga des
 
 - Registro cada 20 días: T entre 189 y 312 K y p_s entre 959 y 1030 hPa durante los 1200 días; el máximo instantáneo de |u| en las capas altas, entre 13 y 22 m/s desde el día ~100, sin tendencia.
 - **Criterios:** 1 ✅ (estable); 2 ✅ (−6 %, por debajo del 10 %, y bajando); 3 ✅ (diferencias de 0,4–0,7 m/s y de 0,2–0,4°).
-- **Decisión: sin capa esponja.** El viento algo mayor en superficie es coherente con las capas más finas abajo de M3N.
+- **Decisión: sin capa esponja.** El viento algo mayor en superficie es coherente con las capas más finas abajo de M3N. **[09/10/2026, §6.17: la previsión de diseñar una esponja si el viento alto "se desbocaba" queda sustituida: no habrá esponja (Shaw y Shepherd 2007); en su lugar, la Fase 6.6, arrastre de ondas de gravedad que conserva el momento, después de la 5.2.]**
 - **Límite de la prueba:** Held y Suarez fuerza una estratosfera isoterma y sin estaciones; no puede mostrar un chorro estratosférico de invierno, que aparecerá con la radiación de M3N. En la validación en modo Tierra (§2) se vigilará el viento de las capas altas con el mismo criterio 2; si se desboca, se diseña la esponja (1.6) con la fuente del §6.5.
 
 ### Referencias de este apartado
@@ -970,7 +970,7 @@ Revisión completa del repositorio y de la validación del 08/10 (los seis últi
   Consecuencia: la caché del modelo de 2 capas se invalida una vez. La primera `exportar_clima.py` vuelve a simular (~6 min en el PC) y da el mismo clima, porque la física es idéntica.
 
 **3. Datos de la revisión para los pendientes de la 6.3** (no cambian nada; sirven para decidir):
-- **Ruido de las magnitudes del equilibrio** (`resumen.txt`, años 6–20, quitada la tendencia):
+- **[Corrección en §6.17: estas cifras salieron de años sin equilibrar y están infladas; en equilibrio, σ = 0,036 K.]** **Ruido de las magnitudes del equilibrio** (`resumen.txt`, años 6–20, quitada la tendencia):
   - aire a 2 m global: σ entre años 0,074 K, autocorrelación 0,57. El error de la pendiente de 5 años (~0,023 K/año) es mayor que el umbral (0,02): ese criterio pasa o no casi por azar;
   - N: σ 0,25 W/m². El error de la media de 5 años, ±0,11, es la mitad del umbral (0,2);
   - para el criterio de la climatología, un error de 0,1 K en las bandas polares exigiría del orden de 80 años efectivos.
@@ -997,3 +997,73 @@ Revisión completa del repositorio y de la validación del 08/10 (los seis últi
 - C_E = C_H (§6.8), verificado y justificado; medir F_ps = 0, los acantilados y el desglose del error de la dinámica.
 - Acumular viento y humedad en la climatología, y la exportación a `m3n-clima`.
 - Con todo esto, el criterio escrito de cierre de la 6.3 y la decisión de la 4.0.0.
+
+### 6.17 3.15.0 (09/10/2026): decisiones de Carlos, climatología de 30 años, deriva, viento y humedad
+
+**Decisiones de Carlos (09/10/2026, literales):**
+- 00:19, sobre los umbrales del equilibrio y de la climatología: "te doy el visto bueno, pero es importante que todo esté contrastado y se haga de manera rigurosa y fiable, si es así, adelante, con precisión y exhaustividad milimétrica".
+- 00:23, sobre la estratosfera ("sin esponja; Fase 6.6 de arrastre de ondas de gravedad después de la 5.2"): "Mi parece bien".
+- 00:23, sobre el clima oficial: 4.0.0 provisional tras la 6.4, "Sí, tras la 6.4, por qué no".
+
+**1. Corrección a §6.16 (punto 3, ruido del equilibrio).** Las cifras de σ 0,074 K y autocorrelación 0,57 salieron de los años 6–20 de la simulación larga, que **no estaban en equilibrio**: la dinámica perdía energía y el corrector aún no existía. Estaban infladas. Con los 30 años registrados, ya en equilibrio (`deriva.txt`, PC de Carlos, 08/10):
+- aire a 2 m medio global: σ = 0,036 K, autocorrelación −0,17 (sin memoria entre años);
+- error de la pendiente de 5 años: ±0,012 K/año. El umbral de 0,02 está a 1,7 errores: falla por azar ~8 % de las veces (solo retrasa un año) y deja pasar más o menos la mitad de las derivas reales de 0,02 K/año;
+- bandas polares: σ entre 0,31 y 0,73 K. Para un error de 0,1 K en todas harían falta entre 30 y 87 años.
+
+**2. Deriva de la climatología del modo Tierra** (`deriva.txt`; método de §6.17.4, calculado para la serie global con los 30 valores):
+- aire a 2 m global: −0,0006 ± 0,0008 K/año (p = 0,46): **sin deriva**;
+- las dos bandas del interior antártico salen a unas 2 veces su error (82,5° S: −0,021 ± 0,011; 87,5° S: −0,027 ± 0,012 K/año, con el cálculo provisional de `deriva.txt`). Con muchas bandas contrastadas a la vez, eso no es significativo. Se vigila; el resumen de la 3.15.0 lo calcula para todas.
+
+**3. Climatología de 30 años fijos** (decisión del 09/10; `fase6_clima.ANOS_CLIMATOLOGIA`):
+- **Por qué 30:**
+  - es la **normal climatológica estándar de la OMM**: promedios de periodos consecutivos de 30 años (WMO-No. 1203, *Guidelines on the Calculation of Climate Normals*, 2017, §3) ✅;
+  - es la duración de la referencia con la que se compara M3N (CRU 1961–1990), así que el modelo y la observación tienen el mismo tipo de error de muestreo.
+
+  La propia guía reconoce que los 30 años se eligieron sobre todo porque eran los datos disponibles (§2) y que 30 años pueden no recoger toda la variación de los extremos (§5.2.2): por eso se exportan también los extremos y la desviación entre años, y se informa del error de cada banda.
+- **El criterio de error de la media ya no decide cuántos años se registran.** Con el umbral de 0,1 K por banda, las bandas polares exigirían hasta ~87 años, por encima del techo de coste. El error σ/√N_eff de cada banda se calcula y se informa; los umbrales de 0,1 K y de 5 % o 0,05 mm/día quedan como referencia en el resumen.
+- **Coste:** igual que antes. El criterio anterior no se cumplía en los polos y la climatología acababa siempre en el máximo de 30 años.
+- **Climatología exploratoria:** `clima_dinamico.py --anos N` con N ≥ 12. La guía de la OMM recoge que 10–12 años dan una capacidad predictiva parecida a la de un periodo estándar de 30 para las medias, no para los extremos (WMO-No. 1203, §5.2.3, a partir de WMO 2007) ✅.
+  - Va a su propia carpeta (`..._exploratoria<N>`) y el resumen la marca como **EXPLORATORIA (no vale como clima oficial)**.
+  - Sirve para experimentos de sensibilidad (por ejemplo, de la 6.6) con menos coste: unos 12 años de climatología en lugar de 30.
+
+**4. Comprobación de deriva a posteriori** (`fase6_clima.deriva_climatologia`), en el resumen de cada climatología:
+- **Tendencia de cada serie anual** con el método de Santer et al. (2000, *JGR* 105, 7337, §4.1) ✅, que corrige la autocorrelación ("AdjSE + AdjDF", el más prudente de los que comparan):
+  - residuos del ajuste lineal;
+  - r1 = su autocorrelación de retardo 1, acotada a ≥ 0 🔶 (como en el error de la media), así que n_e no puede superar n;
+  - tamaño efectivo n_e = n (1 − r1)/(1 + r1) (su ec. 6);
+  - varianza de los residuos con n_e − 2;
+  - t′ = b/s′_b, contrastado con una t de Student de n_e − 2 grados de libertad.
+- **Qué series:** el aire a 2 m medio global, cada una de las 36 bandas y la precipitación media global (38 contrastes).
+- **Contraste múltiple:** con 38 contrastes, alguno saldría "significativo" por azar. Se controla la tasa de falsos descubrimientos con el método de Benjamini y Hochberg (1995, *J. R. Stat. Soc. B* 57, 289), con α = 0,05 🔶. Wilks (2016, sesión invitada de la AMS, "The stippling shows statistically significant gridpoints") recomienda que el control de la tasa de falsos descubrimientos "should be adopted whenever the results of simultaneous multiple hypothesis tests are reported" ✅.
+- **Resultado:** si alguna serie tiene deriva significativa, el resumen avisa de que la climatología no es de un estado en equilibrio.
+- **El criterio de equilibrio no cambia** (ventana de 5 años, mismos umbrales). Alargar la ventana a 10 años lo haría más estricto, pero costaría unos 5 años más de simulación en cada ejecución; la comprobación a posteriori da la misma garantía sin ese coste. Decisión del 09/10.
+
+**5. Viento y humedad en la climatología** (para la exportación de la 4.0.0; claves decididas en §6.3):
+- `simular_fase2b`, con I16 y el ciclo del agua, devuelve las **medias diarias** de cinco campos de la **capa más baja** del modelo (σ ≈ 0,98, unos 200 m sobre el suelo):
+  - `viento_u_baja` y `viento_v_baja` (m/s): el viento que ve la física, del nivel n−1 del núcleo, en los centros;
+  - `viento_rapidez_baja` (m/s): la media de |v|, que no es |media de v|;
+  - `humedad_especifica_baja` (g/kg);
+  - `humedad_relativa_baja` (%): respecto al agua líquida, el convenio de la OMM, con la misma saturación de Ambaum que usa el modelo.
+- **Solo se leen del estado.** Con la 3.14.0 y la 3.15.0, la misma simulación corta en modo Tierra con I16 da resultados idénticos bit a bit (comprobado antes de entregar).
+- `fase6_clima` acumula los cinco campos: medias de los N años, y el máximo absoluto de la rapidez media diaria en `extremos`.
+- **Falta:** la exportación a `m3n-clima` (con esto, los extremos, la desviación entre años y la lluvia) y mostrarlos en H3N. Es el siguiente paquete de la 6.3, junto con H3N.
+
+**6. La estratosfera** (decisión del 09/10, ver arriba):
+- **No habrá capa esponja**, ni ahora ni más adelante. Shaw y Shepherd (2007, *J. Atmos. Sci.* 64, 190–203, doi:10.1175/JAS3823.1) ✅ demuestran que una esponja de Rayleigh sobre el viento **medio** crea una influencia falsa hacia abajo, hasta la superficie, aunque el resto del modelo conserve el momento: "there must be no zonal mean sponge layer". Su práctica recomendada es conservar el momento, depositando en las capas de arriba el flujo que escaparía por el tope. Eso sustituye a la previsión de §6.4.
+- **Nueva etapa, Fase 6.6: arrastre de ondas de gravedad que conserva el momento**, **después de la Fase 5.2**: su ajuste y su validación dependen de la estratosfera que dé la radiación con ozono y por bandas, y hacerla antes obligaría a rehacerla (el mismo criterio que con el ciclo del agua). Su diseño (esquema y fuentes) se hará al llegar.
+- **Hasta entonces:** el desplazamiento hacia el polo de los vientos de superficie y la estratosfera de verano con el signo cambiado son **limitaciones declaradas**, con la hipótesis de Polvani y Kushner (2002) escrita en §6.16. Con la inclinación actual de P3N (1,7°) casi no hay estaciones, así que el peso de este sesgo en P3N depende de la inclinación que se decida (worldbuilding).
+
+**7. El clima oficial** (decisión del 09/10): la **4.0.0** llegará con la Fase 6.4, como **clima provisional sin nubes**. El definitivo del mundo sigue siendo el de la Fase 9.
+
+**Pruebas nuevas** (suite: 121):
+- `test_fase6_i16.py`:
+  - la tendencia de Santer coincide con la regresión ordinaria (`scipy.stats.linregress`) cuando los residuos no tienen autocorrelación y es más prudente cuando la tienen;
+  - Benjamini-Hochberg con un ejemplo calculado a mano;
+  - la deriva: sin deriva no la detecta, y con una deriva clara en una banda detecta solo esa;
+  - en la climatología cortada y retomada, el viento y la humedad existen, son idénticos al retomar y tienen sentido físico, y constan los años objetivo y si es exploratoria.
+
+**Pendiente** (sustituye a la lista de §6.16):
+- En el PC: volver a lanzar `python clima_dinamico.py --tierra`. La climatología está terminada, así que no simula nada: solo rehace `resumen.txt` y `resultado.pkl` con la deriva de las 36 bandas (segundos).
+- C_E = C_H (§6.8), verificado y justificado; medir F_ps = 0, los acantilados y el desglose del error de la dinámica.
+- Exportación a `m3n-clima` de la climatología con I16 (viento, humedad, lluvia, extremos, desviación entre años, metadatos de años y error) y su lectura en H3N.
+- El criterio escrito de cierre de la 6.3. Después, la 6.4: la inclinación del eje (worldbuilding), cómo tratar D_oc y la capa de mezcla en P3N, la prueba corta de P3N con I16 y la simulación larga.

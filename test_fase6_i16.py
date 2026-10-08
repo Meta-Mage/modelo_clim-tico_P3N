@@ -201,7 +201,7 @@ def test_climatologia_cortada_y_retomada_da_lo_mismo(tmp_path, monkeypatch):
     ini = {"T_col": np.full((FILAS, COLUMNAS, n_suelo), 285.0),
            "HIELO": {"h": np.zeros((FILAS, COLUMNAS)), "Ts": np.full((FILAS, COLUMNAS), 271.35)}}
     DOS = dict(estado_inicial=ini)
-    seguida = C.simular_clima(arg, I, str(tmp_path / "a"), min_anos=2, max_anos=2, max_anos_equilibrio=1,
+    seguida = C.simular_clima(arg, I, str(tmp_path / "a"), anos=2, max_anos_equilibrio=1,
                               informar=lambda *x: None, **DOS)
     assert seguida["climatologia"]["anos_promediados"] == 2
     original = F.simular_fase2b
@@ -215,10 +215,10 @@ def test_climatologia_cortada_y_retomada_da_lo_mismo(tmp_path, monkeypatch):
         return r
     monkeypatch.setattr(F, "simular_fase2b", con_corte)
     with pytest.raises(KeyboardInterrupt):
-        C.simular_clima(arg, I, str(tmp_path / "b"), min_anos=2, max_anos=2, max_anos_equilibrio=1,
+        C.simular_clima(arg, I, str(tmp_path / "b"), anos=2, max_anos_equilibrio=1,
                         informar=lambda *x: None, **DOS)
     monkeypatch.setattr(F, "simular_fase2b", original)
-    retomada = C.simular_clima(arg, I, str(tmp_path / "b"), min_anos=2, max_anos=2, max_anos_equilibrio=1,
+    retomada = C.simular_clima(arg, I, str(tmp_path / "b"), anos=2, max_anos_equilibrio=1,
                                informar=lambda *x: None, **DOS)
     for k in ("reg_media", "reg_min", "horario_aire2m"):
         assert np.array_equal(seguida[k], retomada[k]), k
@@ -226,6 +226,16 @@ def test_climatologia_cortada_y_retomada_da_lo_mismo(tmp_path, monkeypatch):
     assert np.array_equal(seguida["extremos"]["reg_max"], retomada["extremos"]["reg_max"])
     assert np.array_equal(seguida["climatologia"]["bandas_aire2m_C"], retomada["climatologia"]["bandas_aire2m_C"])
     assert seguida["climatologia"]["equilibrio"]["anos"] == retomada["climatologia"]["equilibrio"]["anos"] == 1
+    # 3.15.0: viento y humedad de la capa baja, medias diarias; identicos al retomar; valores con sentido fisico
+    for k in ("viento_u_baja", "viento_v_baja", "viento_rapidez_baja", "humedad_especifica_baja", "humedad_relativa_baja"):
+        assert seguida[k] is not None and seguida[k].shape == seguida["reg_media"].shape, k
+        assert np.isfinite(seguida[k]).all() and np.array_equal(seguida[k], retomada[k]), k
+    assert (seguida["viento_rapidez_baja"] >= 0).all()
+    assert (seguida["viento_rapidez_baja"] + 1e-9 >= np.hypot(seguida["viento_u_baja"], seguida["viento_v_baja"])).all()
+    assert (seguida["humedad_especifica_baja"] > 0).all() and (seguida["humedad_relativa_baja"] > 0).all()
+    assert seguida["humedad_relativa_baja"].max() < 150.0
+    c = seguida["climatologia"]
+    assert c["anos_objetivo"] == 2 and c["exploratoria"] and "deriva" in c
 
 
 def test_correccion_presion_interpola_sin_extrapolar():
@@ -303,3 +313,48 @@ def test_procedencia_registra_y_avisa_si_cambia_el_codigo(tmp_path):
     otra.mkdir()
     C.registrar_procedencia(str(otra), "9.9.9", "aaa", 30, 5, avisos.append)
     assert len(avisos) == 2 and "antes de la 3.14.0" in avisos[1]
+
+
+def test_tendencia_santer_y_benjamini_hochberg():
+    """3.15.0 (DISENO_FASE_6.3.md §6.17): la tendencia de Santer et al. (2000) coincide con la regresion lineal
+    ordinaria (scipy.stats.linregress) cuando los residuos no estan autocorrelacionados (r1 <= 0 -> n_e = n), y
+    es mas prudente (p mayor) cuando lo estan; Benjamini-Hochberg da el resultado de su ejemplo de libro."""
+    from scipy.stats import linregress
+    import fase6_clima as C
+    rng = np.random.default_rng(3)
+    x = np.arange(30)
+    ruido = rng.standard_normal(30)
+    ruido = ruido - 0.9 * np.roll(ruido, 1)                       # autocorrelacion negativa -> r1 acotada a 0
+    y = 0.02 * x + 0.1 * ruido
+    b, sb, p, r1 = C.tendencia_santer(y)
+    ref = linregress(x, y)
+    assert r1 == 0.0 and b == pytest.approx(ref.slope, rel=1e-12) and sb == pytest.approx(ref.stderr, rel=1e-10)
+    assert p == pytest.approx(ref.pvalue, rel=1e-8)
+    ar = np.zeros(30)
+    for t in range(1, 30):
+        ar[t] = 0.7 * ar[t - 1] + rng.standard_normal()
+    b2, sb2, p2, r12 = C.tendencia_santer(0.01 * x + 0.1 * ar)
+    ref2 = linregress(x, 0.01 * x + 0.1 * ar)
+    assert r12 > 0 and sb2 > ref2.stderr and p2 > ref2.pvalue
+    assert all(np.isnan(v) for v in C.tendencia_santer([1.0, 2.0, 3.0]))
+    # Benjamini y Hochberg: con m = 5 y alfa = 0,05 los umbrales son 0,01 ... 0,05
+    sig = C.benjamini_hochberg([0.001, 0.009, 0.04, 0.03, 0.5], 0.05)
+    assert list(sig) == [True, True, True, True, False]
+    # los NaN no cuentan: m = 2, umbrales 0,025 y 0,05
+    assert list(C.benjamini_hochberg([0.02, 0.5, np.nan], 0.05)) == [True, False, False]
+    assert list(C.benjamini_hochberg([0.03, 0.5, np.nan], 0.05)) == [False, False, False]
+
+
+def test_deriva_climatologia():
+    """Sin deriva, 30 años de ruido no dan deriva; con una deriva clara en una banda, se detecta esa banda."""
+    import fase6_clima as C
+    from rejilla import LATITUDES_GRADOS
+    rng = np.random.default_rng(7)
+    T = 15 + 0.3 * rng.standard_normal((30, 36))
+    P = 2 + 0.05 * rng.standard_normal((30, 36))
+    d = C.deriva_climatologia(T, P, LATITUDES_GRADOS)
+    assert d["anos"] == 30 and not d["hay_deriva"] and len(d["bandas_T"]) == 36
+    T[:, 35] += 0.05 * np.arange(30)                               # 1,5 K en 30 años en la banda del polo sur
+    d = C.deriva_climatologia(T, P, LATITUDES_GRADOS)
+    assert d["hay_deriva"] and d["bandas_T"][35]["significativa"]
+    assert sum(t["significativa"] for t in d["bandas_T"]) == 1

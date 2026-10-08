@@ -94,6 +94,7 @@ El "núcleo dinámico" resuelve ese movimiento. La física actual de M3N se le s
 | **6.2** | Ecuaciones primitivas en seco, con 20 capas σ, Simmons–Burridge y paso semiimplícito | Jablonowski y Williamson (2006) ✅: estado de equilibrio que debe mantenerse 30 días, y onda baroclínica (a 5° solo se puede comparar cualitativamente). **Held y Suarez (1994)** ✅: forzamiento estándar (calentamiento por relajación a una T de equilibrio y rozamiento cerca del suelo); clima esperado, corrientes en chorro de ~30 m/s hacia 45° ✅ (la altura exacta ⚠️). Unos 1000 días de simulación ✅. |
 | **6.3** | Acoplamiento con la física de M3N (radiación, convección, agua, superficie, hielo); la difusión atmosférica se apaga | Modo Tierra: vientos medios por latitud, células de Hadley y Ferrel, humedad relativa de la troposfera libre, temperatura polar y hielo marino, tropopausa, transporte de calor (Trenberth y Caron 2001), precipitación (GPCP). Las referencias observadas se verificarán una a una. |
 | **6.4** | P3N | Comparación con la v2.4.3 y la v3.1; análisis de dónde quedan los desiertos y los vientos. |
+| **6.6** (añadida el 09/10/2026) | Arrastre de ondas de gravedad que conserva el momento (el momento que llegaría al tope se deposita en las capas de arriba), después de la Fase 5.2 | Por decidir en su diseño; motivo y fuentes en `DISENO_FASE_6.3.md` §6.17 (Shaw y Shepherd 2007). Sustituye a la capa esponja. |
 
 Cada etapa, igual que hasta ahora: diseño, decisiones de Carlos, código con interruptores, pruebas automáticas y validación documentada.
 

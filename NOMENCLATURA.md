@@ -57,9 +57,10 @@ Es el esquema estándar de gestión de proyectos (WBS, *work breakdown structure
 | 6 | Circulación (plan general del motor de vientos propio) | — | — | `DISENO_FASE_6.md` | Fase 6 |
 | 6.1 | Una capa de fluido sobre la esfera (aguas someras) | 🔧 cerrada | v3.1.0 | `DISENO_FASE_6.1.md` | 6.1 |
 | 6.2 | Núcleo dinámico seco de 20 capas | 🔧 cerrada | v3.1.0 – v3.3.0 | `DISENO_FASE_6.2.md` | 6.2 |
-| 6.3 | Núcleo + física de M3N (I16) y validación en modo Tierra | 🟡 | v3.3.0 – v3.14.0 (salvo la v3.12.1, sin fase) | `DISENO_FASE_6.3.md` | 6.3 |
+| 6.3 | Núcleo + física de M3N (I16) y validación en modo Tierra | 🟡 | v3.3.0 – v3.15.0 (salvo la v3.12.1, sin fase) | `DISENO_FASE_6.3.md` | 6.3 |
 | 6.4 | P3N con el núcleo dinámico (clima oficial) | ⏳ | — | — | 6.4 |
 | 6.5 | Corrientes oceánicas | ⏳ | — | — | Fase 6b |
+| 6.6 | Arrastre de ondas de gravedad que conserva el momento (después de la 5.2) | ⏳ | — | — | (nueva, 09/10/2026; sustituye a la capa esponja prevista en `DISENO_FASE_6.3.md` §6.4) |
 | 7 | Biomas | — | — | — | Fase 7 |
 | 7.1 | Clasificación del clima y bioma de cada celda | ⏳ | — | — | Fase 7 |
 | 7.2 | Efecto del bioma en la superficie (albedo, rugosidad, inercia, agua) | ⏳ | — | — | Fase 7b |
@@ -68,7 +69,7 @@ Es el esquema estándar de gestión de proyectos (WBS, *work breakdown structure
 
 **Cambios de parámetros del mundo sin fase propia** (v2.4.2 y v2.4.3: día de 19,84 h, hora de P3N, paso de 992 s): solo son versiones, registradas en `CHANGELOG.md`.
 
-**Orden de trabajo acordado** (hoja de ruta): 6.3 → 6.4 → 5.2 (después, la estrella) → 6.5 → 7.1 → 7.2 → 9. La rejilla de 2,5° se decide cuando el planeta esté definido (decisión del 06/10/2026).
+**Orden de trabajo acordado** (hoja de ruta): 6.3 → 6.4 (con ella, la 4.0.0: clima oficial provisional, sin nubes; decisión del 09/10/2026) → 5.2 (después, la estrella) → 6.6 (después de la 5.2, decisión del 09/10/2026) → 6.5 → 7.1 → 7.2 → 9. El orden entre la 6.6 y la 6.5 es una propuesta de la IA 🔶. La rejilla de 2,5° se decide cuando el planeta esté definido (decisión del 06/10/2026).
 
 ---
 
@@ -129,7 +130,8 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | — | v3.12.1 (primera con esta norma) | 1165eca | — |
 | — | v3.13.0 | 6d1f720 | 6.3 |
 | — | v3.13.1 | 6f45433 | 6.3 |
-| — | v3.14.0 | — | 6.3 |
+| — | v3.14.0 | 371ca04 | 6.3 |
+| — | v3.15.0 | — | 6.3 |
 
 "—" en Commit significa que el hash no consta en los documentos. Se obtiene con `git rev-list -n1 <etiqueta>`.
 
@@ -176,6 +178,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | 022 | — | v3.13.0 |
 | 023 | — | v3.13.1 |
 | 024 | — | v3.14.0 |
+| 025 | — | v3.15.0 |
 
 ---
 
