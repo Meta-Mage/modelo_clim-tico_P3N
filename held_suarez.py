@@ -5,10 +5,10 @@
 #     python held_suarez.py --tau 2         # sensibilidad: hiperdifusion 4 veces mas debil
 #     python held_suarez.py --dias 300      # mas corto (solo para probar)
 #     python held_suarez.py --filas 72      # rejilla de 2,5 grados (144 x 72): ~8 veces mas lenta por dia
-#     python held_suarez.py --niveles m3n   # v3.1-pre6: los 20 niveles REALES de M3N (capa de arriba 0-7,35 hPa),
+#     python held_suarez.py --niveles m3n   # v3.4.0: los 20 niveles REALES de M3N (capa de arriba 0-7,35 hPa),
 #                                           # paso 2 de la Fase 6.3 (decide si hace falta la capa esponja)
 #
-# Configuracion (DISENO_FASE6_2.md §5 y §10): Tierra (Williamson/HS94: a = 6,37122e6 m, Omega = 7,292e-5,
+# Configuracion (DISENO_FASE_6.2.md §5 y §10): Tierra (Williamson/HS94: a = 6,37122e6 m, Omega = 7,292e-5,
 # g = 9,80616, R = 287, cp = 1004), rejilla de M3N (72 x 36, 5 grados), 20 capas sigma IGUALES (la
 # especificacion de la prueba; con --niveles m3n, las de fase30_multicapa.sigma_seminiveles), dt = 450 s,
 # semiimplicito + RAW, hiperdifusion nabla^4 implicita.

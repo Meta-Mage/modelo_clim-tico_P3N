@@ -1,13 +1,15 @@
-# DISEÑO — FASE 5a de M3N: ciclo del agua (v2.5)
+# DISEÑO — FASE 5 de M3N (borrador de la 5.1, antes «5a»): ciclo del agua (v2.5 prevista; se hizo como v3.1)
+
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE5A.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
 
 **Estado: BORRADOR v0 (04/10/2026), para revisión de Carlos. No hay código escrito.**
 
-> **EN PAUSA — decisión de Carlos (04/10/2026, opción 2): antes de la 5a se construye la ATMÓSFERA DE VARIAS CAPAS** (adelanto de la antigua Fase 8), en seco, como fase propia, y la 5a se hará después **encima** de ella, para no construir el ciclo del agua dos veces. Estado de las decisiones de este documento tras ese cambio:
+> **EN PAUSA — decisión de Carlos (04/10/2026, opción 2): antes de la 5.1 se construye la ATMÓSFERA DE VARIAS CAPAS** (adelanto de la antigua Fase 8, hoy Fase 2.3), en seco, como fase propia, y la 5.1 se hará después **encima** de ella, para no construir el ciclo del agua dos veces. Estado de las decisiones de este documento tras ese cambio:
 > - Decisión 1 (calor latente constante, opción A; C pendiente): **sigue vigente**.
 > - Decisión 2 (transporte C′, energía estática húmeda cerca de la superficie): **sigue vigente**; el reparto vertical del calor que llega se resolverá con las capas.
 > - Decisión 3 (humedad H2) y decisión 4 (tropopausa por temperatura de piel, opción B, aceptada el 04/10): **a revisar** en el marco de varias capas; previsiblemente se simplifican (el perfil y la tropopausa saldrían de la física).
 > - Decisiones 5 (albedo espectral de la nieve) y 6 (v2.4.2, ya hecha): sin cambios.
-> - Numeración de versiones: **pendiente de confirmar por Carlos** (propuesta: la atmósfera de varias capas es la reescritura mayor del núcleo prevista como v3.0, así que pasaría a ser v3.0 y la 5a la v3.1).
+> - Numeración de versiones: **pendiente de confirmar por Carlos** (propuesta: la atmósfera de varias capas es la reescritura mayor del núcleo prevista como v3.0, así que pasaría a ser v3.0 y la 5.1 la v3.1).
 Base: M3N v2.4.1. Este documento sigue el método de las fases anteriores: diseño → decisiones de Carlos → implementación con interruptores → validación → exportación.
 
 Cada parámetro lleva una **etiqueta de origen** y un **estado de verificación**:
@@ -27,11 +29,11 @@ Cada parámetro lleva una **etiqueta de origen** y un **estado de verificación*
 
 ## 0. Resumen
 
-La Fase 5a añade el **ciclo del agua sin nubes radiativas**: evaporación, vapor de agua en el aire y su transporte, condensación y precipitación (lluvia y nieve), agua del suelo, nieve en tierra y **convección húmeda** (el gradiente vertical de temperatura pasa a calcularse para P3N en lugar de suponerse 6,5 °C/km).
+La Fase 5.1 añade el **ciclo del agua sin nubes radiativas**: evaporación, vapor de agua en el aire y su transporte, condensación y precipitación (lluvia y nieve), agua del suelo, nieve en tierra y **convección húmeda** (el gradiente vertical de temperatura pasa a calcularse para P3N en lugar de suponerse 6,5 °C/km).
 
-Lo que la 5a **no** hace (y por qué):
-- **Nubes y efecto radiativo del vapor** → Fase 5b. Las emisividades actuales ya contienen el vapor terrestre; tocarlas ahora lo contaría dos veces.
-- **Célula de Hadley y vientos** → Fase 6. Sin ella, la lluvia **tropical** de la 5a NO es válida (ver §3.6).
+Lo que la 5.1 **no** hace (y por qué):
+- **Nubes y efecto radiativo del vapor** → Fase 5.2. Las emisividades actuales ya contienen el vapor terrestre; tocarlas ahora lo contaría dos veces.
+- **Célula de Hadley y vientos** → Fase 6. Sin ella, la lluvia **tropical** de la 5.1 NO es válida (ver §3.6).
 - **Lluvia orográfica direccional** (barlovento/sotavento) → Fase 6.
 - **Presión variable con la altitud en toda la física** (opción C) → revisión aparte, PENDIENTE.
 
@@ -39,10 +41,10 @@ Lo que la 5a **no** hace (y por qué):
 
 ## 1. Decisiones de Carlos (04/10/2026)
 
-1. La Fase 5 se parte en **5a** (ciclo del agua) y **5b** (nubes y radiación).
+1. La Fase 5 se parte en **5.1** (antes «5a», ciclo del agua) y **5.2** (antes «5b», nubes y radiación).
 2. **No se fija** si P3N es más húmedo o más seco que la Tierra: sale lo que dé la física; se revisará después.
 3. La **lluvia orográfica direccional espera a la Fase 6**.
-4. La 5a usa **difusión pura** para el vapor, con el código preparado para separar "remolinos" y "circulación media" en la Fase 6. La lluvia tropical de la 5a se declara no válida.
+4. La 5.1 usa **difusión pura** para el vapor, con el código preparado para separar "remolinos" y "circulación media" en la Fase 6. La lluvia tropical de la 5.1 se declara no válida.
 5. **Presión local solo para la saturación** (opción B). La opción C (presión local en toda la física) queda **PENDIENTE de forma explícita**.
 6. El gradiente vertical de temperatura **DEBE calcularse para P3N**, no suponerse → **ajuste convectivo húmedo**.
 7. **Viento**: en modo Tierra, el viento medio real de la Tierra; en P3N, 5 m/s provisional hasta la Fase 6 (opción B).
@@ -68,7 +70,7 @@ Hallazgo de la revisión del 04/10: el código supone días de 24 h en sitios do
 | Registro horario y exportación | Supone 24 registros por día |
 | H3N | Textos y ejes con "270 días" |
 
-**Propuesta:** una versión **v2.4.2** antes de la 5a que exprese todo en función de `ROTACION_PERIODO` (fracción del día en lugar de "hora"). **Prueba de aceptación:** con `ROTACION_PERIODO = 86400` el resultado debe ser **idéntico bit a bit** al de la v2.4.1.
+**Propuesta:** una versión **v2.4.2** antes de la 5.1 que exprese todo en función de `ROTACION_PERIODO` (fracción del día en lugar de "hora"). **Prueba de aceptación:** con `ROTACION_PERIODO = 86400` el resultado debe ser **idéntico bit a bit** al de la v2.4.1.
 
 **Sutileza a decidir:** el código trata `ROTACION_PERIODO` como el **día solar** (de mediodía a mediodía). El periodo de rotación sideral es algo más corto: 1/P_sol = 1/P_sid − 1/P_orb (giro en el mismo sentido que la órbita). Con 270 días por año la diferencia es ~0,37 %. Hay que dejar escrito cuál de los dos se define.
 
@@ -103,7 +105,7 @@ Práctica documentada ✅ (verificado en el código fuente, 04/10/2026):
 - Isca (`src/shared/constants/constants.F90`): `HLV = 2.500e6`, `HLF = 3.34e5`, `HLS = HLV + HLF`, constantes; los usan su flujo de superficie y su convección.
 - CESM (`CESM_share/src/shr_const_mod.F90`): `SHR_CONST_LATVAP = 2.501e6`, `SHR_CONST_LATICE = 3.337e5`, `LATSUB = LATICE + LATVAP`, constantes.
 
-Error que se acepta, cuantificado (cálculo propio con la ley de Kirchhoff, L(T) = L_v0 − (c_pl − c_pv)(T − T₀)): cada kilo evaporado a 30 °C se lleva un **2,8 %** más de energía de la real; cada kilo condensado a −10 °C suelta un **0,9 %** menos. Es menor que otras incertidumbres de la 5a (viento fijo, RH_ref).
+Error que se acepta, cuantificado (cálculo propio con la ley de Kirchhoff, L(T) = L_v0 − (c_pl − c_pv)(T − T₀)): cada kilo evaporado a 30 °C se lleva un **2,8 %** más de energía de la real; cada kilo condensado a −10 °C suelta un **0,9 %** menos. Es menor que otras incertidumbres de la 5.1 (viento fijo, RH_ref).
 
 **PENDIENTE PARA EL FUTURO (opción C, decisión de Carlos):** sustituir por una contabilidad completa de la entalpía del agua (calor latente variable con la temperatura **y** calor sensible del vapor y de la precipitación), que es la solución exacta. Se abordará cuando el resto del modelo sea lo bastante preciso para que este 1–3 % importe. Opción B (calor latente variable sin más) descartada: crea energía (~2–3 W/m²).
 
@@ -146,7 +148,7 @@ A 5000 m, con T̄ ≈ 255 K: p ≈ 540 hPa. Sin esta corrección, la capacidad d
 
 **Por qué C′ y no B:** marco publicado y validado; un parámetro en vez de dos; calor y vapor coherentes por construcción; y la parametrización de la célula de Hadley de la Fase 6 (Siler et al. 2018) está **construida sobre este mismo marco**.
 
-**Coste aceptado:** cambia dónde actúa la difusión de la Fase 2b (interruptor I6, `difusion_reubicada`) → hay que **revalidar la 2b y el hielo** (Fase 3) en modo Tierra y en P3N. La resolución numérica debe ser implícita y estable, con la humedad dentro.
+**Coste aceptado:** cambia dónde actúa la difusión de la Fase 2.2 (interruptor I6, `difusion_reubicada`) → hay que **revalidar la 2.2 y el hielo** (Fase 3) en modo Tierra y en P3N. La resolución numérica debe ser implícita y estable, con la humedad dentro.
 
 **Física que lo apoya (⚠️ verificar en la fuente antes del código):** en latitudes medias, el transporte de calor por remolinos es máximo en la troposfera baja-media (~850 hPa), con un segundo máximo cerca de la tropopausa; el de vapor, casi todo por debajo de ~700 hPa (Peixoto y Oort 1992). El gradiente cerca de la superficie es el que "ve" ese transporte.
 
@@ -154,7 +156,7 @@ A 5000 m, con T̄ ≈ 255 K: p ≈ 540 hPa. Sin esta corrección, la capacidad d
 
 **Fase 6 (decidido):** el código separa ya el término de remolinos, para poder multiplicarlo por un peso w(φ) cuando entre la célula de Hadley. Forma de Siler et al. (2018) ✅ (código de Bonan et al.): w = 1 − exp(−(sen φ / σ)²), con σ = 0,3 para la Tierra. **σ para P3N deberá deducirse en la Fase 6**: depende de Ω·a (§9).
 
-> **SUSTITUIDO (05/10/2026, decisión de Carlos):** la Fase 6 no usará esta célula de Hadley parametrizada, sino un núcleo dinámico propio (camino B; ver `DISENO_FASE6_BORRADOR.md` §7).
+> **SUSTITUIDO (05/10/2026, decisión de Carlos):** la Fase 6 no usará esta célula de Hadley parametrizada, sino un núcleo dinámico propio (camino B; ver `DISENO_FASE_6.md` §7).
 
 ### 3.7 Estructura vertical de la humedad — DECIDIDO (opción H2, Carlos 04/10/2026)
 
@@ -164,7 +166,7 @@ A 5000 m, con T̄ ≈ 255 K: p ≈ 540 hPa. Sin esta corrección, la capacidad d
 - **Condensación de gran escala:** a partir de una **humedad relativa crítica** de capa (< 1), porque una capa entera rara vez está saturada de media aunque partes de ella sí lo estén. Parámetro (c): ⚠️ valor y fuente por verificar; prueba de sensibilidad obligatoria.
 - Depende de la decisión sobre la tropopausa (§3.8).
 
-**Por qué H2** (y no H1, la recomendación del borrador v0): coherencia con las dos capas de temperatura de M3N; la humedad cerca de la superficie que necesita la C′ es propia del modelo y no sale de una forma impuesta; menos datos terrestres de tipo (c); y prepara la Fase 5b, porque el efecto invernadero del vapor depende sobre todo de la humedad de la troposfera alta, que así calcula el modelo.
+**Por qué H2** (y no H1, la recomendación del borrador v0): coherencia con las dos capas de temperatura de M3N; la humedad cerca de la superficie que necesita la C′ es propia del modelo y no sale de una forma impuesta; menos datos terrestres de tipo (c); y prepara la Fase 5.2, porque el efecto invernadero del vapor depende sobre todo de la humedad de la troposfera alta, que así calcula el modelo.
 
 Descartadas: H1 (agua de la columna con forma vertical fija de Manabe y Wetherald 1967, de tipo c) y H3 (solo q_CL con la relación de Smith 1966, más c).
 
@@ -180,7 +182,7 @@ Descartadas: H1 (agua de la columna con forma vertical fija de Manabe y Wetheral
 - **Precipitación convectiva**: relajación tipo Betts-Miller simplificado (Frierson 2007): la humedad se relaja hacia una humedad relativa de referencia RH_ref con un tiempo τ, y el calor latente se suelta en la TR.
   - τ = 7200 s ✅ (valor por defecto en Isca `qe_moist_convection`; control en Frierson 2007b).
   - RH_ref: **0,8** por defecto en Isca ✅, **0,6** de control en Frierson (2007b) ✅, con experimentos de 0,8 a 0,95. **No hay un valor único**: es (c) y es **incierto** → prueba de sensibilidad obligatoria y documentada, NO ajuste para cuadrar resultados.
-- **Condensación de gran escala**: Isca usa por defecto humedad relativa = 1 (`hc = 1.0` en `lscale_cond` ✅), pero Isca tiene muchas capas finas; con las dos capas gruesas de M3N hace falta una **humedad relativa crítica de capa < 1** (§3.7, ⚠️ pendiente de fuente). El calor se suelta en la capa donde se condensa. Sin reevaporación en la 5a.
+- **Condensación de gran escala**: Isca usa por defecto humedad relativa = 1 (`hc = 1.0` en `lscale_cond` ✅), pero Isca tiene muchas capas finas; con las dos capas gruesas de M3N hace falta una **humedad relativa crítica de capa < 1** (§3.7, ⚠️ pendiente de fuente). El calor se suelta en la capa donde se condensa. Sin reevaporación en la 5.1.
 - **Validación clave:** en modo Tierra, el gradiente medio que salga debe acercarse a 6,5 K/km. Si sale, la física funciona; no se impone.
 
 ### 3.9 Lluvia o nieve (a + c)
@@ -193,7 +195,7 @@ Fracción de lluvia lineal con la temperatura del aire a 2 m entre T_toda_nieve 
 - **Tope** S_max: lo que lo supere vuelve al océano como "descarga glaciar", **conservando agua y energía** (fundirlo cuesta L_f al océano). Referencia ✅: el CLM5 usa 10 000 mm por defecto y el CLM4.5 usaba 1000 mm (`h2osno_max`). El valor para M3N se justificará con el criterio de que más espesor ya no cambie el clima. Pendiente.
 - El espesor por encima del tope **no entra en la convergencia**; sí la cobertura y la temperatura.
 - **Albedo gradual** según la fracción cubierta (nunca un escalón; lección del intento perdido de la Fase 3).
-- ⚠️ **Hallazgo P3N-específico — el albedo de la nieve depende de la estrella (a + b).** La nieve refleja muchísimo en el visible y bastante menos en el infrarrojo cercano. S3N (~5420 K) emite proporcionalmente más infrarrojo cercano que el Sol (~5772 K), así que **el albedo "de banda ancha" de la nieve en P3N es menor que en la Tierra** (Shields et al. 2013, ⚠️ pendiente de verificar). Lo mismo afecta al **albedo del hielo marino (0,65), que hoy es un valor terrestre**. Propuesta: calcular el albedo de la nieve y del hielo integrando su albedo espectral sobre el espectro de S3N. Necesita datos espectrales de una fuente que hay que verificar. Puede ir en la 5a para la nieve, y como corrección pendiente para el hielo marino.
+- ⚠️ **Hallazgo P3N-específico — el albedo de la nieve depende de la estrella (a + b).** La nieve refleja muchísimo en el visible y bastante menos en el infrarrojo cercano. S3N (~5420 K) emite proporcionalmente más infrarrojo cercano que el Sol (~5772 K), así que **el albedo "de banda ancha" de la nieve en P3N es menor que en la Tierra** (Shields et al. 2013, ⚠️ pendiente de verificar). Lo mismo afecta al **albedo del hielo marino (0,65), que hoy es un valor terrestre**. Propuesta: calcular el albedo de la nieve y del hielo integrando su albedo espectral sobre el espectro de S3N. Necesita datos espectrales de una fuente que hay que verificar. Puede ir en la 5.1 para la nieve, y como corrección pendiente para el hielo marino.
 
 ### 3.11 Hielo marino
 
@@ -286,12 +288,12 @@ Precipitación (total y nieve), evaporación, humedad del aire a 2 m o punto de 
 
 ## 9. Dependencia de la rotación — DECIDIDA (Carlos y Ozan, 04/10/2026)
 
-**Día solar de 19,84 h** (71 424 s), aplicado en la v2.4.3: hora de P3N = 1/24 del día (2976 s), paso de 992 s, año de 326,75 días y día sideral de 19 h 46 min 46 s. Equivale en circulación (Ω·a) a un día terrestre de ~27,0 h. D de la atmósfera escalado por (Ω_Tierra/Ω_P3N)² = 0,684. Pendiente: prueba de sensibilidad del paso (`prueba_paso.py`).
+**Día solar de 19,84 h** (71 424 s), aplicado en la v2.4.3: hora de P3N = 1/24 del día (2976 s), paso de 992 s, año de 326,75 días y día sideral de 19 h 46 min 46 s. Equivale en circulación (Ω·a) a un día terrestre de ~27,0 h. D de la atmósfera escalado por (Ω_Tierra/Ω_P3N)² = 0,683. Pendiente: prueba de sensibilidad del paso (`prueba_paso.py`).
 
 Notas originales:
 
 - Con la v2.4.2 el código acepta cualquier día que cumpla dos condiciones: **múltiplo exacto del paso de 900 s** y, para tener registro horario (y exportación a H3N), **número entero de horas de 3600 s**. Dentro del intervalo de Carlos y Ozan (16,5–18,7 h) eso deja **17 h o 18 h**. Otros valores (p. ej. 17,6 h = 63 360 s, que no es múltiplo de 900 s) exigirían cambiar el paso de tiempo o redefinir la "hora" de P3N.
-- **Fijarlo antes de la calibración de la 5a** evita calibrar dos veces.
+- **Fijarlo antes de la calibración de la 5.1** evita calibrar dos veces.
 - D se calibra en modo Tierra (24 h) y se traslada a P3N con D ∝ 1/Ω² (Williams y Kasting 1997).
 - Forma de la circulación (Fase 6): depende de Ω·a; día equivalente en la Tierra = día de P3N × 1,362 (a_Tierra/a_P3N = 6371/4676,7).
 - Rango de validez razonable de M3N: ~16–48 h.
@@ -304,7 +306,7 @@ Notas originales:
 2. Sin lluvia orográfica direccional hasta la Fase 6.
 3. **Presión local solo en la saturación; opción C PENDIENTE.**
 4. Calor latente constante en el balance de energía (§3.2). **PENDIENTE: pulir hacia la opción C** (entalpía completa del agua).
-5. Emisividades fijas con vapor terrestre "de fábrica" hasta la 5b.
+5. Emisividades fijas con vapor terrestre "de fábrica" hasta la 5.2.
 6. Escorrentía instantánea al océano (sin ríos).
 7. Cubo de suelo terrestre provisional hasta los biomas.
 8. Sin aislamiento por la nieve sobre el hielo marino (PENDIENTE).

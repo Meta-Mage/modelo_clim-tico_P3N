@@ -1,6 +1,8 @@
 # M3N — Fase 3: hielo marino
 
-**Estado:** implementado en `fase2b_atmosfera.py` (interruptor I9, `hielo_marino`), sobre la v2.2c, y validado (sección 6).
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE3.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
+
+**Estado:** implementado en `fase2b_atmosfera.py` (interruptor I9, `hielo_marino`), sobre la v2.2.2, y validado (sección 6).
 **Fecha:** 02/10/2026 · **Versión prevista:** `v2.3`
 
 ---
@@ -12,7 +14,7 @@ La Fase 3 de la tabla de fases es la *"retroalimentación hielo-albedo + calor l
 Se implementa como **hielo marino termodinámico con espesor real**, no como un umbral de temperatura:
 
 - **El océano guarda energía (entalpía).** Si es positiva, es agua líquida a una temperatura. Si es negativa, es hielo de un espesor concreto. Congelar exige quitar calor latente y fundir, aportarlo, así que la energía se conserva por construcción.
-- **El hielo aísla:** el calor del océano sube a través de él por conducción. La temperatura de su superficie sale del balance con la atmósfera de la Fase 2b.
+- **El hielo aísla:** el calor del océano sube a través de él por conducción. La temperatura de su superficie sale del balance con la atmósfera de la Fase 2.2.
 - **El hielo refleja más luz** (albedo 0,65 frente a ~0,05–0,2 del agua). Esa es la retroalimentación hielo-albedo.
 - **Nieve en tierra:** solo como diagnóstico. Sin precipitación (Fase 5) no puede haber nieve real.
 
@@ -23,7 +25,7 @@ Se implementa como **hielo marino termodinámico con espesor real**, no como un 
 | Problema de entonces | Causa | Cómo se evita aquí |
 |---|---|---|
 | Un umbral de 0 °C en tierra congeló el continente entero, ecuador incluido | Albedo en escalón por temperatura más difusión: la inestabilidad del casquete pequeño (North 1981) | El hielo es un **espesor** que crece y se funde con energía real, y el albedo cambia gradualmente con el espesor. En tierra no hay umbral |
-| −225 °C en la tierra polar sin difusión | No había atmósfera que diera calor de noche | Resuelto por la Fase 2b |
+| −225 °C en la tierra polar sin difusión | No había atmósfera que diera calor de noche | Resuelto por la Fase 2.2 |
 | La extensión del hielo dependía de la longitud | Se decidía con una foto instantánea | El espesor integra la energía en el tiempo |
 | 8,9 % de desequilibrio de energía | Calor latente mal contabilizado | Entalpía: el calor latente es energía almacenada y se conserva por construcción |
 
@@ -52,7 +54,7 @@ La temperatura de la superficie del hielo, T_s, cumple:
 luz absorbida + infrarrojo que baja − σ·Ts⁴ − H(Ts) + (k_i / h)·(Tf − Ts) = 0
 ```
 
-- Se resuelve por el método de Newton. H es el calor sensible con la estabilidad de Louis, Tiedtke y Geleyn (1982), como en la Fase 2b.
+- Se resuelve por el método de Newton. H es el calor sensible con la estabilidad de Louis, Tiedtke y Geleyn (1982), como en la Fase 2.2.
 - **Máximo de 0 °C:** si con T_s = 0 °C sigue sobrando energía, el sobrante funde el hielo por arriba (CAM6/CICE: *"when F_TOP(Ts=0) ≥ 0, the surface melts at Ts = 0"*).
 - La energía neta que entra por arriba (que, si no hay fusión, es igual a la conducción) cambia la entalpía. Si es negativa, el hielo crece por abajo; si es positiva, se funde.
 - El calor sensible del hielo calienta o enfría la capa límite, igual que en el resto de superficies.
@@ -114,7 +116,7 @@ Es la relación que usan McKay (2000) y Warren et al. (2002) para el hielo de la
 El tiempo para alcanzarlo es del orden de ρ_i·L_f·h_eq² / (k_i·ΔT), unos 50–60 años terrestres, y la aproximación es asintótica. Esperar a que el espesor se estabilice costaría más de un siglo simulado. Sin embargo, por encima de ~1 m el espesor apenas afecta al clima: pasar de 15 a 18,5 m cambia la conducción en ~0,9 W/m², y eso mueve la temperatura de la superficie unos 0,15–0,3 K (la emisión del hielo a 235 K responde con ~2,9 W/m²/K, más el calor sensible). Por eso el criterio usa la temperatura y la extensión, y el espesor final se documenta como **"en camino al equilibrio"**.
 
 **Limitación conocida:** en la realidad, un hielo tan grueso fluye como un glaciar ("sea glaciers", Goodman y Pierrehumbert 2003; Pollard y Kasting 2005) y se adelgaza o se extiende hacia aguas más cálidas. M3N no tiene dinámica del hielo, solo termodinámica.
-- **Aceleración (1): salto geométrico** de la Fase 2b, aplicado a la entalpía (agua y hielo juntos).
+- **Aceleración (1): salto geométrico** de la Fase 2.2, aplicado a la entalpía (agua y hielo juntos).
 - **Corrección v2.4.1:** el año en que actúa el salto del hielo grueso nunca se da por convergido, porque el estado acaba de cambiar.
 - **Aceleración (2): salto del hielo grueso.** En los años 6, 12 y 18, para cada celda con más de 1 m de hielo se estima el calor que llega a su base con lo medido ese año (F_base = conducción media − ρ_i·L_f·dh/dt) y se lleva el espesor a su equilibrio h_eq = k_i·(T_f − T_s)/F_base, limitado a entre la mitad y el doble del espesor actual. No es física nueva: solo acorta el camino. Después se siguen simulando años y el criterio de convergencia es el mismo.
   - Sin este salto, P3N tardaba 42 años (33 minutos) en converger, con el hielo a 11,7 m de media y lejos aún de su equilibrio.
@@ -138,7 +140,7 @@ Si las dos acaban en el mismo estado, P3N tiene un solo clima posible con estos 
 | Prueba | Criterio | Resultado |
 |---|---|---|
 | V0. Todo apagado = v2.2 | Idéntico bit a bit | ✅ Diferencia 0,0 (5 años, como la referencia) |
-| Hielo apagado = v2.2c | Idéntico | ✅ Diferencia 0,0 en el aire a 2 m, el suelo y la troposfera (10 años, como la referencia) |
+| Hielo apagado = v2.2.2 | Idéntico | ✅ Diferencia 0,0 en el aire a 2 m, el suelo y la troposfera (10 años, como la referencia) |
 | Energía (incluido el calor latente) | Diferencia en lo alto de la atmósfera < 10⁻³ | ✅ 1,7×10⁻⁵ (P3N); 1,4×10⁻⁵ (modo Tierra) |
 | Biestabilidad | Mismo estado desde "sin hielo" y desde "todo helado"; si no, documentarlo | ✅ Mismo estado (60 años cada una): 15,31 °C, 8,7–9,1 % del océano helado, perfiles zonales idénticos. **P3N es monoestable** |
 | Espesores | Del orden del hielo perenne real (2–4 m en el Ártico); si no, explicar por qué | ⚠️ 12–18 m y creciendo hacia el equilibrio teórico (mediana de 18,5 m). Explicado en la sección 4.1: polo sin verano |
@@ -146,13 +148,13 @@ Si las dos acaban en el mismo estado, P3N tiene un solo clima posible con estos 
 
 ### 6.0 Clima de P3N con hielo y masa de S3N
 
-Con el hielo activado y la masa de S3N de la v2.2c (0,874 masas solares), el aire a 2 m medio global baja de 15,96 a **15,30 °C** (convergencia en 22 años, 18 minutos). El 8,7–9,1 % del océano está helado según la estación, con −42/−43 °C en los polos. Como 15,30 °C está dentro del rango sorteado (15–16 °C), **la masa no se recalibra** (decisión de Carlos, 02/10/2026). Como referencia de sensibilidad: 0,877 → 16,02 °C y 0,878 → 16,25 °C (unos 0,24 °C por cada milésima de masa solar).
+Con el hielo activado y la masa de S3N de la v2.2.2 (0,874 masas solares), el aire a 2 m medio global baja de 15,96 a **15,30 °C** (convergencia en 22 años, 18 minutos). El 8,7–9,1 % del océano está helado según la estación, con −42/−43 °C en los polos. Como 15,30 °C está dentro del rango sorteado (15–16 °C), **la masa no se recalibra** (decisión de Carlos, 02/10/2026). Como referencia de sensibilidad: 0,877 → 16,02 °C y 0,878 → 16,25 °C (unos 0,24 °C por cada milésima de masa solar).
 
 **Con las correcciones de la v2.4.1** (compensación del océano profundo repartida por todo el océano; ningún año con salto del hielo cuenta como convergido), mismo mapa `prueba1` (03/10/2026): **15,29 °C** (−0,004 °C respecto a la v2.4), océano helado 8,75–9,1 % (igual), polos −42,7 / −43,2 °C, ecuador 29,8 °C. Converge en **25 años** en vez de 22: los saltos del hielo grueso llegan en los años 6, 12 y 17, y el estado necesita unos años más para asentarse después del último. Desequilibrio de energía final: 1,2×10⁻⁵ W/m². Los resultados prácticamente no cambian; lo que cambia es que ahora el equilibrio está garantizado.
 
 ### 6.1 Modo Tierra con hielo
 
-Misma configuración que la calibración de D en la v2.2c (órbita, máscara de tierra y gravedad terrestres; D_atm = 2,4 y D_oc = 0,12), con el hielo activado. Converge en 40 años, con 13,8 °C de media global (14,5 °C sin hielo). Extensión del hielo marino, contando como helada toda la celda (la rejilla de 5° no permite concentraciones parciales):
+Misma configuración que la calibración de D en la v2.2.2 (órbita, máscara de tierra y gravedad terrestres; D_atm = 2,4 y D_oc = 0,12), con el hielo activado. Converge en 40 años, con 13,8 °C de media global (14,5 °C sin hielo). Extensión del hielo marino, contando como helada toda la celda (la rejilla de 5° no permite concentraciones parciales):
 
 | | M3N | Observado (NSIDC, media 1981–2010) |
 |---|---|---|

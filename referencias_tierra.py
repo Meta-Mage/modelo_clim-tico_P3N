@@ -1,5 +1,5 @@
-# referencias_tierra.py -- v3.1-pre16: valores OBSERVADOS de la Tierra para validar el modo Tierra
-# (validar_i16.py; DISENO_FASE6_3.md §6.14). Aqui solo hay valores con la fuente comprobada.
+# referencias_tierra.py -- v3.12.0: valores OBSERVADOS de la Tierra para validar el modo Tierra
+# (validar_i16.py; DISENO_FASE_6.3.md §6.14). Aqui solo hay valores con la fuente comprobada.
 #
 # Tablas por bandas de latitud: las 36 filas de M3N (5 grados), de 87,5 N a 87,5 S (rejilla.LATITUDES_GRADOS).
 #
@@ -20,7 +20,7 @@
 #    el area. GPCP_P_ANUAL: media de los meses pesada por sus dias. Media global 2,674 mm/dia.
 # 3) Valores globales: ver REF_* mas abajo, cada uno con su fuente.
 #
-# Como se calcularon las tablas (para repetirlo): ver DISENO_FASE6_3.md §6.14.
+# Como se calcularon las tablas (para repetirlo): ver DISENO_FASE_6.3.md §6.14.
 
 CRU_T_ANUAL = (
     -17.07, -16.73, -15.14, -12.09, -8.83, -4.60, 0.48, 3.12, 6.16, 10.07, 13.62, 17.09,
@@ -94,5 +94,5 @@ REF_WILD = {"sw_suelo": 214, "sw_atm": 73, "dlr": 314}
 # Transporte de calor hacia los polos (Trenberth y Caron 2001, J. Climate 14, 3433): atmosfera maximo
 # 5,0 +- 0,14 PW a 43 N, parecido cerca de 40 S; a 35 grados el oceano lleva el 22 % (norte) y el 8 % (sur).
 REF_TRANSPORTE = {"atm_max_PW": 5.0, "atm_max_lat": 43.0, "oceano_35N": 0.22, "oceano_35S": 0.08}
-# Hielo marino, extension (millones de km2), NSIDC 1981-2010 (DISENO_FASE3.md §6.1; validar_v30.py)
+# Hielo marino, extension (millones de km2), NSIDC 1981-2010 (DISENO_FASE_3.md §6.1; validar_v30.py)
 REF_HIELO = {"N_max": 15.6, "N_min": 6, "S_max": 18.5, "S_min": 3}

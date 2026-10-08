@@ -124,7 +124,7 @@ def test_punto_de_control_identico():
         assert np.array_equal(x, y)
 
 
-# ---------------- v3.1-pre8: version compilada (numba) y filtros en lote: IDENTICAS bit a bit ----------------
+# ---------------- v3.6.0: version compilada (numba) y filtros en lote: IDENTICAS bit a bit ----------------
 
 def _bits(x):
     return np.ascontiguousarray(x).view(np.int64)
@@ -171,7 +171,7 @@ def test_held_suarez_20_pasos_numba_igual_que_numpy():
         assert np.array_equal(_bits(x), _bits(y))
 
 
-# ---------------- v3.1-pre10: opciones de la hiperdifusion (apagadas por defecto) ----------------
+# ---------------- v3.8.0: opciones de la hiperdifusion (apagadas por defecto) ----------------
 
 def test_hiperdifusion_calor_cierra_la_energia():
     m = _nucleo()
@@ -202,5 +202,5 @@ def test_hiperdifusion_correccion_presion_reduce_el_calentamiento_falso_sobre_mo
         Tn, _, _ = m.aplicar_hiperdifusion(T, *z, 900.0, ps=ps)
         dT[corr] = np.abs(Tn - T).max()
     # medido el 07/10: 3,4e-2 K -> 8,3e-3 K por paso de 900 s con la forma de CAM (x4,1); con la interpolacion
-    # vertical de la v3.1-pre14 (DISENO_FASE6_3.md §6.12), 5,0e-3 K (x6,8)
+    # vertical de la v3.10.2 (DISENO_FASE_6.3.md §6.12), 5,0e-3 K (x6,8)
     assert dT[True] < dT[False] / 3.5

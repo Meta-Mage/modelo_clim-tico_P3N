@@ -1,17 +1,17 @@
-# test_fase6_i16.py -- v3.1-pre11: pruebas del modelo ACOPLADO (interruptor I16, "nucleo_dinamico").
+# test_fase6_i16.py -- v3.9.0: pruebas del modelo ACOPLADO (interruptor I16, "nucleo_dinamico").
 #
 # Uso:  python -m pytest test_fase6_i16.py      (alrededor de un minuto)
 #
 # Son simulaciones MUY cortas (unos pocos pasos de la fisica por "año"): comprueban propiedades que deben
 # cumplirse en CADA paso, no el clima.
 #   - el agua de la atmosfera y la del suelo se conservan EXACTAMENTE (redondeo);
-#   - el balance de energia cierra (los residuos declarados son mucho menores que la cota) y, desde la pre15,
+#   - el balance de energia cierra (los residuos declarados son mucho menores que la cota) y, desde la v3.11.0,
 #     el corrector global de energia devuelve lo que la dinamica no conserva;
 #   - una simulacion interrumpida y retomada desde el punto de control da EXACTAMENTE lo mismo;
 #   - con I16 apagado no se crea nada del nucleo (lo de siempre).
 # El clima no se puede juzgar aqui: con una orbita recortada a unos pocos pasos, el estado inicial (el
 # balance de Newton con la luz MEDIA de esa orbita) tiene la superficie a mas de 400 K bajo la estrella.
-# La estabilidad durante semanas se comprueba aparte, desde un estado de equilibrio (DISENO_FASE6_3.md §6.9).
+# La estabilidad durante semanas se comprueba aparte, desde un estado de equilibrio (DISENO_FASE_6.3.md §6.9).
 
 import numpy as np
 import pytest
@@ -58,7 +58,7 @@ def test_i16_agua_exacta(corrida):
 def test_i16_energia_cierra_salvo_la_dinamica(corrida):
     """Quitando lo que la dinamica no conserva (y el calor de rozamiento que devuelve la capa limite), el
     balance de energia cierra como en la v3.1 sin dinamica (redondeo). El error de la dinamica se mide y se
-    declara (DISENO_FASE6_3.md §6.9); en estas simulaciones de pocos pasos desde el reposo es grande porque
+    declara (DISENO_FASE_6.3.md §6.9); en estas simulaciones de pocos pasos desde el reposo es grande porque
     el aire se esta poniendo en movimiento a ~1500 W/m2."""
     e = corrida["energia"]
     assert abs(e["cierre_sin_dinamica"]) < 1e-9
@@ -66,7 +66,7 @@ def test_i16_energia_cierra_salvo_la_dinamica(corrida):
 
 
 def test_i16_corrector_de_energia(corrida, monkeypatch):
-    """v3.1-pre15 (DISENO_FASE6_3.md §6.13): el corrector global devuelve a la atmosfera lo que la dinamica no
+    """v3.11.0 (DISENO_FASE_6.3.md §6.13): el corrector global devuelve a la atmosfera lo que la dinamica no
     conserva, con un incremento uniforme de T. Con el, el balance TOTAL cierra (salvo el desfase de un paso del
     calor de rozamiento, que en el equilibrio se compensa); sin el, el error de la dinamica queda en el balance."""
     e = corrida["energia"]
@@ -93,7 +93,7 @@ def test_i16_punto_de_control_da_lo_mismo(tmp_path):
 
 
 def test_i16_nucleo_en_reposo_isotermo_sobre_montanas():
-    """T4 (DISENO_FASE6_3.md §6.7.7): el nucleo con la configuracion de I16 (niveles de M3N, avanzar con
+    """T4 (DISENO_FASE_6.3.md §6.7.7): el nucleo con la configuracion de I16 (niveles de M3N, avanzar con
     hiperdifusion, su energia cinetica como calor y la correccion a superficies de presion) mantiene en
     reposo una atmosfera isoterma sobre las montañas del caso 5 de Williamson (redondeo)."""
     import fase30_multicapa as M30
@@ -112,7 +112,7 @@ def test_i16_nucleo_en_reposo_isotermo_sobre_montanas():
     assert np.abs(act[1] - T0).max() < 1e-9 and np.abs(act[0] - ps).max() < 1e-6
 
 
-# ---------------- v3.1-pre12: equilibrio y arranque caliente ----------------
+# ---------------- v3.10.0: equilibrio y arranque caliente ----------------
 
 def test_equilibrio_pendiente_y_criterio():
     import fase6_equilibrio as EQ
@@ -229,7 +229,7 @@ def test_climatologia_cortada_y_retomada_da_lo_mismo(tmp_path, monkeypatch):
 
 
 def test_correccion_presion_interpola_sin_extrapolar():
-    """v3.1-pre14 (§6.12): la correccion de la difusion de T a superficies de presion es una interpolacion lineal
+    """v3.10.2 (§6.12): la correccion de la difusion de T a superficies de presion es una interpolacion lineal
     entre cada capa y su vecina en la direccion del desplazamiento, con peso <= 0,5:
       - con un perfil lineal en sigma y desplazamientos pequeños, coincide con la forma de CAM (Taylor centrado)
         en las capas interiores;

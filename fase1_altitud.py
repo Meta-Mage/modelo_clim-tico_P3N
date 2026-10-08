@@ -15,7 +15,7 @@ from fase1_geografia import (
 # aproximacion provisional porque M3N todavia no modela estructura atmosferica
 # vertical (capas, humedad, presion). NO esta derivado de la fisica propia de
 # P3N. Debe revisarse cuando exista un modelo atmosferico multicapa.
-# Ver NOTAS_DISENO_FASE0.md.
+# Ver DISENO_FASE_0.md.
 # ============================================================================
 
 ALBEDO_PRUEBA = {TIERRA: 0.3, AGUA: 0.1}

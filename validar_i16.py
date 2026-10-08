@@ -1,5 +1,5 @@
-# validar_i16.py -- v3.1-pre16: VALIDACION del modo Tierra de M3N con el nucleo dinamico (I16) frente a la
-# Tierra real (DISENO_FASE6_3.md §6.14). Diagnostico: no cambia nada del modelo ni de la simulacion larga.
+# validar_i16.py -- v3.12.0: VALIDACION del modo Tierra de M3N con el nucleo dinamico (I16) frente a la
+# Tierra real (DISENO_FASE_6.3.md §6.14). Diagnostico: no cambia nada del modelo ni de la simulacion larga.
 #
 # Uso (en la carpeta de M3N, con el venv activado), DESPUES de "python clima_dinamico.py --tierra":
 #     python validar_i16.py
@@ -19,7 +19,7 @@
 #   PARTE 2 (un año mas, ~15 min en el PC de Carlos) -- desde una COPIA del ultimo punto de control (la
 #     simulacion larga no se toca), con todos los diagnosticos de ese año:
 #     - balance de radiacion en el tope y en la superficie frente a CERES EBAF (Loeb et al. 2018), con cielo
-#       despejado y con nubes, y Wild et al. (2019): M3N NO TIENE NUBES (Fase 5b), asi que lo comparable es el
+#       despejado y con nubes, y Wild et al. (2019): M3N NO TIENE NUBES (Fase 5.2), asi que lo comparable es el
 #       cielo despejado; la diferencia con el cielo real es el efecto de las nubes;
 #     - hielo marino (extension maxima y minima) frente a NSIDC;
 #     - perfil vertical por bandas (tropopausa, gradiente 0-6 km);
@@ -352,7 +352,7 @@ def parte_1(rc, tipo, L, campos):
         if abs(bordes[i]) % 10 == 5 or abs(bordes[i]) % 10 == 0:
             L.append(f"     {bordes[i]:+5.0f} | {tot[i]:+6.2f} | {atm[i]:+6.2f} | {oc[i]:+6.2f} | {lat_t[i]:+6.2f}")
     L.append("")
-    L.append("   Para comparar, la v3.1 con la MISMA fisica pero SIN nucleo (transporte por difusion; DISENO_V3.1.md"
+    L.append("   Para comparar, la v3.1 con la MISMA fisica pero SIN nucleo (transporte por difusion; DISENO_FASE_5.1.md"
              " §10 bis, 05/10/2026, superficie): global ~19,0 C, polos +8,5 C (norte) y -6,2 C (sur), sin hielo marino.")
     L.append("")
 
@@ -389,7 +389,7 @@ def parte_2(r, vientos, L, campos):
     L.append(f"   Efecto observado de las nubes (CERES, con nubes - despejado): luz {c['reflejada_despejado'] - c['reflejada_todo_cielo']:+.1f},"
              f" infrarrojo {c['olr_despejado'] - c['olr_todo_cielo']:+.1f}, neto "
              f"{c['reflejada_despejado'] - c['reflejada_todo_cielo'] + c['olr_despejado'] - c['olr_todo_cielo']:+.1f} W/m2."
-             " M3N no tiene nubes (Fase 5b).")
+             " M3N no tiene nubes (Fase 5.2).")
     L.append("   (CERES EBAF Ed4.0, jul 2005-jun 2015, Loeb et al. 2018, tabla 5. El cielo despejado de CERES no esta en"
              " equilibrio: su neto es lo que las nubes le quitan a la Tierra real)")
     L.append("")

@@ -6,7 +6,7 @@
 # Tierra/agua: paquete global-land-mask (mascara GLOBE de la NOAA a ~1 km),
 # muestreada con 20 x 20 puntos por celda; la celda es tierra si al menos
 # la mitad de sus puntos lo es (mismo criterio que el mapa de P3N).
-# Altitud: la misma simplificacion que la calibracion de la v2.2c, para
+# Altitud: la misma simplificacion que la calibracion de la v2.2.2, para
 # que los resultados sean comparables: Antartida 2300 m y Groenlandia
 # 2000 m (altitudes medias aproximadas de sus casquetes); el resto de la
 # tierra a 0 m. LIMITACION conocida: las demas montañas (Himalaya, Andes,

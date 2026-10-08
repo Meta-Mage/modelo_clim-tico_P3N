@@ -1,7 +1,7 @@
-# fase6_nucleo_nb.py -- v3.1-pre8: version compilada (numba) de NucleoSeco.tendencias, SIN el filtro polar.
+# fase6_nucleo_nb.py -- v3.6.0: version compilada (numba) de NucleoSeco.tendencias, SIN el filtro polar.
 #
 # Por que: con campos de ~52 000 valores, la version de numpy gasta casi todo el tiempo en llamar a decenas de
-# operaciones pequenas (DISENO_FASE6_3.md §6.6). Aqui se hace todo en un unico recorrido compilado.
+# operaciones pequenas (DISENO_FASE_6.3.md §6.6). Aqui se hace todo en un unico recorrido compilado.
 #
 # Regla de esta traduccion: cada expresion reproduce EXACTAMENTE el orden de operaciones (y los parentesis
 # implicitos, de izquierda a derecha) de la version de numpy de fase6_nucleo.py, para que el resultado sea

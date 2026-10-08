@@ -1,4 +1,4 @@
-# test_v31.py -- pruebas rapidas de la v3.1 (Fase 5a: ciclo del agua).
+# test_v31.py -- pruebas rapidas de la v3.1 (Fase 5.1: ciclo del agua).
 #
 # Uso:  python -m pytest test_v31.py      (menos de un minuto)
 #

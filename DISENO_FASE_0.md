@@ -1,5 +1,7 @@
 # Notas de diseño — Fase 0 (rejilla vectorizada)
 
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `NOTAS_DISENO_FASE0.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
+
 Fecha: 20/09/2026. Resume las decisiones tomadas al vectorizar el modelo
 sobre una rejilla lat/lon real, para quien retome esto más adelante sin
 tener que releer toda la conversación en la que se hizo.

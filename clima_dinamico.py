@@ -1,5 +1,5 @@
-# clima_dinamico.py -- v3.1-pre12: simulacion LARGA de M3N con el nucleo dinamico (I16), de principio a fin:
-# arranque caliente -> equilibrio -> climatologia de N años (fase6_clima.py; DISENO_FASE6_3.md §6.10).
+# clima_dinamico.py -- v3.10.0: simulacion LARGA de M3N con el nucleo dinamico (I16), de principio a fin:
+# arranque caliente -> equilibrio -> climatologia de N años (fase6_clima.py; DISENO_FASE_6.3.md §6.10).
 #
 # Uso (en la carpeta de M3N, con el venv activado):
 #     python clima_dinamico.py --tierra        # modo Tierra con el mapa de la Tierra (validacion)
@@ -44,7 +44,7 @@ from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from cache_simulacion import precalcular_orbita_cacheada
 from rejilla import LATITUDES_GRADOS
 
-VERSION = "v3.1-pre16"       # la version de M3N que escribe la cabecera del registro y del resumen
+VERSION = "3.12.1"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
 
 
 def main():

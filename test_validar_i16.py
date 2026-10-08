@@ -1,5 +1,5 @@
-# test_validar_i16.py -- v3.1-pre16: pruebas de la validacion del modo Tierra con I16 (validar_i16.py,
-# referencias_tierra.py; DISENO_FASE6_3.md §6.14).
+# test_validar_i16.py -- v3.12.0: pruebas de la validacion del modo Tierra con I16 (validar_i16.py,
+# referencias_tierra.py; DISENO_FASE_6.3.md §6.14).
 #
 # Uso:  python -m pytest test_validar_i16.py      (alrededor de dos minutos: la ultima prueba hace una
 #                                                  simulacion de prueba completa en modo Tierra)

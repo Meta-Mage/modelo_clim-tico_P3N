@@ -1,6 +1,6 @@
 # fase6_capa_limite.py -- Fase 6.3 (paso 4): capa limite y rozamiento con la superficie, en columna.
 #
-# Diseno: DISENO_FASE6_3.md §6.2 (decisiones 1.3, 1.4 y 1.8, aprobadas por Carlos el 06/10/2026) y §6.5.
+# Diseno: DISENO_FASE_6.3.md §6.2 (decisiones 1.3, 1.4 y 1.8, aprobadas por Carlos el 06/10/2026) y §6.5.
 # Modulo AUTONOMO: no esta conectado a M3N (eso es el paso 5 de la 6.3, con el interruptor I16).
 #
 # Que hace, en cada columna y en un paso dt (implicito, Euler hacia atras, incondicionalmente estable):
@@ -182,7 +182,7 @@ def paso_capa_limite(u, v, T, ph, pm, Ts, z0m, z0h, flujo_calor, dt, g, R_gas, c
     # momento (con arrastre)
     u1 = _difundir(u, masa, D_m, dt, arrastre)
     v1 = _difundir(v, masa, D_m, dt, arrastre)
-    # calor por rozamiento, POSITIVO y EXACTO (demostracion propia, DISENO_FASE6_3.md §6.5). Para Euler
+    # calor por rozamiento, POSITIVO y EXACTO (demostracion propia, DISENO_FASE_6.3.md §6.5). Para Euler
     # implicito, sumando por partes:
     #   sum_k m_k (KE1_k - KE0_k) = -dt sum_i D_i |v1_{i} - v1_{i+1}|^2 - dt arrastre |v1_{N-1}|^2
     #                               - 1/2 sum_k m_k |v1_k - v0_k|^2

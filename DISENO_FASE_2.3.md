@@ -1,5 +1,7 @@
 # DISEÑO — M3N v3.0: atmósfera de varias capas (en seco)
 
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_V3.0.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
+
 **Estado (04/10/2026, noche): código hecho, PENDIENTE DE CALIBRAR Y VALIDAR.** `fase30_multicapa.py` + interruptor I10 (apagado por defecto), modo Tierra y scripts de calibración (§13). Hay pruebas con un modelo de una columna (§9).
 Por decisión de Carlos (04/10/2026), este diseño lo desarrolla la IA con los criterios de siempre:
 - física verificable;
@@ -9,7 +11,7 @@ Por decisión de Carlos (04/10/2026), este diseño lo desarrolla la IA con los c
 
 Luego se le explica el resultado. Lo que sea decisión de Carlos (worldbuilding, coste) se le pregunta aparte.
 
-Antecedentes: `DISENO_FASE5A.md` (aviso inicial). La v3.0 se hace **antes** de la Fase 5a (que pasa a ser la v3.1), para construir el ciclo del agua una sola vez, sobre la estructura vertical definitiva.
+Antecedentes: `DISENO_FASE_5.md` (aviso inicial). La v3.0 se hace **antes** de la Fase 5.1 (que pasa a ser la v3.1), para construir el ciclo del agua una sola vez, sobre la estructura vertical definitiva.
 
 ---
 
@@ -28,7 +30,7 @@ Además, la presión sobre las montañas pasa a ser la real **en toda la física
 - Cada columna se divide en N capas, que son fracciones de **su propia** presión en superficie. Es la coordenada estándar de los modelos atmosféricos y sigue el relieve sin que las montañas "atraviesen" capas.
 - **Presión en superficie de cada celda (b):** equilibrio hidrostático con la gravedad de P3N, p_s = p₀·exp(−g·z / (R·T̄)), con p₀ = 1 bar (decisión de Carlos del 01/10) y T̄ la temperatura media del aire entre el nivel del mar y la superficie.
   - **Consecuencia:** sobre una montaña hay menos aire encima. Eso significa menos capacidad calorífica, menos efecto invernadero y menos luz absorbida.
-  - **Resuelve la opción C** que `DISENO_FASE5A.md` dejaba pendiente.
+  - **Resuelve la opción C** que `DISENO_FASE_5.md` dejaba pendiente.
 - **Reparto de los niveles:** más finos cerca del suelo (capa límite) y espaciado regular en altura aproximada por arriba (zona de la tropopausa). Receta de la prueba: z_k = 40 km·(k/N)^1,6, con σ = exp(−z/7,5 km). Es solo una receta de espaciado; no impone ningún dato físico.
 - **Número de capas N:** se decide por **convergencia** (§9), no copiándolo de otro modelo. Provisional: 20–30.
 
@@ -42,13 +44,13 @@ Además, la presión sobre las montañas pasa a ser la real **en toda la física
   - El término lineal representa los gases bien mezclados (CO₂…).
   - El término de grado 4 representa el vapor de agua, que se concentra abajo con una escala de altura ~¼ de la del aire.
   - **Presión absoluta** (p/p₀, no σ): sobre las montañas queda menos absorbente encima, como en la realidad.
-- **Calibración (c), mismo método que en la Fase 2b:**
+- **Calibración (c), mismo método que en la Fase 2.2:**
   - Con la Atmósfera Estándar US 1976 y el suelo a 289 K, τ₀ y f deben reproducir los valores **sin nubes** de Wild et al. (2019): DLR = 314 W/m² y OLR = 267 W/m².
   - Resultado, convergido con el número de capas: **τ₀ = 2,452, f = 0,240** (N = 20: 2,460 / 0,236; N = 160: 2,452 / 0,240).
-- **Rechazado — dependencia con la latitud de Isca/Frierson** (τ = 6 en el ecuador y 1,5 en el polo): imita el vapor de la Tierra. P3N no tiene base para copiarla. El vapor del propio P3N entrará en la Fase 5b.
-- **Provisional hasta la 5b:**
+- **Rechazado — dependencia con la latitud de Isca/Frierson** (τ = 6 en el ecuador y 1,5 en el polo): imita el vapor de la Tierra. P3N no tiene base para copiarla. El vapor del propio P3N entrará en la Fase 5.2.
+- **Provisional hasta la 5.2:**
   - El exponente 4 es (c). Habrá prueba de sensibilidad con 3 y 5.
-  - En la 5b, el término del vapor se sustituirá por el vapor calculado.
+  - En la 5.2, el término del vapor se sustituirá por el vapor calculado.
 
 ## 3. Luz del sol
 
@@ -61,7 +63,7 @@ Además, la presión sobre las montañas pasa a ser la real **en toda la física
 - **Ajuste convectivo seco** que conserva la entalpía (Manabe y Strickler 1964). Las capas que se enfrían con la altura más deprisa que un gradiente crítico se mezclan hasta quedar justo en él.
 - **Gradiente crítico 6,5 K/km (c), PROVISIONAL.**
   - Es el mismo valor que ya usa la v2.4.2 a través de la Atmósfera Estándar, así que la v3.0 es comparable con ella.
-  - En la **v3.1 (Fase 5a)** se sustituye por el **ajuste convectivo húmedo**, con el gradiente adiabático húmedo calculado para P3N (decisión de Carlos: "debemos calcularlo").
+  - En la **v3.1 (Fase 5.1)** se sustituye por el **ajuste convectivo húmedo**, con el gradiente adiabático húmedo calculado para P3N (decisión de Carlos: "debemos calcularlo").
 
 ## 5. Superficie y capa límite
 
@@ -71,18 +73,18 @@ Además, la presión sobre las montañas pasa a ser la real **en toda la física
 - **Aire a 2 m:** perfil logarítmico entre la superficie y el centro de la capa más baja (a ~100–300 m, frente a ~410 m de la capa límite actual). Es más preciso que hoy.
 - **Océano, hielo marino y columna de suelo: sin cambios.** Su interfaz pasa a ser la capa más baja.
 
-## 6. Transporte horizontal (decisión 2 de la 5a, opción C′, en seco)
+## 6. Transporte horizontal (decisión 2 de la 5.1, opción C′, en seco)
 
 - **Flujo difusivo de la energía estática seca cerca de la superficie**, s = c_p·T + g·z, con **un solo coeficiente**.
 - **Por qué incluir g·z (física, a):** una masa de aire que sube por una ladera sin intercambiar calor **conserva s**, así que s no genera un transporte falso entre llanuras y montañas. La temperatura sola sí lo generaría.
-  - Esto resuelve el pendiente "si h incluye g·z" de `DISENO_FASE5A.md` §3.6.
+  - Esto resuelve el pendiente "si h incluye g·z" de `DISENO_FASE_5.md` §3.6.
   - En la v3.1, s pasa a ser la energía estática húmeda (se añade L·q).
 - **Reparto vertical de lo que llega:** proporcional a la masa de las capas troposféricas. Implementado como las capas con σ ≥ 0,25 (`SIGMA_TOPE_TRANSPORTE`), una aproximación fija de la troposfera, en vez de la tropopausa diagnosticada en cada paso: así el operador es lineal y la energía se conserva exactamente (ΔT igual en esas capas = ΔX). **Provisional**, con prueba de sensibilidad frente a un reparto más concentrado abajo. Lo de fondo es que el transporte por remolinos es máximo hacia 850 hPa (Peixoto y Oort 1992; ⚠️ verificar).
 - **Calibración (c):** D en modo Tierra (siempre 24 h) frente al transporte total de Trenberth y Caron (2001).
   - Cruce de control: el D obtenido, expresado como difusividad de remolinos, debe salir del orden de 1,06×10⁶ m²/s (Hwang y Frierson 2010).
   - Es previsible que el transporte siga "saturando" en seco; se resuelve en la v3.1 con el calor latente.
 - **Rotación:** se implementa ya el escalado D ∝ 1/Ω² (Williams y Kasting 1997) con la velocidad de giro **sideral** de cada planeta, ya que D se recalibra en esta versión.
-  - Hecho en la v2.4.3 (`parametros.FACTOR_ROTACION_D`), también para el modelo de dos capas. Con el día de 19,84 h, el factor es **0,684**. En el modo Tierra vale 1.
+  - Hecho en la v2.4.3 (`parametros.FACTOR_ROTACION_D`), también para el modelo de dos capas. Con el día de 19,84 h, el factor es **0,683**. En el modo Tierra vale 1.
 - **Océano (D_oc):** sin cambios de método; se recalibra.
 
 ## 7. Numérica y coste
@@ -114,8 +116,8 @@ Equilibrio radiativo-convectivo con la luz absorbida de Wild et al. sin nubes (2
 
 **Lectura:**
 - **El suelo converge.** Las diferencias son de 0,3 K entre N = 20 y 30, y de 0,1 K entre 30 y 40. El N final se decidirá con el modelo completo, con el criterio "doblar N cambia la media global < 0,2 K y las medias por latitud < 0,3 K".
-- **La estratosfera** sale a **225,1 K**, y la teoría de la atmósfera gris predice la temperatura de piel T_e/2^¼ = **224,3 K** (con T_e = 266,7 K para OLR = 287 W/m²). La física del esquema es correcta, y además **la tropopausa y la temperatura de piel salen solas**: la decisión 4 de la 5a (fórmula de la temperatura de piel) **deja de ser necesaria**.
-- **El suelo sale a ~297 K** (la Tierra real, ~288 K) porque una Tierra **sin nubes** en equilibrio emite 287 W/m², no 267. Es lo mismo que ya se vio en la Fase 2b (§ "Calibración del infrarrojo"). No es un fallo.
+- **La estratosfera** sale a **225,1 K**, y la teoría de la atmósfera gris predice la temperatura de piel T_e/2^¼ = **224,3 K** (con T_e = 266,7 K para OLR = 287 W/m²). La física del esquema es correcta, y además **la tropopausa y la temperatura de piel salen solas**: la decisión 4 de la 5.1 (fórmula de la temperatura de piel) **deja de ser necesaria**.
+- **El suelo sale a ~297 K** (la Tierra real, ~288 K) porque una Tierra **sin nubes** en equilibrio emite 287 W/m², no 267. Es lo mismo que ya se vio en la Fase 2.2 (§ "Calibración del infrarrojo"). No es un fallo.
 - El diagnóstico de la tropopausa (criterio de 2 K/km) es ruidoso con capas gruesas. En el modelo completo se usará la definición de la OMM bien implementada.
 
 ## 10. Validación del modelo completo
@@ -132,7 +134,7 @@ Equilibrio radiativo-convectivo con la luz absorbida de Wild et al. sin nubes (2
 5. **Convergencia en N** (§9) y **paso de la radiación**.
 6. **Sensibilidad:** exponente del vapor (3/4/5) y reparto vertical del transporte.
 
-## 11. Efecto sobre las decisiones de la Fase 5a
+## 11. Efecto sobre las decisiones de la Fase 5.1
 
 - **Decisión 3 (humedad H2):** se generaliza a **humedad propia en cada una de las N capas**. Desaparece la integración sobre un perfil reconstruido, y la humedad relativa crítica de la condensación se puede acercar a la de los modelos de capas finas.
 - **Decisión 4 (tropopausa por temperatura de piel):** **ya no hace falta**. La tropopausa sale de la radiación y la convección (§9).
@@ -141,9 +143,9 @@ Equilibrio radiativo-convectivo con la luz absorbida de Wild et al. sin nubes (2
 
 ## 12. Limitaciones declaradas
 
-1. **Radiación gris:** no distingue longitudes de onda. Revisión en la 5b / Fase 8.
-2. **Sin ozono:** P3N **tiene oxígeno** (Carlos, 04/10/2026), así que tendrá capa de ozono, que absorbe ultravioleta y calienta la estratosfera. El esquema gris no lo incluye: la estratosfera del modelo sale más fría de lo que sería, y la tropopausa, peor marcada. Efecto en superficie pequeño. Se añade con la radiación por bandas (5b / Fase 8).
-3. **Absorción del vapor con forma fija terrestre** (exponente 4) hasta la 5b.
+1. **Radiación gris:** no distingue longitudes de onda. Revisión en la Fase 5.2.
+2. **Sin ozono:** P3N **tiene oxígeno** (Carlos, 04/10/2026), así que tendrá capa de ozono, que absorbe ultravioleta y calienta la estratosfera. El esquema gris no lo incluye: la estratosfera del modelo sale más fría de lo que sería, y la tropopausa, peor marcada. Efecto en superficie pequeño. Se añade con la radiación por bandas (Fase 5.2).
+3. **Absorción del vapor con forma fija terrestre** (exponente 4) hasta la 5.2.
 4. **Gradiente crítico de 6,5 K/km impuesto** hasta la v3.1.
 5. **Sin nubes.**
 6. **Transporte horizontal difusivo** (remolinos) hasta la Fase 6.
@@ -158,7 +160,7 @@ Equilibrio radiativo-convectivo con la luz absorbida de Wild et al. sin nubes (2
 - oblicuidad 23,44°, día de 86 400 s, radio 6371 km ✅; g = 9,80665 m/s² (estándar, CODATA 2018) ✅;
 - paso de tiempo 900 s.
 
-`modo_tierra.py` da el mapa: tierra/agua con `global-land-mask` (20 × 20 puntos por celda, mayoría), **28,2 % de tierra** (real 29,2 %). Altitud: Antártida 2300 m, Groenlandia 2000 m, resto 0 m, igual que la calibración de la v2.2c.
+`modo_tierra.py` da el mapa: tierra/agua con `global-land-mask` (20 × 20 puntos por celda, mayoría), **28,2 % de tierra** (real 29,2 %). Altitud: Antártida 2300 m, Groenlandia 2000 m, resto 0 m, igual que la calibración de la v2.2.2.
 
 **Limitación:** faltan las demás montañas. En la v3.0 la presión en superficie depende de la altitud, así que esto hace la Tierra simulada un poco más cálida sobre los continentes. Mejora pendiente: altitud media real por celda (ETOPO).
 
@@ -170,7 +172,7 @@ Equilibrio radiativo-convectivo con la luz absorbida de Wild et al. sin nubes (2
 `fase30_multicapa.transporte_meridional()` las integra desde el polo norte y da los PW que cruzan cada latitud.
 
 **`calibrar_v30.py`** (en el PC de Carlos, `M3N_MODO=tierra`). Es una rejilla D_atm ∈ {0,40; 0,55; 0,70; 0,90} × D_oc ∈ {0,12; 0,20}:
-- sin hielo marino, igual que en la v2.2c (el hielo se valida después, con D fijado);
+- sin hielo marino, igual que en la v2.2.2 (el hielo se valida después, con D fijado);
 - simulaciones en paralelo;
 - compara con Trenberth y Caron (2001, resumen ✅): transporte atmosférico máximo **5,0 ± 0,14 PW a 43° N**, parecido hacia 40° S; a 35° la atmósfera lleva el 78 % (N) y el 92 % (S) del total.
 
@@ -199,7 +201,7 @@ Selección:
   - la meseta antártica, por el término g·z de la energía estática;
   - el sur es casi todo mar, con gradientes más suaves.
   En la realidad pesan además las borrascas más intensas del océano austral y el calor latente, que una difusión con un solo D no puede representar.
-- **El reparto entre océano y atmósfera tiene la asimetría al revés** que la observada: el modelo da más océano en el sur. El océano solo difunde; sin corrientes reales (Fase 6b) no se puede corregir.
+- **El reparto entre océano y atmósfera tiene la asimetría al revés** que la observada: el modelo da más océano en el sur. El océano solo difunde; sin corrientes reales (Fase 6.5) no se puede corregir.
 
 **Criterio** (acordado con Carlos): no favorecer a ningún hemisferio.
 - La media de los dos hemisferios del pico atmosférico = 5,0 PW.
@@ -215,10 +217,10 @@ Selección:
 - En forma de D sobre la energía de toda la columna, 1,55 frente a 0,27 W/m²/K: unas **6 veces el de Hwang y Frierson** (1,06×10⁶ m²/s, aplicado a la energía estática HÚMEDA).
 - Explicación parcial:
   - el gradiente meridional de la energía húmeda es aproximadamente el doble que el de la seca;
-  - sin nubes, la diferencia de temperatura entre el ecuador y los polos del modelo es unas 2 veces menor que la real: ~31 K frente a ~60 K. Para el valor real se toman el ecuador a ~27 °C y los polos a −18 °C (N) y −49 °C (S), como en `DISENO_FASE3.md` §6.1.
+  - sin nubes, la diferencia de temperatura entre el ecuador y los polos del modelo es unas 2 veces menor que la real: ~31 K frente a ~60 K. Para el valor real se toman el ecuador a ~27 °C y los polos a −18 °C (N) y −49 °C (S), como en `DISENO_FASE_3.md` §6.1.
 - Juntas explican un factor ~4. **El resto (~1,5) queda sin explicar**: se revisa en la v3.1, cuando el vapor entre en el transporte y D baje.
 
-**Para P3N:** 1,55 × 0,684 = **1,06**. D_oc = 0,27 no se escala.
+**Para P3N:** 1,55 × 0,683 = **1,06**. D_oc = 0,27 no se escala.
 
 **`validar_v30.py`** (05/10/2026). Va después de la calibración, con el D elegido y el hielo encendido.
 - **En modo Tierra** compara con la realidad:
@@ -252,19 +254,19 @@ Llamar a la radiación cada 2 pasos ahorraría solo un ~15 %, así que **no se h
 
 **La v3.0 sale más cálida que la v2.4.3 (pendiente de entender del todo; NO se ajusta nada para esconderlo):**
 - **P3N**, mapa de la pizarra, 1 año sin converger: 19,8 °C frente a 14,4 °C.
-- **Modo Tierra:** 20,0 °C frente a 14,5 °C de la v2.2c.
+- **Modo Tierra:** 20,0 °C frente a 14,5 °C de la v2.2.2.
 
 **Explicación más probable (a):**
 - Las dos versiones simulan una Tierra **sin nubes**, que absorbe ~287 W/m² y en equilibrio tiene que emitir lo mismo, 20 W/m² más que los 267 observados con cielo despejado.
 - En la v3.0, las capas que emiten al espacio están atadas al suelo por el gradiente vertical (6,5 K/km). Para emitir 20 W/m² más se calienta toda la columna: unos 6–8 K, lo esperado para la respuesta de Planck de unos 3 W/m²/K.
 - En la v2.4.3, la "troposfera" es un solo bloque que puede calentarse por su cuenta, con un umbral de ajuste de 40,5 K. Emite el exceso calentando ese bloque, sin calentar el suelo.
-- La v3.0 es la físicamente más realista. La "Tierra sin nubes a 14,5 °C" de la v2.2c era, en parte, un artefacto de las dos capas.
+- La v3.0 es la físicamente más realista. La "Tierra sin nubes a 14,5 °C" de la v2.2.2 era, en parte, un artefacto de las dos capas.
 
 **Consecuencia:**
-- La masa de S3N (0,874) se calibró en la v2.2c para un aire a 2 m de 15,94 °C con el modelo de dos capas.
+- La masa de S3N (0,874) se calibró en la v2.2.2 para un aire a 2 m de 15,94 °C con el modelo de dos capas.
 - Con la v3.0, el mismo Sol da un P3N unos 5 °C más cálido mientras no haya nubes.
-- **Decisión de Carlos, cuando la v3.0 esté validada:** recalibrar la estrella ya, o esperar a las nubes (Fase 5b), que enfriarán.
-  - ✅ **Decidido por Carlos (05/10/2026): esperar a las nubes.** La estrella no se recalibra hasta tener la Fase 5b (o en el barrido final). Reafirmado el 08/10 (`DISENO_FASE6_3.md` §6.14).
+- **Decisión de Carlos, cuando la v3.0 esté validada:** recalibrar la estrella ya, o esperar a las nubes (Fase 5.2), que enfriarán.
+  - ✅ **Decidido por Carlos (05/10/2026): esperar a las nubes.** La estrella no se recalibra hasta tener la Fase 5.2 (o en el barrido final). Reafirmado el 08/10 (`DISENO_FASE_6.3.md` §6.14).
 
 ## 13 bis. Validación de la v3.0 (05/10/2026, en el entorno de la IA, con hielo)
 
@@ -314,13 +316,13 @@ El calentamiento es casi todo polar: +30 K en los polos y +1–3 K en el trópic
   - la retroalimentación del hielo: sin frío no se forma hielo, y sin hielo los polos absorben más luz.
 - En el modelo de dos capas, los polos eran fríos por un motivo equivocado: el bloque alto podía calentarse sin calentar el suelo.
 
-**Matiz (análisis con columnas, `DISENO_V3.1.md` §8 bis):**
+**Matiz (análisis con columnas, `DISENO_FASE_5.1.md` §8 bis):**
 - Lo que más cambia con un τ que depende del vapor no es lo que sale por arriba, sino **el infrarrojo que llega al suelo polar**: en el invierno subártico, 220 W/m² con τ fijo frente a 124 con vapor.
 - Con τ fijo, la superficie polar no puede enfriarse lo bastante para formar hielo, y sin hielo absorbe mucha más luz.
 
 **Consecuencia:** la v3.0 tal cual **no debe encenderse para P3N**.
 
-**La solución física:** que el espesor óptico dependa del vapor que calcula el propio modelo (vapor radiativamente activo, previsto para la 5b). La v3.1 ya tiene ese vapor. **Decisión de Carlos:** adelantar esa parte de la 5b.
+**La solución física:** que el espesor óptico dependa del vapor que calcula el propio modelo (vapor radiativamente activo, previsto para la 5.2). La v3.1 ya tiene ese vapor. **Decisión de Carlos:** adelantar esa parte de la 5.2.
 
 Se descartó usar el τ dependiente de la latitud de Frierson/Isca porque es una forma terrestre (c) impuesta.
 

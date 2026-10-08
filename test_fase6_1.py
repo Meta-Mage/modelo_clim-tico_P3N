@@ -30,7 +30,7 @@ def test_masa_se_conserva_exactamente():
 
 
 def test_energia_se_conserva_en_el_sistema_semidiscreto():
-    """Sin filtro polar, la tendencia de la energia total es cero salvo redondeo (DISENO_FASE6_1.md §3)."""
+    """Sin filtro polar, la tendencia de la energia total es cero salvo redondeo (DISENO_FASE_6.1.md §3)."""
     h, u, v = _estado_ruidoso()
     _, _, _, hs = caso5()
     m = _m(hs=hs, lat_filtro=90.0)
@@ -106,7 +106,7 @@ def _amplificacion_raw(wdt, nu=RAW_NU, al=RAW_ALFA):
 
 
 def test_limite_de_estabilidad_de_raw():
-    """Propiedad del esquema (DISENO_FASE6_1.md §5): leapfrog + RAW (0,53; 0,2) es estable hasta
+    """Propiedad del esquema (DISENO_FASE_6.1.md §5): leapfrog + RAW (0,53; 0,2) es estable hasta
     omega*dt ~ 0,45 y amplifica por encima (0,7 -> 1,0056 por paso)."""
     assert _amplificacion_raw(0.4) <= 1.0
     assert _amplificacion_raw(0.7) > 1.005

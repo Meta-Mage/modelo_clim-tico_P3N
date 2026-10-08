@@ -1,6 +1,6 @@
 # fase6_trazadores.py -- Fase 6.3 (paso 3): transporte de trazadores (vapor) POSITIVO y CONSERVATIVO.
 #
-# Diseno (DISENO_FASE6_3.md §1.5):
+# Diseno (DISENO_FASE_6.3.md §1.5):
 #   - Forma de flujo con las masas de aire de cada celda m y los flujos de masa por cara M (los del nucleo):
 #     la masa de trazador se conserva exactamente y un campo constante sigue constante.
 #   - Separacion por direcciones "consistente con la masa": en cada barrido 1D se actualizan a la vez la masa

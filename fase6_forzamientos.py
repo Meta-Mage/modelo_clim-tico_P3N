@@ -1,8 +1,8 @@
 # fase6_forzamientos.py -- estados iniciales y forzamientos de prueba para el nucleo seco (Fase 6.2).
 #
 #   - Estado de Jablonowski y Williamson (2006) ✅ (formulas cotejadas con el codigo de MPAS,
-#     DISENO_FASE6_2.md §6 prueba 4): equilibrio estacionario + perturbacion opcional.
-#   - Forzamiento de Held y Suarez (1994) ✅² (DISENO_FASE6_2.md §5).
+#     DISENO_FASE_6.2.md §6 prueba 4): equilibrio estacionario + perturbacion opcional.
+#   - Forzamiento de Held y Suarez (1994) ✅² (DISENO_FASE_6.2.md §5).
 
 import math
 import numpy as np

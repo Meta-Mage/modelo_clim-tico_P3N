@@ -1,6 +1,8 @@
 # BORRADOR — Fase 6 de M3N: circulación atmosférica con un núcleo dinámico PROPIO
 
-**Estado: v1 APROBADO (05/10/2026). En desarrollo: 6.1 ✅ (`DISENO_FASE6_1.md`), 6.2 casi ✅ (`DISENO_FASE6_2.md`), 6.3 empezada (`DISENO_FASE6_3.md`).**
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE6_BORRADOR.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
+
+**Estado: v1 APROBADO (05/10/2026). En desarrollo: 6.1 ✅ (`DISENO_FASE_6.1.md`), 6.2 casi ✅ (`DISENO_FASE_6.2.md`), 6.3 empezada (`DISENO_FASE_6.3.md`).**
 
 **Principio (Carlos, 05/10/2026):** M3N es un modelo propio, construido pieza a pieza y de forma exhaustiva y rigurosa. **No se usan otros modelos**: ni sus núcleos ni su física como sustitutos.
 
@@ -16,7 +18,7 @@ Etiquetas: ✅ verificado en la fuente; ⚠️ pendiente de verificar.
 
 ## 0. Por qué la circulación es ahora lo prioritario
 
-Las validaciones de la v3.0 y la v3.1 (`DISENO_V3.0.md` §13 bis; `DISENO_V3.1.md` §8 bis y §10) dan tres fallos con la misma causa: **todo el transporte horizontal es una difusión con un solo coeficiente**.
+Las validaciones de la v3.0 y la v3.1 (`DISENO_FASE_2.3.md` §13 bis; `DISENO_FASE_5.1.md` §8 bis y §10) dan tres fallos con la misma causa: **todo el transporte horizontal es una difusión con un solo coeficiente**.
 
 1. **Polos demasiado cálidos y sin hielo marino.**
 2. **Troposfera libre demasiado húmeda**, con una humedad relativa de ~0,85 en todas partes. En la realidad la seca la **subsidencia**: el aire que baja en los subtrópicos se saturó por última vez muy arriba y muy frío (Pierrehumbert, Brogniez y Roca 2007 ✅). La difusión del vapor no puede producir esa sequedad. Por eso el vapor radiativo (I15) se dispara.
@@ -44,7 +46,7 @@ Hasta ahora M3N calcula, en cada columna de aire, la radiación, la convección,
 
 Todas se resuelven en la rejilla de M3N, con las 20 capas en coordenada σ que ya existen (Phillips 1957 ✅).
 
-El "núcleo dinámico" resuelve ese movimiento. La física actual de M3N se le suma en cada paso, y la difusión desaparece de la atmósfera (el océano la mantiene hasta la Fase 6b).
+El "núcleo dinámico" resuelve ese movimiento. La física actual de M3N se le suma en cada paso, y la difusión desaparece de la atmósfera (el océano la mantiene hasta la Fase 6.5).
 
 ## 3. Decisiones de diseño (opciones, con fuentes)
 
@@ -126,10 +128,10 @@ Cada etapa, igual que hasta ahora: diseño, decisiones de Carlos, código con in
 
 ## 7. Decisiones de Carlos (05/10/2026)
 
-- **Camino B: núcleo dinámico propio.** Esta decisión **sustituye explícitamente** el plan de `DISENO_FASE5A.md` §3.6 ("Fase 6 (decidido)": mantener la D como remolinos más una célula de Hadley parametrizada según Siler, Roe y Armour 2018).
+- **Camino B: núcleo dinámico propio.** Esta decisión **sustituye explícitamente** el plan de `DISENO_FASE_5.md` §3.6 ("Fase 6 (decidido)": mantener la D como remolinos más una célula de Hadley parametrizada según Siler, Roe y Armour 2018).
   - La IA no señaló esa sustitución al proponer este borrador; se hizo después, a petición de Carlos.
   - Alternativas que se descartaron: A, la de Siler et al.; y un camino intermedio, A ahora y B después.
 - **En la atmósfera la D desaparece.** Las borrascas se resuelven explícitamente. Quedan como parametrizaciones de lo que está por debajo de la escala de la rejilla: la hiperdifusión (que solo disipa en la escala de la rejilla), la capa límite y la convección.
   - Si la validación en modo Tierra muestra que falta transporte hacia los polos, porque los remolinos están mal resueltos a 5°, se estudiará una difusión residual **medida, no supuesta**.
-- **Rejilla C, filtro polar desde 60°, RAW con semiimplícito:** confirmadas (`DISENO_FASE6_1.md` §7).
+- **Rejilla C, filtro polar desde 60°, RAW con semiimplícito:** confirmadas (`DISENO_FASE_6.1.md` §7).
 - **Pendiente:** la inclinación del eje (worldbuilding).

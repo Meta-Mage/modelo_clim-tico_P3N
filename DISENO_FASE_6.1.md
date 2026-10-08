@@ -1,5 +1,7 @@
 # Fase 6.1 de M3N: ecuaciones de aguas someras en la esfera (núcleo dinámico propio, primer ladrillo)
 
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE6_1.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
+
 **Estado: código y validación hechos (05/10/2026). Las elecciones marcadas con 🔶 las ha tomado la IA de forma provisional y Carlos tiene que confirmarlas.**
 
 Archivos:

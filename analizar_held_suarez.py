@@ -1,4 +1,4 @@
-# analizar_held_suarez.py -- informe de la prueba de Held y Suarez (DISENO_FASE6_2.md §10).
+# analizar_held_suarez.py -- informe de la prueba de Held y Suarez (DISENO_FASE_6.2.md §10).
 #
 # Uso: python analizar_held_suarez.py      (lee outputs/held_suarez/hs_tau*_medias.npz)
 # Imprime, para cada simulacion y cada hemisferio: el chorro en altura (velocidad, latitud, sigma), el
@@ -39,9 +39,9 @@ def main():
         d = np.load(f)
         lat, sig = d["lat"], d["sigma"]
         res = f"{180 / int(d['filas']):g} grados, " if "filas" in d.files else "5 grados, "
-        if "niveles" in d.files:                                                   # v3.1-pre6
+        if "niveles" in d.files:                                                   # v3.4.0
             res += f"niveles {str(d['niveles'])}, "
-        if int(d["n_medias"]) == 0 or np.ndim(d["u"]) != 2:                       # v3.1-pre6: corrida corta
+        if int(d["n_medias"]) == 0 or np.ndim(d["u"]) != 2:                       # v3.4.0: corrida corta
             print(f"\n=== {os.path.basename(f)}: {res}{int(d['dias'])} dias simulados: sin dias promediados "
                   f"(la media empieza el dia 200); no hay informe ===")
             continue
@@ -68,7 +68,7 @@ def main():
                   f"momento por remolinos hacia el polo (sigma 0,25): max {uv:5.1f} m2/s2 en {abs(luv):5.1f}")
         print(" Referencia (HS94): chorros hacia ~45 grados y ~250 hPa (verificado en Mendonca et al. 2016, THOR); "
               "la velocidad, ~30 m/s, sigue pendiente de cita textual.")
-        alto = sig < 0.02                                                          # v3.1-pre6: vigilancia del techo
+        alto = sig < 0.02                                                          # v3.4.0: vigilancia del techo
         if alto.any() and d["u1"].ndim == 2 and d["u2"].ndim == 2:
             ua1 = float(np.abs(d["u1"][alto]).max()); ua2 = float(np.abs(d["u2"][alto]).max())
             print(f" Capas altas (centro < 20 hPa): |u zonal medio| max {float(np.abs(d['u'][alto]).max()):.1f} m/s "

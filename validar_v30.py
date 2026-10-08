@@ -1,4 +1,4 @@
-# validar_v30.py -- v3.0: validacion de la atmosfera de N capas (DISENO_V3.0.md, seccion 10).
+# validar_v30.py -- v3.0: validacion de la atmosfera de N capas (DISENO_FASE_2.3.md, seccion 10).
 #
 # Uso (terminal B, venv de M3N), DESPUES de calibrar D con calibrar_v30.py:
 #     M3N_MODO=tierra python validar_v30.py     # la Tierra frente a la realidad
@@ -25,7 +25,7 @@
 #   - hielo marino: extension maxima y minima de cada hemisferio;
 #   - transporte de calor hacia los polos (atmosfera y oceano).
 # Los valores observados de referencia (la Tierra) se imprimen al lado
-# solo donde hay una fuente verificada; ver DISENO_V3.0.md.
+# solo donde hay una fuente verificada; ver DISENO_FASE_2.3.md.
 
 import os
 import sys
@@ -41,11 +41,11 @@ CARPETA = os.path.join("outputs", "validacion_v30")
 BANDAS = [(90, 60), (60, 30), (30, 10), (10, -10), (-10, -30), (-30, -60), (-60, -90)]
 
 # Referencias de la Tierra (solo las verificadas):
-# Wild et al. (2019), cielo despejado, W/m2 (DISENO_FASE2B.md, tabla de la luz): llega al suelo 247 y el
+# Wild et al. (2019), cielo despejado, W/m2 (DISENO_FASE_2.2.md, tabla de la luz): llega al suelo 247 y el
 # suelo absorbe 214 (v3.1: antes se comparaba por error lo absorbido con lo que llega), atmosfera 73,
 # reflejada 53 (incluida la del suelo); DLR 314; OLR 267 (estos dos, con la atmosfera REAL, calentada
 # tambien por las nubes: el modelo sin nubes debe dar un OLR mayor, igual a lo absorbido).
-# NSIDC, extension del hielo marino, media 1981-2010 (DISENO_FASE3.md, 6.1): Artico max 15,6 / min ~6;
+# NSIDC, extension del hielo marino, media 1981-2010 (DISENO_FASE_3.md, 6.1): Artico max 15,6 / min ~6;
 # Antartico max ~18-19 / min ~3 millones de km2.
 REF_WILD = {"sw_suelo": 214, "sw_atm": 73, "reflejada": 53, "dlr": 314, "olr": 267}
 REF_HIELO = {"N_max": 15.6, "N_min": 6, "S_max": 18.5, "S_min": 3}
@@ -224,7 +224,7 @@ def main():
         L.append(f"  {nom:28s} {flu[k]:7.1f} {ref}")
     if P.MODO_TIERRA:
         L.append("  (DLR y OLR observados son con la atmosfera real, calentada tambien por las nubes; sin nubes, el OLR")
-        L.append("   del modelo debe igualar lo absorbido. Ver DISENO_V3.0.md.)")
+        L.append("   del modelo debe igualar lo absorbido. Ver DISENO_FASE_2.3.md.)")
     L.append("")
     L.append(f"AIRE A 2 m, media anual (C): global {media_area(r3['reg_media'].mean(0)):.2f}"
              + (f" (v2.4.3: {media_area(r2['reg_media'].mean(0)):.2f})" if r2 else ""))

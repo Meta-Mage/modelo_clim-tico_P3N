@@ -1,8 +1,10 @@
-# DISEÑO — M3N v3.1: ciclo del agua (Fase 5a) sobre la atmósfera de N capas
+# DISEÑO — M3N v3.1: ciclo del agua (Fase 5.1) sobre la atmósfera de N capas
+
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_V3.1.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
 
 **Estado (05/10/2026): código hecho y probado (conservación exacta). Calibración y validación en curso (§9).** Los interruptores I11–I14 están **apagados por defecto**: el clima exportado de P3N no cambia hasta que Carlos decida encenderlos.
 
-Por decisión de Carlos (05/10/2026, noche), la IA desarrolla la v3.1 con los criterios de siempre y se los explica después. Las decisiones de fondo ya estaban tomadas en `DISENO_FASE5A.md` (§1 y §11). Este documento describe **cómo** se han implementado, qué se ha cambiado respecto al borrador de la 5a por tener ya N capas, y qué queda pendiente.
+Por decisión de Carlos (05/10/2026, noche), la IA desarrolla la v3.1 con los criterios de siempre y se los explica después. Las decisiones de fondo ya estaban tomadas en `DISENO_FASE_5.md` (§1 y §11). Este documento describe **cómo** se han implementado, qué se ha cambiado respecto al borrador de la 5.1 por tener ya N capas, y qué queda pendiente.
 
 Etiquetas: (a) física universal, (b) propiedad de P3N, (c) calibración terrestre. Estado: ✅ verificado, ⚠️ pendiente.
 
@@ -35,11 +37,11 @@ Todo **conserva exactamente** la energia (aire c_p·T, vapor L·q, superficie, h
 
 Con I11–I14 apagados, la v3.0 queda exactamente igual (prueba V0).
 
-**Cambio de numeración:** en `DISENO_FASE5A.md` estaban previstos como I10–I13. I10 lo ocupó la atmósfera de N capas.
+**Cambio de numeración:** en `DISENO_FASE_5.md` estaban previstos como I10–I13. I10 lo ocupó la atmósfera de N capas.
 
 ## 2. Saturación (a) ✅
 
-- e_s sobre agua y sobre hielo con la fórmula de Ambaum (2020). Constantes de MetPy, como en `DISENO_FASE5A.md` §3.1.
+- e_s sobre agua y sobre hielo con la fórmula de Ambaum (2020). Constantes de MetPy, como en `DISENO_FASE_5.md` §3.1.
 - q_s = ε·e_s / (p − (1 − ε)·e_s).
 - dq_s/dT exacta: d ln e_s/dT = L(T)/(R_v T²).
 - En la convección, una **tabla** cada 0,005 K (como `escomp` de Isca), con un error < 3×10⁻⁷.
@@ -48,7 +50,7 @@ Con I11–I14 apagados, la v3.0 queda exactamente igual (prueba V0).
 - La saturación sobre agua se usa en el océano, el suelo y toda la atmósfera; sobre hielo, en el hielo marino y en la nieve.
   - **Limitación:** la condensación en la atmósfera usa siempre la saturación sobre agua, como en Isca.
 
-## 3. Evaporación, sublimación y rocío (a + c) — `DISENO_FASE5A.md` §3.3
+## 3. Evaporación, sublimación y rocío (a + c) — `DISENO_FASE_5.md` §3.3
 
 E = ρ·C_H·U·β·(q_s(T_sup) − q_aire), con C_E = C_H y la misma corrección de estabilidad de Louis que el calor sensible.
 - **Implícita en el vapor de la capa baja** (DISENO_FASE5A §3.3, Riesgo 4) y explícita en la temperatura de la superficie.
@@ -103,7 +105,7 @@ Otros detalles:
 ## 6. Condensación de gran escala y precipitación
 
 - Isca `lscale_cond` con `hc = 1` y sin reevaporación (✅ código; Manabe et al. 1965 ✅). Un paso de Newton con el calentamiento latente.
-- **RH crítica = 1** (y no < 1 como preveía `DISENO_FASE5A.md` §3.7). La RH < 1 era para dos capas gruesas; con 20 capas, la resolución vertical es la de un modelo de capas finas (Isca, Frierson 2006).
+- **RH crítica = 1** (y no < 1 como preveía `DISENO_FASE_5.md` §3.7). La RH < 1 era para dos capas gruesas; con 20 capas, la resolución vertical es la de un modelo de capas finas (Isca, Frierson 2006).
   - **Sensibilidad pendiente:** 0,9.
   - Los modelos con nubes usan RH críticas de 0,7–0,9 para la **fracción de nubes** (CAM3 ✅, Met Office ✅), no para la condensación.
 - **Lluvia o nieve:** rampa lineal con el aire a 2 m, toda nieve a ≤ 0 °C y toda lluvia a ≥ 2 °C (CLM5 ✅). Jennings et al. (2018) ✅ dan el umbral del 50 % observado en tierra en 1,0 °C de media, el centro de la rampa.
@@ -118,11 +120,11 @@ Otros detalles:
 - **Nieve:** reserva S (kg/m² de agua).
   - Se funde con la energía del suelo por encima de 0 °C.
   - El agua de la fusión va al cubo.
-- **Tope:** S_max = 1000 kg/m² (el del CLM4.5 ✅, vía `DISENO_FASE5A.md` §3.10). Lo que sobra va al océano como descarga glaciar y se funde a costa del océano (agua y energía conservadas).
+- **Tope:** S_max = 1000 kg/m² (el del CLM4.5 ✅, vía `DISENO_FASE_5.md` §3.10). Lo que sobra va al océano como descarga glaciar y se funde a costa del océano (agua y energía conservadas).
 - **Albedo gradual:** fracción cubierta S/(S + 10 kg/m²). La constante de 10 kg/m² es (c) ⚠️, sin fuente: unos 4 cm de nieve de 250 kg/m³ cubren media celda.
 - **Fundiéndose:** el albedo baja linealmente en el último grado antes de 0 °C (CICE ✅).
 - **Limitaciones:**
-  - sin aislamiento térmico de la nieve (ni en tierra ni sobre el hielo marino; PENDIENTE desde la 5a);
+  - sin aislamiento térmico de la nieve (ni en tierra ni sobre el hielo marino; PENDIENTE desde la 5.1);
   - sin envejecimiento de la nieve.
 
 ## 8. Suelo según su agua (I13) y albedo según la estrella (I14)
@@ -155,7 +157,7 @@ Otros detalles:
 
 ## 8 bis. Vapor radiativo (I15, PROTOTIPO, 05/10/2026) — pendiente de decisión de Carlos
 
-**Motivo.** La validación de la v3.0 (`DISENO_V3.0.md` §13 bis): polos demasiado cálidos y sin hielo. Con un espesor óptico fijo, el aire polar, frío y seco, es tan opaco al infrarrojo como el tropical.
+**Motivo.** La validación de la v3.0 (`DISENO_FASE_2.3.md` §13 bis): polos demasiado cálidos y sin hielo. Con un espesor óptico fijo, el aire polar, frío y seco, es tan opaco al infrarrojo como el tropical.
 
 **Esquema:**
 - d(τ) = (A + B·q)·dp/P0, la forma de Byrne y O'Gorman (2013), verificada en el código de Isca (esquema `byrne`, que con su modelo usa A = 0,8678 y B = 1997,9).
@@ -216,7 +218,7 @@ Ver §10, que se rellena con los resultados.
 
 ## 10. Resultados
 
-Estado al entregar la v3.1-pre2 (05/10/2026, mediodía). Todas las simulaciones están hechas en el entorno de la IA (~30 min por año terrestre) y **ninguna ha llegado aún al equilibrio**:
+Estado al entregar el borrador de la v3.1 (05/10/2026, mediodía; nunca se aplicó por separado: está incluido en la v3.1.0). Todas las simulaciones están hechas en el entorno de la IA (~30 min por año terrestre) y **ninguna ha llegado aún al equilibrio**:
 
 | Modo Tierra, superficie | Año 1 | Año 2 | Año 3 |
 |---|---|---|---|
@@ -232,7 +234,7 @@ Lectura provisional:
 - La humedad relativa de la troposfera libre (~0,83 con RH_ref = 0,8) es demasiado alta, porque falta la subsidencia de la Fase 6. Con RH_ref = 0,6 baja a ~0,58 y el agua precipitable se acerca a la observada.
 - **Pendiente:** la calibración de D con el vapor y la validación completa (`validar_v30.py --v31`), mejor en el PC de Carlos.
 
-**Aviso:** la validación de la v3.0 (`DISENO_V3.0.md` §13 bis) ya mostró que, con un espesor óptico fijo, los polos salen demasiado cálidos y sin hielo. La v3.1 no lo arregla, y el vapor radiativo, con la humedad actual, lo empeora (§8 bis).
+**Aviso:** la validación de la v3.0 (`DISENO_FASE_2.3.md` §13 bis) ya mostró que, con un espesor óptico fijo, los polos salen demasiado cálidos y sin hielo. La v3.1 no lo arregla, y el vapor radiativo, con la humedad actual, lo empeora (§8 bis).
 
 **Punto de control (05/10/2026):** `simular_fase2b(..., archivo_estado=ruta)` guarda el estado completo al acabar cada año y, si se relanza con el mismo archivo y los mismos parámetros, continúa donde se quedó. El resultado es el mismo bit a bit que sin interrupción (`test_v31.py`).
 

@@ -1,6 +1,6 @@
 # fase6_aguas_someras.py -- Fase 6, etapa 6.1: ecuaciones de aguas someras en la esfera.
 #
-# Primer ladrillo del nucleo dinamico PROPIO de M3N (DISENO_FASE6_BORRADOR.md, DISENO_FASE6_1.md).
+# Primer ladrillo del nucleo dinamico PROPIO de M3N (DISENO_FASE_6.md, DISENO_FASE_6.1.md).
 # Una sola capa de fluido sobre la esfera en rotacion; sirve para construir y validar, con soluciones
 # conocidas, lo que despues usara el nucleo de 20 capas: la rejilla escalonada, el termino de
 # Coriolis y vorticidad, el gradiente de presion, la conservacion de la masa y de la energia, el
@@ -17,7 +17,7 @@
 #         dh/dt = - div(h v)
 #     con q = (zeta + f)/h la vorticidad potencial en las esquinas (zeta por circulacion, teorema de
 #     Stokes) y el producto q(hv) en la forma de Sadourny que conserva la energia (Sadourny 1975 ⚠️
-#     cita por verificar). DEMOSTRACION PROPIA (DISENO_FASE6_1.md §3): con h en las caras = media
+#     cita por verificar). DEMOSTRACION PROPIA (DISENO_FASE_6.1.md §3): con h en las caras = media
 #     aritmetica, K = (1/2A) sum_caras (A_cara u^2)/2 y estos pesos, la energia total se conserva
 #     EXACTAMENTE en el sistema semidiscreto; solo el paso de tiempo y el filtro polar la alteran.
 #   - Masa: forma de flujo -> la masa total se conserva exactamente (redondeo).

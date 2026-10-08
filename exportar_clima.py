@@ -28,7 +28,7 @@
 # v2.4.3: son HORAS DE P3N (1/24 del dia solar, DURACION_HORA s).
 # Hora solar local de una celda = hora del meridiano 0 + longitud/15.
 #
-# La documentacion completa del formato esta en DISENO_FASE4.md.
+# La documentacion completa del formato esta en DISENO_FASE_4.md.
 
 import hashlib
 import json

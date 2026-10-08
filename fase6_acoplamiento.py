@@ -1,6 +1,6 @@
 # fase6_acoplamiento.py -- Fase 6.3 (paso 5, primeras piezas): utilidades para acoplar la fisica de columna
 # de M3N (que trabaja en el CENTRO de cada celda) con el nucleo dinamico (rejilla C: u en las caras oeste,
-# v en las caras sur). Diseno: DISENO_FASE6_3.md §6.7.
+# v en las caras sur). Diseno: DISENO_FASE_6.3.md §6.7.
 #
 # 1. viento_en_centros: u, v de las caras -> centros (media de las dos caras; en las filas polares la cara
 #    del polo tiene v = 0, como en el nucleo).
@@ -8,7 +8,7 @@
 #    (media de los dos centros vecinos). Es la traspuesta de la anterior en el producto escalar SIN pesos
 #    (prueba exacta en test_fase6_acoplamiento.py). Con los pesos de masa y area del nucleo no conserva
 #    exactamente ni el momento ni la energia: la energia la cierra calor_rozamiento_exacto y el momento se
-#    mide (DISENO_FASE6_3.md §6.7).
+#    mide (DISENO_FASE_6.3.md §6.7).
 # 3. calor_rozamiento_exacto: DIAGNOSTICO. Calentamiento que devolveria exactamente la energia cinetica perdida
 #    con la definicion del nucleo (NucleoSeco.energia_cinetica), dT = -(K_1 - K_0)/cp. Medido el 07/10 tras 30
 #    dias de Held y Suarez: aplicarlo celda a celda cierra la energia, pero enfria un 1,2 % de las (celda, capa)

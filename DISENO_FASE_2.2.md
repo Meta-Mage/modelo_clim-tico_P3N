@@ -1,9 +1,11 @@
-# M3N — Diseño de la Fase 2b: atmósfera con cuerpo
+# M3N — Diseño de la Fase 2.2: atmósfera con cuerpo
 
-**Estado:** aprobado por Carlos (02/10/2026) e **implementado** en `fase2b_atmosfera.py` (02/10/2026). La sección 11 recoge lo que cambió al implementarlo y los resultados de la validación, y la sección 12 las correcciones de la versión v2.2c.
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE2B.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
+
+**Estado:** aprobado por Carlos (02/10/2026) e **implementado** en `fase2b_atmosfera.py` (02/10/2026). La sección 11 recoge lo que cambió al implementarlo y los resultados de la validación, y la sección 12 las correcciones de la versión v2.2.2.
 
 > **Cómo leer este documento (v2.4.1).** Las secciones 0–10 son el **diseño original**, escrito antes de implementar. Se conservan como registro de cómo se razonó, pero varios valores y detalles cambiaron después (secciones 11 y 12). **Los valores vigentes están en la sección 13**; si algo de las secciones 0–10 la contradice, prevalece la 13.
-**Fecha:** 01/10/2026 · **Versión prevista:** `v2.2b` · **Parte de:** `v2.2` (commit `a0b5059` + arreglo del solsticio)
+**Fecha:** 01/10/2026 · **Versión prevista:** `v2.2.1` · **Parte de:** `v2.2` (commit `a0b5059` + arreglo del solsticio)
 
 ---
 
@@ -14,7 +16,7 @@ Hoy, en M3N, el suelo es lo único que tiene temperatura. La atmósfera es un fi
 - tira al espacio el 40 % de la luz que atenúa (τ = 0,3);
 - devuelve calor al suelo **al instante**, calculado con la temperatura del propio suelo: `(1 − ε/2)·σT⁴`.
 
-La Fase 2b la convierte en dos capas con temperatura y capacidad propias:
+La Fase 2.2 la convierte en dos capas con temperatura y capacidad propias:
 
 | Capa | Qué representa | Capacidad (1 bar) | Responde en |
 |---|---|---|---|
@@ -45,23 +47,23 @@ Comprobado sobre el código y los resultados de `analisis_global.py` (mapa `prue
 
 | Síntoma | Causa | Se resuelve en |
 |---|---|---|
-| Tierra ecuatorial con ~35 °C de diferencia día/noche (como un desierto de roca) | Solo frenan la oscilación la radiación (~3,8 W/m²/K) y el subsuelo (~21 W/m²/K); falta el aire | 2b (calor sensible + atmósfera con capacidad) |
-| La radiación nocturna hacia el suelo cae con el suelo | La atmósfera no tiene temperatura propia | 2b |
-| El 40 % de la luz atenuada desaparece del balance | `i_atm()` multiplica por `exp(−τ·m)` y el resto no va a ningún sitio | 2b (reparto de la luz) |
-| τ = 0,3 deja llegar al suelo solo el 60 % de la luz (medido en la Tierra sin nubes: 72,6 %) | τ demasiado alto | 2b (τ ≈ 0,18) |
-| La difusión borra el contraste tierra/mar | D actúa sobre la piel del suelo (1–2 cm de roca) | 2b (difusión reubicada) |
-| Una montaña solo "parece" fría en las tablas | `correccion_altitud()` se aplica después de simular | 2b (altitud en la física) |
-| Océano ecuatorial a 32–35 °C | Falta la evaporación | **Fase 5** (no en 2b) |
-| Océano polar líquido a −10 °C | Falta el hielo | **Fase 3** (no en 2b) |
+| Tierra ecuatorial con ~35 °C de diferencia día/noche (como un desierto de roca) | Solo frenan la oscilación la radiación (~3,8 W/m²/K) y el subsuelo (~21 W/m²/K); falta el aire | 2.2 (calor sensible + atmósfera con capacidad) |
+| La radiación nocturna hacia el suelo cae con el suelo | La atmósfera no tiene temperatura propia | 2.2 |
+| El 40 % de la luz atenuada desaparece del balance | `i_atm()` multiplica por `exp(−τ·m)` y el resto no va a ningún sitio | 2.2 (reparto de la luz) |
+| τ = 0,3 deja llegar al suelo solo el 60 % de la luz (medido en la Tierra sin nubes: 72,6 %) | τ demasiado alto | 2.2 (τ ≈ 0,18) |
+| La difusión borra el contraste tierra/mar | D actúa sobre la piel del suelo (1–2 cm de roca) | 2.2 (difusión reubicada) |
+| Una montaña solo "parece" fría en las tablas | `correccion_altitud()` se aplica después de simular | 2.2 (altitud en la física) |
+| Océano ecuatorial a 32–35 °C | Falta la evaporación | **Fase 5** (no en 2.2) |
+| Océano polar líquido a −10 °C | Falta el hielo | **Fase 3** (no en 2.2) |
 
 ### Qué estaba ya en el plan y qué no
 
 | Mecanismo | ¿Estaba? | Dónde queda |
 |---|---|---|
-| Calor sensible | No | 2b |
+| Calor sensible | No | 2.2 |
 | Evaporación (calor latente) | Sí, Fase 5 | Fase 5 |
-| Atmósfera que almacena calor | Solo en parte (Fase 8: "varios niveles") | 2b pone 2 capas; la Fase 8 añade más |
-| Luz absorbida por la atmósfera | No | 2b |
+| Atmósfera que almacena calor | Solo en parte (antigua Fase 8, "varios niveles", hoy Fase 2.3) | la 2.2 pone 2 capas; la 2.3 (antigua Fase 8) añade más |
+| Luz absorbida por la atmósfera | No | 2.2 |
 
 ---
 
@@ -136,7 +138,7 @@ H = ρ · c_p · C_H · U · (θ_s − θ_b)
 - `C_H`: coeficiente de intercambio. Tiene dos partes:
   - **Neutro (sin efectos de estabilidad):**
     - **Océano:** `C_H ≈ 1,1×10⁻³` (Large y Pond 1982; Smith 1988).
-    - **Tierra:** depende de la rugosidad del terreno `z0` mediante `C_HN = κ² / [ln(z/z0m)·ln(z/z0h)]` (κ = 0,4, z = 10 m, z0h = z0m/10). Con **suelo desnudo (z0m = 0,01 m, decisión de Carlos)** sale **2,5×10⁻³**. La vegetación (z0m mayor) llegará por bioma en la Fase 7b.
+    - **Tierra:** depende de la rugosidad del terreno `z0` mediante `C_HN = κ² / [ln(z/z0m)·ln(z/z0h)]` (κ = 0,4, z = 10 m, z0h = z0m/10). Con **suelo desnudo (z0m = 0,01 m, decisión de Carlos)** sale **2,5×10⁻³**. La vegetación (z0m mayor) llegará por bioma en la Fase 7.2.
   - **Estabilidad:** funciones de **Louis, Tiedtke y Geleyn (1982)**, que dependen del número de Richardson (mide si el aire de abajo está más caliente que el de arriba):
     - suelo más caliente que el aire (día): `C_H` aumenta, típicamente ×2–3;
     - suelo más frío (noche): `C_H` cae mucho. Es la inversión nocturna: el aire frío pegado al suelo apenas se mezcla.
@@ -175,14 +177,14 @@ D_oc  = f·D         → actúa sobre la capa de mezcla del océano
 
 - `D = 0,55` sigue siendo el total (Williams y Kasting 1997; decisión del 28/09).
 - `f` se **calibra**, no se elige: se diagnostica el transporte meridiano de cada componente y se ajusta `f` para que el océano lleve en torno al **15–25 %** del total en latitudes medias, como en la Tierra.
-- **Limitación:** con D constante no se reproduce que el océano domine en el trópico profundo. Eso queda para la Fase 6b (corrientes), que sustituirá `D_oc`.
+- **Limitación:** con D constante no se reproduce que el océano domine en el trópico profundo. Eso queda para la Fase 6.5 (corrientes), que sustituirá `D_oc`.
 - **Sobre tierra no hay difusión de superficie.** La tierra recibe el calor transportado a través del aire (calor sensible y radiación). Esto es lo que devolverá el contraste tierra/mar.
 
 **Interruptor I6 (difusión reubicada):** apagado → D sobre la capa 0, como ahora.
 
 ### 2.6 Altitud dentro de la física
 
-Hoy `correccion_altitud()` (−6,5 °C/km) se aplica solo a los resultados. Propuesta para 2b:
+Hoy `correccion_altitud()` (−6,5 °C/km) se aplica solo a los resultados. Propuesta para 2.2:
 
 - La temperatura del aire de referencia en una celda con altitud `z_s` se obtiene restando `Γ = 6,5 K/km × z_s`, y **esa** es la que entra en el calor sensible y en el aire a 2 m. Así, una meseta intercambia calor con aire más frío y se enfría de verdad.
 - Se elimina la corrección a posteriori (se haría dos veces).
@@ -219,13 +221,13 @@ Diagnóstico: se interpola entre la superficie (`T_s`) y el aire de la CL con el
 | `ε_b`, `ε_t` | por calibrar | DLR 314 y OLR 267 (Wild et al. 2019) | Se calibra |
 | Viento U | 5 m/s | Provisional hasta la Fase 6 | Provisional |
 | `C_H` océano (neutro) | 1,1×10⁻³ | Large y Pond 1982; Smith 1988 | Fijo |
-| `z0m` tierra | 0,01 m (`C_HN` ≈ 2,5×10⁻³) | Suelo desnudo (decisión de Carlos, 02/10); Garratt 1992 | Fijo hasta la Fase 7b |
+| `z0m` tierra | 0,01 m (`C_HN` ≈ 2,5×10⁻³) | Suelo desnudo (decisión de Carlos, 02/10); Garratt 1992 | Fijo hasta la Fase 7.2 |
 | Estabilidad | Louis 1979 | — | Fijo |
 | Γ_c (ajuste convectivo) | 6,5 K/km | Manabe y Wetherald 1967 | Fijo |
 | D total | 0,55 W/m²/K | Williams y Kasting 1997 | Fijo (decisión 28/09) |
 | Fracción oceánica `f` | por calibrar (océano ~15–25 % en latitudes medias) | Trenberth y Caron 2001 | Se calibra |
 | Masa de S3N | ~0,85 M☉ (estimación) | Calibración: media global del aire a 2 m = **15,5 °C** (decisión de Carlos, 02/10) | Se calibra al final |
-| Inercia tierra | 2500 (sin cambios) | Roca densa; rango real 400–2500 | Pendiente para la Fase 7b |
+| Inercia tierra | 2500 (sin cambios) | Roca densa; rango real 400–2500 | Pendiente para la Fase 7.2 |
 | Inercia agua | 1,2×10⁶ (≈ 48 m de capa de mezcla) | Sin cambios | Fijo |
 
 ---
@@ -243,7 +245,7 @@ Diagnóstico: se interpola entre la superficie (`T_s`) y el aire de la CL con el
 
 ## 5. Optimización
 
-Objetivo: que una simulación completa de 2b **no tarde más** que la de `v2.2` (~8 min con `prueba1`).
+Objetivo: que una simulación completa de 2.2 **no tarde más** que la de `v2.2` (~8 min con `prueba1`).
 
 1. **Medir primero.** Perfilar la simulación actual (`cProfile`) para ver dónde se va el tiempo. No se optimiza nada sin medir.
 2. **Arranque cercano al equilibrio.** Hoy se tarda ~16 años en converger, sobre todo por el océano. Opciones, por orden de preferencia y a decidir según las medidas:
@@ -281,9 +283,9 @@ Objetivo: que una simulación completa de 2b **no tarde más** que la de `v2.2` 
 
 - **Fase 3 (hielo):** usará mínimas realistas. El hielo marino irá con la formulación por entalpía de Wagner y Eisenman (2015) y la nieve en tierra con la temperatura del suelo. Los problemas de la conversación perdida (todo el continente congelado, −225 °C sin difusión, 8,9 % de desequilibrio) se reexaminan con V1.
 - **Fase 5:** la evaporación será otro flujo como H (misma fórmula bulk con humedad). Las nubes cambiarán el reparto de la luz de 2.1. El vapor de agua hará que `ε` dependa de la humedad.
-- **Fase 6:** sustituye el viento constante. **Fase 6b:** sustituye `D_oc`.
-- **Fase 7 (biomas):** Köppen usa la temperatura del aire a 2 m, que existirá desde 2b. **Fase 7b:** rugosidad e inercia por bioma.
-- **Fase 8:** amplía las dos capas a varias.
+- **Fase 6:** sustituye el viento constante. **Fase 6.5:** sustituye `D_oc`.
+- **Fase 7 (biomas):** Köppen usa la temperatura del aire a 2 m, que existirá desde 2.2. **Fase 7.2:** rugosidad e inercia por bioma.
+- **Fase 8 (hoy Fase 2.3):** amplía las dos capas a varias.
 - **Barrido final de parámetros** (propuesta de Carlos, 01/10): al terminar M3N, nuevo barrido de masa estelar, órbita, presión y ε para fijar el mundo definitivo.
 
 ---
@@ -304,7 +306,7 @@ Cada pieza lleva su interruptor y su validación antes de pasar a la siguiente.
 10. **Test de energía nuevo** (V1, V2) y sensibilidad (V5).
 11. **Optimización** según el perfilado.
 12. **Calibración de la masa de S3N.**
-13. **Comparación antes/después** con `analisis_global.py`, documentación y tag `v2.2b`.
+13. **Comparación antes/después** con `analisis_global.py`, documentación y tag `v2.2.1`.
 
 ---
 
@@ -312,7 +314,7 @@ Cada pieza lleva su interruptor y su validación antes de pasar a la siguiente.
 
 **Tomadas por Carlos (01/10/2026):**
 
-- Fase 2b antes del hielo.
+- Fase 2.2 antes del hielo.
 - Presión 1 bar.
 - Dos capas (CL + troposfera) en lugar de una capa con desfase fijo.
 - Viento constante provisional y estabilidad día/noche (concretada como Louis 1979).
@@ -322,7 +324,7 @@ Cada pieza lleva su interruptor y su validación antes de pasar a la siguiente.
 - Altitud: basta con la propuesta de 2.6 por ahora (02/10).
 - Altitud máxima del mapa: 5000 m, no 8848 m (02/10).
 - Barrido final de parámetros al terminar M3N.
-- Versión `v2.2b`.
+- Versión `v2.2.1`.
 - Se permite ejecutar simulaciones y tests para validar.
 
 **Pendientes:** ninguna para empezar a programar.
@@ -331,7 +333,7 @@ Cada pieza lleva su interruptor y su validación antes de pasar a la siguiente.
 
 ## 11. Implementación y validación (02/10/2026)
 
-Código: `fase2b_atmosfera.py` (física, interruptores) y `cache_simulacion.py` (`simular_fase2b_cacheada`, `simular_modelo_cacheado`). Las cuatro herramientas usan ya la Fase 2b; sus tablas dan la **temperatura del aire a 2 m**.
+Código: `fase2b_atmosfera.py` (física, interruptores) y `cache_simulacion.py` (`simular_fase2b_cacheada`, `simular_modelo_cacheado`). Las cuatro herramientas usan ya la Fase 2.2; sus tablas dan la **temperatura del aire a 2 m**.
 
 ### Cambios respecto al diseño (decididos al implementar)
 
@@ -358,7 +360,7 @@ Código: `fase2b_atmosfera.py` (física, interruptores) y `cache_simulacion.py` 
 - **Tierra ecuatorial:** aire a 2 m con mínima 23,4, media 27,2 y máxima 31,4 °C. **Oscilación día/noche del aire ~8 °C** (realista para los trópicos) y del suelo ~20 °C (suelo desnudo, sin evaporación: típico de zonas semiáridas). Antes, 35 °C en el suelo y nada que separara el aire del suelo.
 - **Océano ecuatorial:** ~33 °C (sigue alto: falta la evaporación, Fase 5). **Océano polar:** −28 a −35 °C y líquido (falta el hielo, Fase 3).
 - **Troposfera:** de ~−2 °C (ecuador) a ~−35 °C (polos), media en masa.
-- **Tiempo:** ~6 min por simulación completa (11 años con 2 saltos, ~32 s por año), frente a ~8,5 min de `v2.2` antes de optimizar y ~2 min después. La Fase 2b cuesta más por año (dos capas de aire, dos sistemas de difusión).
+- **Tiempo:** ~6 min por simulación completa (11 años con 2 saltos, ~32 s por año), frente a ~8,5 min de `v2.2` antes de optimizar y ~2 min después. La Fase 2.2 cuesta más por año (dos capas de aire, dos sistemas de difusión).
 
 ### Pendientes conocidos
 
@@ -369,9 +371,9 @@ Código: `fase2b_atmosfera.py` (física, interruptores) y `cache_simulacion.py` 
 
 ---
 
-## 12. Versión v2.2c (02/10/2026): auditoría y correcciones
+## 12. Versión v2.2.2 (02/10/2026): auditoría y correcciones
 
-Tras auditar la v2.2b antes de la Fase 3 se corrigen cuatro cosas. Todas cambian sobre todo la temperatura de las regiones polares, de la que depende el hielo.
+Tras auditar la v2.2.1 antes de la Fase 3 se corrigen cuatro cosas. Todas cambian sobre todo la temperatura de las regiones polares, de la que depende el hielo.
 
 ### 12.1 Error corregido: umbral del ajuste convectivo
 
@@ -390,7 +392,7 @@ Para la fracción difusa, el haz directo se atenúa con un espesor óptico 0,285
 
 | Seno de la altura del sol | 1 | 0,8 | 0,5 | 0,3 | 0,2 | 0,1 |
 |---|---|---|---|---|---|---|
-| M3N v2.2c | 0,032 | 0,036 | 0,072 | 0,142 | 0,182 | 0,181 |
+| M3N v2.2.2 | 0,032 | 0,036 | 0,072 | 0,142 | 0,182 | 0,181 |
 | Taylor et al. (1996), según la literatura | 0,030 | 0,039 | 0,065 | 0,105 | 0,139 | 0,191 |
 
 Coincide bien con la parametrización empírica de Taylor et al. (1996). Aviso: los coeficientes de Taylor (0,037/(1,1·μ^1,4 + 0,15)) no se pudieron verificar en el artículo original porque el acceso estaba bloqueado. Se usan solo como comprobación independiente, no en el modelo.
@@ -429,8 +431,8 @@ Mapa `prueba1`, media anual zonal del aire a 2 m (°C):
 
 | Latitud | 87,5 N | 72,5 N | 62,5 N | 47,5 N | 32,5 N | 17,5 N | 2,5 N | 17,5 S | 32,5 S | 47,5 S | 62,5 S | 72,5 S | 87,5 S |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| v2.2b | −36,2 | −23,4 | −9,8 | 9,1 | 22,6 | 28,7 | 30,1 | 27,3 | 21,1 | 7,5 | −11,1 | −24,1 | −36,8 |
-| v2.2c | −24,4 | −15,7 | −5,7 | 9,3 | 20,9 | 28,0 | 30,0 | 26,5 | 19,4 | 7,6 | −7,2 | −16,6 | −25,1 |
+| v2.2.1 | −36,2 | −23,4 | −9,8 | 9,1 | 22,6 | 28,7 | 30,1 | 27,3 | 21,1 | 7,5 | −11,1 | −24,1 | −36,8 |
+| v2.2.2 | −24,4 | −15,7 | −5,7 | 9,3 | 20,9 | 28,0 | 30,0 | 26,5 | 19,4 | 7,6 | −7,2 | −16,6 | −25,1 |
 
 Polos unos 12 °C más templados; latitudes medias y trópicos casi iguales.
 
@@ -456,12 +458,12 @@ Resumen de lo que hace **hoy** el código (`fase2b_atmosfera.py` y `parametros.p
 | Ajuste convectivo | Umbral CL−TR = 40,5 K en P3N (medias ponderadas en masa, Atmósfera Estándar; 39,0 K en la Tierra) | §12.1 |
 | Transporte | Difusión atmosférica en la TR, `D_atm` = 2,4 W/m²/K, y oceánica en la capa de mezcla, `D_oc` = 0,12 W/m²/K, independientes | §12.3 (calibradas en modo Tierra) |
 | Aire a 2 m | Interpolación logarítmica entre la superficie y la CL, **perfil neutro** (sin estabilidad; limitación conocida, a diferencia de lo previsto en §2.7) | §11 |
-| Hielo marino | Fase 3 (interruptor I9), ver `DISENO_FASE3.md` | — |
-| Registro | Diario (mín., media y máx.) y horario (Fase 4), ver `DISENO_FASE4.md` | — |
-| Masa de S3N | 0,874 M☉: 15,94 °C sin hielo y 15,30 °C con hielo (Carlos: no se recalibra) | §12.5, `DISENO_FASE3.md` §6.0 |
-| Interruptores | 9: I1–I7 de la Fase 2b, I8 del albedo del océano, I9 del hielo marino | — |
+| Hielo marino | Fase 3 (interruptor I9), ver `DISENO_FASE_3.md` | — |
+| Registro | Diario (mín., media y máx.) y horario (Fase 4), ver `DISENO_FASE_4.md` | — |
+| Masa de S3N | 0,874 M☉: 15,94 °C sin hielo y 15,30 °C con hielo (Carlos: no se recalibra) | §12.5, `DISENO_FASE_3.md` §6.0 |
+| Interruptores | 9: I1–I7 de la Fase 2.2, I8 del albedo del océano, I9 del hielo marino | — |
 | Paso de tiempo | 900 s | §4 |
-| Convergencia | Cambio anual < 0,015 K en la superficie y la TR, con aceleración geométrica y, con hielo, el salto del hielo grueso | §5, `DISENO_FASE3.md` §4 |
+| Convergencia | Cambio anual < 0,015 K en la superficie y la TR, con aceleración geométrica y, con hielo, el salto del hielo grueso | §5, `DISENO_FASE_3.md` §4 |
 
 **Limitaciones conocidas** (para no tomarlas por resultados):
 - Sin evaporación (Fase 5), la superficie, sobre todo el océano, sale bastante más caliente que el aire.

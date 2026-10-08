@@ -5,7 +5,7 @@
 #
 # Forma (Byrne y O'Gorman 2013; codigo de Isca, esquema 'byrne' ✅):
 #     d(tau) = (A + B*q) * dp / P0
-# A (aire seco) y B (vapor) se calibran igual que el tau fijo de la v3.0 (DISENO_V3.0.md seccion 2):
+# A (aire seco) y B (vapor) se calibran igual que el tau fijo de la v3.0 (DISENO_FASE_2.3.md seccion 2):
 # una columna media de la Tierra sin nubes debe dar DLR = 314 y OLR = 267 W/m2 (Wild et al. 2019),
 # con la temperatura de la Atmosfera Estandar 1976 (suelo 289 K) y un perfil de vapor con la forma del
 # de la atmosfera estandar de EE. UU. de la AFGL (Anderson et al. 1986, via pyrtlib) escalado al agua

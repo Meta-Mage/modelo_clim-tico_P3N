@@ -1,7 +1,7 @@
-# fase31_agua.py -- v3.1 (Fase 5a): ciclo del agua sobre la atmosfera de N capas.
+# fase31_agua.py -- v3.1 (Fase 5.1): ciclo del agua sobre la atmosfera de N capas.
 #
-# Diseño, fuentes y decisiones: DISENO_FASE5A.md (decisiones de Carlos) y
-# DISENO_V3.1.md (implementacion). Este modulo contiene la fisica "de
+# Diseño, fuentes y decisiones: DISENO_FASE_5.md (decisiones de Carlos) y
+# DISENO_FASE_5.1.md (implementacion). Este modulo contiene la fisica "de
 # columna" del agua, vectorizada sobre todas las celdas; la usa
 # simular_fase2b() (fase2b_atmosfera.py) con los interruptores I11-I15.
 #
@@ -30,7 +30,7 @@ except ImportError:
 from fase30_multicapa import R_AIRE, CP_AIRE, KAPPA, P0
 
 # ================================================================
-# CONSTANTES DEL AGUA (a) -- DISENO_FASE5A.md, seccion 5
+# CONSTANTES DEL AGUA (a) -- DISENO_FASE_5.md, seccion 5
 # ================================================================
 # Calores latentes CONSTANTES en el balance de energia (decision 1 de Carlos,
 # opcion A). L_F es el MISMO valor que ya usa el hielo marino (fase2b,
@@ -361,7 +361,7 @@ _CACHE_GEO = {}
 
 def _geometria_conveccion(pf, ph):
     """Logaritmos y potencias de la presion: se calculan una vez y se reutilizan mientras pf y ph no cambien.
-    v3.1-pre9: la cache compara el CONTENIDO completo de pf y ph (np.array_equal con una copia guardada).
+    v3.7.0: la cache compara el CONTENIDO completo de pf y ph (np.array_equal con una copia guardada).
     Antes la clave era id() de los arrays y tres valores sueltos: con la presion en superficie variable del
     nucleo dinamico (I16) Python puede reutilizar las direcciones de memoria y p_s puede cambiar solo en celdas
     interiores, y la conveccion habria usado en silencio la geometria de un paso anterior."""

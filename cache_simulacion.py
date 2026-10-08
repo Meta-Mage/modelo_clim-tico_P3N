@@ -295,7 +295,7 @@ def simular_modelo_cacheado(
     analisis_latitudes, analisis_global): mismos argumentos y misma forma
     de devolver el resultado que simular_rejilla_combinada_cacheada()
     -- (T_final, anos, registro_minima, registro_media, registro_maxima)
-    -- pero con el modelo de la Fase 2b. Los registros son la
+    -- pero con el modelo de la Fase 2.2. Los registros son la
     temperatura del AIRE A 2 m (la de un parte meteorologico).
     """
     D = float(np.max(D_grid))

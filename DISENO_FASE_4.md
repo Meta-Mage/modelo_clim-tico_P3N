@@ -1,5 +1,7 @@
 # M3N — Fase 4: exportación de datos estructurados
 
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE4.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
+
 **Estado:** implementado en `exportar_clima.py` y en el registro horario de `fase2b_atmosfera.py`.
 **Fecha:** 03/10/2026 · **Versión:** `v2.4` (correcciones en la `v2.4.1`: hitos del año en el día correcto, codificación de valores extremos, altitud 0 en las celdas de agua, huella documentada)
 

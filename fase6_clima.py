@@ -1,5 +1,5 @@
-# fase6_clima.py -- v3.1-pre12: clima de M3N con el nucleo dinamico (I16): arranque caliente, equilibrio y
-# climatologia de N años. Diseno: DISENO_FASE6_3.md §6.3 (decisiones de Carlos del 06/10) y §6.10.
+# fase6_clima.py -- v3.10.0: clima de M3N con el nucleo dinamico (I16): arranque caliente, equilibrio y
+# climatologia de N años. Diseno: DISENO_FASE_6.3.md §6.3 (decisiones de Carlos del 06/10) y §6.10.
 #
 #   1. Equilibrio del modelo de 2 capas (v2.4.3) con el mismo mapa y los mismos parametros: su oceano, su
 #      suelo y su hielo son el ARRANQUE CALIENTE (el aire arranca en reposo).

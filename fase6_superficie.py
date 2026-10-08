@@ -1,5 +1,5 @@
 # fase6_superficie.py -- Fase 6.3 (paso 5): intercambio con la superficie con VIENTO REAL (sin conectar todavia).
-# Diseno: DISENO_FASE6_3.md §6.2 (decisiones 1.3 y 1.4) y §6.7.3.
+# Diseno: DISENO_FASE_6.3.md §6.2 (decisiones 1.3 y 1.4) y §6.7.3.
 #
 # 1. Rugosidad del oceano del ECMWF (IFS Cy31r1/40r1, implementacion de NEMO sbcblk_algo_ecmwf.F90 ✅):
 #      z0  = 0,11 nu/u* + 0,018 u*^2/g   (Charnock; 0,018 el valor tipico del ECMWF, que varia con el oleaje)
@@ -9,7 +9,7 @@
 #    de Louis, Tiedtke y Geleyn (1982) para el momento y para el calor (fase6_capa_limite.py ✅). Sobre el oceano
 #    z0 depende de u*, que depende de z0: punto fijo, iterado hasta < 1e-12 relativo.
 #    EVAPORACION: la v3.1 decidio C_E = C_H (Frierson 2007; Isca). z0q se calcula pero NO se usa: cambiarlo
-#    sustituiria esa decision y queda pendiente de Carlos (DISENO_FASE6_3.md §6.8).
+#    sustituiria esa decision y queda pendiente de Carlos (DISENO_FASE_6.3.md §6.8).
 # 3. Albedo directo del oceano de Cox y Munk (1954) con el viento LOCAL: tabla en (mu, U) con la misma funcion
 #    de fase2b_atmosfera.py (que hoy usa U = 5 m/s fijo). En U = 5 m/s da exactamente el albedo de la v3.1.
 

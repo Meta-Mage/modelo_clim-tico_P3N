@@ -1,6 +1,8 @@
 # Fase 6.3 de M3N: acoplar el núcleo dinámico con la física de M3N (BORRADOR v1)
 
-**Estado: v2 (06–07/10/2026).** Las decisiones del §1 están revisadas con fuentes y **aprobadas por Carlos** (§6). Hechos: el transporte del vapor (§5), el paso 2 del §3 (núcleo con los niveles de M3N: **sin capa esponja**, §6.4) y la capa límite en columna (paso 4, §6.5). La 6.2 está cerrada (`DISENO_FASE6_2.md`).
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE6_3.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
+
+**Estado: v2 (06–07/10/2026).** Las decisiones del §1 están revisadas con fuentes y **aprobadas por Carlos** (§6). Hechos: el transporte del vapor (§5), el paso 2 del §3 (núcleo con los niveles de M3N: **sin capa esponja**, §6.4) y la capa límite en columna (paso 4, §6.5). La 6.2 está cerrada (`DISENO_FASE_6.2.md`).
 
 Etiquetas:
 - ✅ verificado;
@@ -13,7 +15,7 @@ Etiquetas:
 
 Ahora mismo, en `paso_agua` (v3.1), el aire se mueve con una **difusión horizontal** de calor (X = T + gz/c_p) y de vapor (`fact_atm30`, `fact_vapor`). En la 6.3:
 - **Esa difusión desaparece de la atmósfera:** la sustituye `NucleoSeco`, que da a cada paso el viento, la presión en superficie y las temperaturas transportadas.
-- **El océano mantiene su difusión** hasta la Fase 6b.
+- **El océano mantiene su difusión** hasta la Fase 6.5.
 - **El vapor** lo transportan los flujos de masa del núcleo, con un esquema que no da valores negativos (§3).
 - **La física de columna sigue igual y en el mismo orden:** radiación, superficie, calor sensible, evaporación, convección, condensación, lluvia y nieve, suelo e hielo.
 
@@ -179,7 +181,7 @@ Criterio de Carlos para todo este apartado: "que todo lo que se haga se haga des
    - b = c = d = 5.
    La función del calor de M3N coincide con esta tabla ✅. LMDZ usa √(|Ri|(1 + z/z₀)) en lugar de √(z/z₀·|Ri|): con z = 10 m y z₀ ≤ 0,01 m, la diferencia es ≤ 0,05 % ✅ (cálculo propio).
 3. **§1.3.** Suponía que una "ráfaga mínima" es práctica habitual. El esquema publicado más cercano a M3N (radiación gris), Frierson, Held y Zurita-Gotor (2006), usa **ráfaga cero**: "zero gustiness velocity in this model, so surface fluxes are allowed to approach zero" ✅ (tesis de Frierson).
-4. **§1.6 y `DISENO_FASE6_2.md`.** "Techo a 0,7 hPa" → la capa de arriba va de 0 a 7,35 hPa y su centro está a 3,7 hPa.
+4. **§1.6 y `DISENO_FASE_6.2.md`.** "Techo a 0,7 hPa" → la capa de arriba va de 0 a 7,35 hPa y su centro está a 3,7 hPa.
 5. **Hallazgo nuevo:** el viento fijo de 5 m/s (`VIENTO`, `fase2b_atmosfera.py`) también entra en el **albedo del océano** (tabla de Cox-Munk) y en la **rugosidad del océano** (Z0M = 2·10⁻⁴ m, "Charnock a 5 m/s"). Con viento real, las tres cosas tienen que usar el viento de cada celda.
 
 ### 6.2 Las decisiones (aprobadas)
@@ -245,7 +247,7 @@ Criterio de Carlos para todo este apartado: "que todo lo que se haga se haga des
 - **Resolución de 2,5°:** se pensará cuando el planeta esté definido, quizá para una sola simulación muy larga.
 - **Jerarquía de modelos** (rápido = v2.4.3 de 2 capas; completo = 6.3 en adelante): aceptada como idea; los Barridos se verán más adelante. `DISENO_H3N.md` no cambia por ahora.
 
-### 6.4 Paso 2 del §3: núcleo con los niveles de M3N (v3.1-pre6)
+### 6.4 Paso 2 del §3: núcleo con los niveles de M3N (v3.4.0)
 
 - `python held_suarez.py --niveles m3n` (Held y Suarez, 1200 días, τ = 0,5 días, dt = 450 s, con los 20 niveles de `sigma_seminiveles`). En el PC de Carlos, ~25 min.
 - El registro muestra cada 20 días el máximo de |u| en las capas con el centro por encima de 20 hPa. `analizar_held_suarez.py` compara esas capas entre la 1.ª y la 2.ª mitad del promedio.
@@ -352,14 +354,14 @@ Perfil de 600 pasos con los niveles de M3N:
   3. sustituir `np.roll` por índices.
 - **Estimación ⚠️ (por medir):** ~2 veces más rápido el núcleo.
 
-**Resultado de la optimización (v3.1-pre8, 07/10/2026):**
+**Resultado de la optimización (v3.6.0, 07/10/2026):**
 - **`tendencias` compilada con numba** (`fase6_nucleo_nb.py`):
   - cada expresión reproduce el orden de operaciones de numpy → resultado **idéntico bit a bit**;
   - en el entorno de la IA, de 14,3 a 2,4 ms por llamada (×5,9).
 - **Hallazgo:** el `np.log` vectorizado de numpy y el `log` que usa numba pueden diferir en el último bit. Aparecía en cuanto p_s dejaba de ser uniforme (1 ulp en dT, du, dv desde el paso 1). Por eso `log(p_s)` se calcula con numpy y se pasa al kernel.
 - **Filtros polares en lote** (`_filtro_varios`): las FFT de cada fila son independientes; de 16 a 8 llamadas por paso, idéntico bit a bit.
 - **Comprobaciones:**
-  - Held y Suarez con los niveles de M3N: 300 pasos con la v3.1-pre8 = 300 pasos con la v3.1-pre7, **bit a bit** (p_s, T, u, v);
+  - Held y Suarez con los niveles de M3N: 300 pasos con la v3.6.0 = 300 pasos con la v3.5.0, **bit a bit** (p_s, T, u, v);
   - pruebas nuevas en `test_fase6_2.py`: tendencias compiladas = numpy (con montañas), filtro en lote = uno a uno, 20 pasos de Held y Suarez con numba = sin numba, todo bit a bit.
 - **Paso completo** (entorno de la IA, Held y Suarez con los niveles de M3N): de 33 a 24 ms. **×1,4, no ×2 como se estimó en el §6.6.** Era una estimación sin medir y queda corregida.
   - Lo que queda son bloques de < 1 ms: las partes lineales del semiimplícito, los productos de matrices (BLAS), la resolución por ondas, la hiperdifusión (~3,7 ms, sobre todo productos complejos con BLAS) y la aritmética de RAW.
@@ -390,7 +392,7 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
    - calor sensible y evaporación, con el **viento real** de la capa más baja (en los centros) y la **altura real** z_a (§6.5, hallazgo 1);
    - convección y condensación; lluvia y nieve; suelo; hielo;
    - **capa límite** (`fase6_capa_limite.py`) sobre u, v, T y q, con el arrastre y el calor por rozamiento local y positivo.
-   - **Se apagan** la difusión horizontal del aire (`fact_atm30`) y la del vapor (`fact_vapor`). **El océano conserva su difusión** hasta la Fase 6b.
+   - **Se apagan** la difusión horizontal del aire (`fact_atm30`) y la del vapor (`fact_vapor`). **El océano conserva su difusión** hasta la Fase 6.5.
 5. **Tendencias de la física:**
    - F_T = (T después − T antes)/Δt;
    - F_u y F_v: las de la capa límite, de los centros a las caras (`tendencia_a_caras`);
@@ -414,9 +416,9 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 #### 6.7.5 Agua
 - Cierre exacto, como en la v3.1 (~10⁻¹³). El transporte y la conciliación conservan la masa de agua exactamente (§5).
 
-#### 6.7.6 Piezas ya hechas (v3.1-pre9, 07/10)
+#### 6.7.6 Piezas ya hechas (v3.7.0, 07/10)
 - **`Columna.actualizar_ps`** y la opción `presion_capa="sb81"`.
-  - Con la opción por defecto, los 18 atributos de la columna y los 28 resultados de una simulación corta de la v3.1 (agua y convección) son **idénticos bit a bit** a los de la v3.1-pre8.
+  - Con la opción por defecto, los 18 atributos de la columna y los 28 resultados de una simulación corta de la v3.1 (agua y convección) son **idénticos bit a bit** a los de la v3.6.0.
   - Con "sb81", p_m = la del núcleo bit a bit.
 - **Bug latente corregido:** la caché de la geometría de la convección húmeda (`fase31_agua._geometria_conveccion`) usaba como clave `id()` de los arrays y tres valores sueltos. Con p_s variable habría devuelto en silencio la geometría de otro paso. Ahora compara el contenido completo; lo comprueba una prueba que cambia una sola celda interior.
 - **`fase6_acoplamiento.py`:** `viento_en_centros`, `tendencia_a_caras` (su traspuesta sin pesos) y `calor_rozamiento_exacto` (diagnóstico).
@@ -428,7 +430,7 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 - Pruebas: `test_fase6_acoplamiento.py` (6).
 
 #### 6.7.7 Pruebas del acoplamiento (antes de validar en modo Tierra)
-- **T1:** I16 apagado = v3.1-pre8 bit a bit (todas las pruebas existentes).
+- **T1:** I16 apagado = v3.6.0 bit a bit (todas las pruebas existentes).
 - **T2:** energía con I16 encendido (2 días): ΔE = TOA neto·Δt + las pérdidas declaradas, con el resto < 0,05 W/m².
 - **T3:** agua exacta (10⁻¹²).
 - **T4:** atmósfera isoterma en reposo sobre montañas, sin radiación: sigue en reposo.
@@ -438,15 +440,15 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 #### 6.7.8 Entregas previstas
 | Versión | Contenido |
 |---|---|
-| pre9 (hecha) | Columna con p_s variable, caché corregida, conversión caras-centros, este diseño |
-| pre10 | Opciones del núcleo (energía cinética de la hiperdifusión → calor; corrección de T a superficies de presión); luz con p_s variable; superficie con z_a y viento real (Cox-Munk 2D, Charnock) como funciones probadas, sin conectar |
-| pre11 (hecha, §6.9) | I16 dentro de `paso_agua`, con T1–T6; diagnóstico de energía de la dinámica |
-| pre12 (hecha, §6.10) | Equilibrio y climatología (§6.3), arranque caliente, `clima_dinamico.py` para la simulación larga en el PC (con ella, la prueba en modo Tierra) |
+| v3.7.0 (hecha) | Columna con p_s variable, caché corregida, conversión caras-centros, este diseño |
+| v3.8.0 | Opciones del núcleo (energía cinética de la hiperdifusión → calor; corrección de T a superficies de presión); luz con p_s variable; superficie con z_a y viento real (Cox-Munk 2D, Charnock) como funciones probadas, sin conectar |
+| v3.9.0 (hecha, §6.9) | I16 dentro de `paso_agua`, con T1–T6; diagnóstico de energía de la dinámica |
+| v3.10.0 (hecha, §6.10) | Equilibrio y climatología (§6.3), arranque caliente, `clima_dinamico.py` para la simulación larga en el PC (con ella, la prueba en modo Tierra) |
 | — | Paso 6: validación en modo Tierra en el PC de Carlos, con los criterios del §2 escritos antes |
 
-### 6.8 v3.1-pre10 (07/10/2026): piezas del núcleo y de la superficie para el acoplamiento (sin conectar)
+### 6.8 v3.8.0 (07/10/2026): piezas del núcleo y de la superficie para el acoplamiento (sin conectar)
 
-**Núcleo** (`fase6_nucleo.py`). Dos opciones de `preparar_hiperdifusion`, **apagadas por defecto**: Held y Suarez, 300 pasos, sigue idéntico bit a bit a la v3.1-pre7.
+**Núcleo** (`fase6_nucleo.py`). Dos opciones de `preparar_hiperdifusion`, **apagadas por defecto**: Held y Suarez, 300 pasos, sigue idéntico bit a bit a la v3.5.0.
 - `calor_rozamiento=True` (decisión 1.8): la energía cinética que quita la hiperdifusión vuelve como calor en la misma celda y capa, con la definición del núcleo, como CAM (`difcor.F90` ✅).
   - **Medido:** el cambio relativo de la energía total en un paso pasa de 2,4·10⁻⁶ (justo la energía cinética quitada) a 1,8·10⁻⁹.
 - `correccion_presion=True` (decisión 1.7): corrección de CAM (`difcor.F90` ✅) para que la difusión de T actúe como sobre superficies de presión, en σ pura.
@@ -477,7 +479,7 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 
 **Pruebas:** 2 nuevas en `test_fase6_2.py` y `test_fase6_superficie.py` (4).
 
-### 6.9 v3.1-pre11 (07/10/2026): el modelo acoplado (I16 `nucleo_dinamico`), apagado por defecto
+### 6.9 v3.9.0 (07/10/2026): el modelo acoplado (I16 `nucleo_dinamico`), apagado por defecto
 
 **Qué hace I16** (diseño del §6.7, en `fase2b_atmosfera.py`, dentro de `paso_agua`; necesita I10 e I11):
 - 2 subpasos del núcleo por paso de la física (`NucleoSeco.avanzar`, extraído de `integrar_si` sin cambiar nada: Held y Suarez sigue idéntica bit a bit), con la tendencia de la física del paso anterior como forzamiento constante.
@@ -487,7 +489,7 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 - Hiperdifusión con sus dos opciones del §6.8 encendidas.
 - Punto de control: guarda y recupera también el estado del núcleo.
 
-**Un cambio en el núcleo** (corrección de un fallo de la v3.1-pre10):
+**Un cambio en el núcleo** (corrección de un fallo de la v3.8.0):
 - La corrección de la difusión de T a superficies de presión usaba ∇⁴p_s explícito. Cerca de los polos, donde las celdas son estrechas, eso crece como ~1/cos⁴ y hacía inestable el modelo acoplado: T de ±6·10⁵ K en 4 pasos.
 - Ahora delps = p_s − (p_s difundida con el mismo operador implícito de la hiperdifusión), acotado en la escala de la rejilla e igual a dt·ν₄·∇⁴p_s para campos suaves.
 - La reducción del calentamiento falso sobre las montañas del caso 5 pasa de ×4,1 a **×3,7**; la prueba pide > 3,5.
@@ -496,7 +498,7 @@ Basado en las decisiones aprobadas del §6.2 y del §6.3. Lo que la IA decide aq
 
 | Prueba | Resultado |
 |---|---|
-| T1: I16 apagado = v3.1-pre10 | los 28 resultados de la simulación corta de la v3.1, idénticos bit a bit; las 91 pruebas anteriores pasan |
+| T1: I16 apagado = v3.8.0 | los 28 resultados de la simulación corta de la v3.1, idénticos bit a bit; las 91 pruebas anteriores pasan |
 | T2: energía | ver abajo |
 | T3: agua | cierre de la atmósfera ~10⁻¹⁴ kg/m², del suelo ~10⁻¹⁵, sin recortes |
 | T4: reposo isotermo sobre las montañas del caso 5 (núcleo con la configuración de I16) | 100 pasos (400 en el banco): \|u\| ~2·10⁻¹¹ m/s, \|ΔT\| ~10⁻¹¹ K |
@@ -539,7 +541,7 @@ Medido:
   - el planeta acuático y el modo Tierra también revientan, así que no es el relieve ni la costa;
   - desde el equilibrio de la v3.1 sin dinámica es **estable 60 días** (acuático y con continente). Los vientos llegan hasta ~50 m/s; el calentamiento de la física se queda por debajo de 1 K por paso.
 - **Plan decidido del §6.3** (superficie del equilibrio, aire con el perfil inicial y en reposo): probado con la superficie del equilibrio de la v3.1 sin dinámica, es estable 20 días.
-- **Consecuencia:** con I16 hay que arrancar siempre en caliente (pre12). El arranque frío queda como limitación conocida.
+- **Consecuencia:** con I16 hay que arrancar siempre en caliente (v3.10.0). El arranque frío queda como limitación conocida.
   - Si hiciera falta más robustez, lo que hay en la literatura es una capa esponja como la de CAM (∇² en las 3 capas de arriba) o repartir la tendencia de la física en más subpasos (Gross et al. 2018 §6.2). La decisión "sin capa esponja" del §6.4 se tomó con Held y Suarez, que es seco: **revisarla si la validación en modo Tierra lo pide**.
 - **No se ha tocado ningún parámetro** para que funcione.
 
@@ -556,7 +558,7 @@ Medido:
 - Isca, `src/atmos_spectral/driver/solo/idealized_moist_phys.F90` y `atmosphere.F90` (GitHub ExeClim/Isca ✅): niveles de tiempo de la física.
 - CAM 3.0 (Collins et al. 2004), §3.1.6: ∇² en las 3 capas de arriba como esponja ✅.
 
-### 6.10 v3.1-pre12 (07/10/2026): equilibrio, arranque caliente y climatología con I16
+### 6.10 v3.10.0 (07/10/2026): equilibrio, arranque caliente y climatología con I16
 
 #### 6.10.1 Equilibrio (`fase6_equilibrio.py`)
 - El criterio del §6.3: medias globales anuales en una ventana de los últimos 5 años, con las cuatro condiciones a la vez:
@@ -566,7 +568,7 @@ Medido:
   - pendiente del agua del suelo < 0,01 de su capacidad por año.
   - La pendiente es la de mínimos cuadrados. Una magnitud que no existe (sin océano, sin tierra) no cuenta.
 - En `simular_fase2b`, con I16, la serie anual se acumula cada año y decide la convergencia. Se guarda en el punto de control y se devuelve en `r["equilibrio"]`.
-- **Sin I16 no cambia nada:** los 28 resultados de la simulación corta de la v3.1 son idénticos bit a bit a los de la pre11.
+- **Sin I16 no cambia nada:** los 28 resultados de la simulación corta de la v3.1 son idénticos bit a bit a los de la v3.9.0.
 
 #### 6.10.2 Arranque caliente
 - `estado_inicial` puede ser un dict con `T_col` y `HIELO`: el `r["estado_final"]` (clave nueva) de otra simulación.
@@ -629,7 +631,7 @@ Medido:
 2. Validación en modo Tierra con los criterios del §2 escritos antes (paso 6).
 3. Exportación a `m3n-clima`.
 
-### 6.11 v3.1-pre13 (07/10/2026): la corrección de presión, limitada junto a los escalones de relieve
+### 6.11 v3.10.1 (07/10/2026): la corrección de presión, limitada junto a los escalones de relieve
 
 **Lo que pasó.** Primera simulación larga en modo Tierra, en el PC de Carlos, arrancando desde el equilibrio del modelo de 2 capas: se rompió en el año 1, al ~1,8 % (unos 6–7 días). Con el estado de partida que guardó, se reproduce aquí exactamente.
 - **Dónde:** una celda de océano helado junto a la meseta antártica (82,5° S, 62,5° O), pegada a celdas de 2800 m.
@@ -654,9 +656,9 @@ Medido:
 - **Prueba nueva** (100): con una meseta de 2800 m, el desplazamiento queda ≤ 0,5 capas y la corrección se reduce; con la montaña del caso 5, la corrección es idéntica bit a bit a la de antes.
 - `clima_dinamico.py` también para con un mensaje claro si aparecen valores no válidos (IndexError o ValueError por NaN).
 
-### 6.12 v3.1-pre14 (07/10/2026): la corrección de presión, como interpolación vertical sin extrapolar
+### 6.12 v3.10.2 (07/10/2026): la corrección de presión, como interpolación vertical sin extrapolar
 
-**Lo que pasó con la pre13.** La simulación larga en modo Tierra pasó del 1,8 % al **65,8 % del año 1**, unos 240 días, y se rompió de otra forma. `diagnostico_tierra.py` (guarda los últimos 60 subpasos) lo localizó:
+**Lo que pasó con la v3.10.1.** La simulación larga en modo Tierra pasó del 1,8 % al **65,8 % del año 1**, unos 240 días, y se rompió de otra forma. `diagnostico_tierra.py` (guarda los últimos 60 subpasos) lo localizó:
 - **Dónde y cuándo:** en la meseta antártica (82,5° S, 122,5° O, 2300 m), en pleno invierno austral.
 - **Qué:** la capa más baja se fue enfriando a ~1 K por subpaso, de forma suave y continua, hasta 0 K. La física la calentaba (+3 K por paso), y la culpable era la dinámica.
 - **Desglose en ese momento:**
@@ -667,7 +669,7 @@ Medido:
 **La causa.** En las capas de arriba y de abajo, la forma de CAM usa una diferencia de un solo lado, es decir, **extrapola**.
 - Con una inversión térmica fuerte (la capa baja mucho más fría que la de encima, típico de la noche polar sobre hielo), la extrapolación enfría la capa baja en proporción a la propia inversión.
 - Eso hace la inversión aún mayor, y la realimentación crece sin límite.
-- El límite de media capa de la pre13 no lo impide: acota el desplazamiento, no la extrapolación.
+- El límite de media capa de la v3.10.1 no lo impide: acota el desplazamiento, no la extrapolación.
 
 **Decisión (técnica, tomada por la IA a petición de Carlos el 07/10).** La corrección se calcula como lo que es: T en la superficie de presión que pasa por el centro de la capa, es decir, T a la altura desplazada σ_k + δσ_k, con δσ_k = σ_k·delps/p_s. Se obtiene por **interpolación lineal** entre la capa y su vecina en la dirección del desplazamiento.
 - Con un perfil lineal en σ es **exacta**. La forma de CAM, centrada y con capas desiguales, se aparta ~8 % de ese valor exacto.
@@ -679,11 +681,11 @@ Medido:
     - un perfil normal se extrapola con su propio gradiente.
   - Se probó antes un gradiente fijo de 6,5 K/km (el estándar para reducir T por debajo del suelo), pero rompía el reposo isotermo.
 - El peso de la interpolación se acota a 0,5 (`LIMITE_CORRECCION_PRESION`, la validez del §6.11). El resultado queda siempre entre T de la capa y la de su vecina, así que **no crea extremos nuevos** y no puede realimentarse.
-- Sustituye al límite por columna de la pre13.
+- Sustituye al límite por columna de la v3.10.1.
 - **Sin cambios en el resto:** Held y Suarez no usa la corrección.
 - **Montaña del caso 5** (T que solo depende de p), el calentamiento falso por paso de 900 s:
 
-  | | sin corrección | forma de CAM | pre14 |
+  | | sin corrección | forma de CAM | v3.10.2 |
   |---|---|---|---|
   | máximo | 3,4·10⁻² K | 8,3·10⁻³ K (×4,1) | **5,0·10⁻³ K (×6,8)** |
   | capa baja | 3,4·10⁻² K | — | 1,3·10⁻³ K |
@@ -693,14 +695,14 @@ Medido:
 **Medido con el estado guardado justo antes del fallo:**
 - en la capa baja de la celda que se rompía, la corrección pasa de −15,1 K (que enfriaba) a **0**: es una inversión y no se extrapola.
 
-**Prueba nueva** (sustituye a la de la pre13): con T lineal y relieve suave, la corrección es exacta. Con una meseta de 2800 m y una inversión de 150 K en la capa baja, esa capa solo se acerca a la de encima, como mucho la mitad del camino, y ningún valor sale del rango de sus vecinas. **Suite: 100.**
+**Prueba nueva** (sustituye a la de la v3.10.1): con T lineal y relieve suave, la corrección es exacta. Con una meseta de 2800 m y una inversión de 150 K en la capa baja, esa capa solo se acerca a la de encima, como mucho la mitad del camino, y ningún valor sale del rango de sus vecinas. **Suite: 100.**
 
 **Pendiente:** que la simulación larga en modo Tierra pase el año completo (en el PC de Carlos, `diagnostico_tierra.py` y después `clima_dinamico.py --tierra`).
 
 
-### 6.13 v3.1-pre15 (07/10/2026): corrector global de energía de la dinámica
+### 6.13 v3.11.0 (07/10/2026): corrector global de energía de la dinámica
 
-**Lo que pasó con la pre14.** La simulación larga en modo Tierra ya es estable: pasa varios años sin romperse. Pero el balance en el tope de la atmósfera (N) se queda en **+2 W/m²** mientras la temperatura del aire a 2 m está quieta (18,5–18,6 °C en los años 3 a 5). Si el planeta recibe 2 W/m² más de los que pierde y no se calienta, esa energía se pierde por algún sitio. Con N así, el criterio de equilibrio (|N| < 0,2) no se cumpliría nunca.
+**Lo que pasó con la v3.10.2.** La simulación larga en modo Tierra ya es estable: pasa varios años sin romperse. Pero el balance en el tope de la atmósfera (N) se queda en **+2 W/m²** mientras la temperatura del aire a 2 m está quieta (18,5–18,6 °C en los años 3 a 5). Si el planeta recibe 2 W/m² más de los que pierde y no se calienta, esa energía se pierde por algún sitio. Con N así, el criterio de equilibrio (|N| < 0,2) no se cumpliría nunca.
 
 **Medido** (`bench/energia_tierra.py`: modo Tierra desde el arranque caliente de Carlos, 12 días + 12 registrados):
 - **Error de la dinámica: −8,2 W/m².** Es la energía que la dinámica no conserva, incluida la cinética que quita el rozamiento, menos el calor de rozamiento que devuelve la capa límite:
@@ -729,8 +731,8 @@ Medido:
 Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio se compensa. Ahora N ya puede tender a 0 en el equilibrio.
 
 **Sin cambios:**
-- Sin I16, todo es idéntico bit a bit: los 28 resultados de la v3.1 son iguales a los de la pre14.
-- Los puntos de control guardan el calor de rozamiento pendiente. Un punto de control de la pre14 se puede continuar: su primer paso usa 0, y después todo sigue igual.
+- Sin I16, todo es idéntico bit a bit: los 28 resultados de la v3.1 son iguales a los de la v3.10.2.
+- Los puntos de control guardan el calor de rozamiento pendiente. Un punto de control de la v3.10.2 se puede continuar: su primer paso usa 0, y después todo sigue igual.
 
 **Prueba nueva:**
 - con el corrector, lo corregido compensa el error de la dinámica (dentro del 5 %), y el cierre total es menos del 5 % del que hay sin él;
@@ -738,11 +740,11 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 
 **Suite: 101.**
 
-**Pendiente:** continuar la simulación larga en modo Tierra con la pre15 y comprobar que N tiende a 0 en el equilibrio.
+**Pendiente:** continuar la simulación larga en modo Tierra con la v3.11.0 y comprobar que N tiende a 0 en el equilibrio.
 
-### 6.14 v3.1-pre16 (08/10/2026): primera climatología del modo Tierra con I16 y validación frente a la Tierra real
+### 6.14 v3.12.0 (08/10/2026): primera climatología del modo Tierra con I16 y validación frente a la Tierra real
 
-**La simulación larga (PC de Carlos, 07–08/10, ~9,5 h).** `clima_dinamico.py --tierra` con la pre14 hasta el año 21 y con la pre15 (corrector de energía, §6.13) desde el 22:
+**La simulación larga (PC de Carlos, 07–08/10, ~9,5 h).** `clima_dinamico.py --tierra` con la v3.10.2 hasta el año 21 y con la v3.11.0 (corrector de energía, §6.13) desde el 22:
 - **Equilibrio en el año 30**, con los cuatro criterios cumplidos: N +0,07 W/m², pendientes del aire a 2 m +0,010 K/año, del hielo −0,0007 y del agua del suelo −0,00001.
 - Con el corrector, N bajó de +1,4 a ~0 W/m² en tres años. En el equilibrio, el error de la dinámica es de **−1,31 ± 0,29 W/m²** (30 años), frente a −0,6 a −1,1 en CAM.
 - **Climatología de 30 años** (el máximo):
@@ -762,8 +764,8 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 | 87,5° N / 87,5° S | −11,3 / −33,7 °C | −17,1 / −46,2 °C (CRU) |
 
 **Lectura:**
-- **El exceso de calor global se explica sobre todo porque M3N no tiene nubes**, como ya estaba documentado (§13 de `DISENO_V3.0.md`: "con la v3.0, el mismo Sol da un P3N unos 5 °C más cálido mientras no haya nubes"; Fase 5b). En la Tierra real las nubes quitan neto ~18 W/m² en el tope (CERES, Loeb et al. 2018).
-  - La v3.1 con la **misma física pero sin núcleo** (§10 bis de `DISENO_V3.1.md`) también se quedaba en ~19,0 °C.
+- **El exceso de calor global se explica sobre todo porque M3N no tiene nubes**, como ya estaba documentado (§13 de `DISENO_FASE_2.3.md`: "con la v3.0, el mismo Sol da un P3N unos 5 °C más cálido mientras no haya nubes"; Fase 5.2). En la Tierra real las nubes quitan neto ~18 W/m² en el tope (CERES, Loeb et al. 2018).
+  - La v3.1 con la **misma física pero sin núcleo** (§10 bis de `DISENO_FASE_5.1.md`) también se quedaba en ~19,0 °C.
   - La dinámica no cambia la media global.
   - **Sí cambia el contraste entre el ecuador y los polos:**
     - sin núcleo, los polos estaban a +8,5 °C (norte) y −6,2 °C (sur), sin hielo marino;
@@ -815,8 +817,8 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
   - agua precipitable: 24,9 kg/m² (Trenberth y Smith 2005).
 - **Calendario del modo Tierra:** el día 0 de la órbita es el solsticio de diciembre (declinación −23,44°; perihelio 12,7 días después). Por tanto, el 1 de enero es el día 11 (±1 día).
 
-**También en la pre16:**
-- `clima_dinamico.py` escribe la versión desde una sola constante (`VERSION`). Las cabeceras decían "pre12" y "pre14".
+**También en la v3.12.0:**
+- `clima_dinamico.py` escribe la versión desde una sola constante (`VERSION`). Las cabeceras decían "v3.10.0" y "v3.10.2".
 - El resumen indica cómo lanzar la validación.
 
 **Pruebas nuevas** (`test_validar_i16.py`, 5):
@@ -834,5 +836,5 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 - Revisar el umbral de la climatología.
 
 **Decisiones de Carlos que NO están abiertas** (aclaración del 08/10, tras una compactación de la conversación en la que la IA volvió a plantearlas por error):
-- **La estrella no se recalibra hasta tener las nubes** (Fase 5b; decisión del 05/10, `DISENO_V3.0.md` §13). El exceso de calor del modo Tierra sin nubes es una limitación conocida, no algo que corregir ahora.
-- **La rejilla se queda en 5° por ahora**; se mejorará más adelante (decisión del 06/10, §6.3 y `DISENO_FASE6_2.md` §10). La zona de borrascas desplazada es una limitación conocida y medida.
+- **La estrella no se recalibra hasta tener las nubes** (Fase 5.2; decisión del 05/10, `DISENO_FASE_2.3.md` §13). El exceso de calor del modo Tierra sin nubes es una limitación conocida, no algo que corregir ahora.
+- **La rejilla se queda en 5° por ahora**; se mejorará más adelante (decisión del 06/10, §6.3 y `DISENO_FASE_6.2.md` §10). La zona de borrascas desplazada es una limitación conocida y medida.

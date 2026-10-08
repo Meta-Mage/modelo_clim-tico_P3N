@@ -16,10 +16,10 @@
 #   - a 35 grados, la atmosfera lleva el 78 % del total en el norte y el
 #     92 % en el sur (oceano: 22 % y 8 %).
 #
-# Igual que en la calibracion de la v2.2c (DISENO_FASE2B.md, 12.3), sin
+# Igual que en la calibracion de la v2.2.2 (DISENO_FASE_2.2.md, 12.3), sin
 # hielo marino: el hielo se valida despues, con D ya fijado, y asi cada
 # simulacion converge mucho antes. OJO: la v3.0 todavia no tiene vapor
-# de agua (Fase 5a): el D que salga incluye "de prestado" el transporte
+# de agua (Fase 5.1): el D que salga incluye "de prestado" el transporte
 # de calor latente y se recalibra en la v3.1.
 #
 # Las simulaciones van en paralelo (una por nucleo, hasta --nucleos).
@@ -144,7 +144,7 @@ def main():
         trabajos = [(0.55, 0.12, 1, False)]
     else:
         # v3.0 (05/10/2026): tanda 1 = la rejilla por defecto; tandas 2 y 3 con --d-atm 1.0 1.15 1.3
-        # --d-oc 0.16 0.22 y --d-atm 1.35 1.5 --d-oc 0.22 0.28 (DISENO_V3.0.md, seccion 13)
+        # --d-oc 0.16 0.22 y --d-atm 1.35 1.5 --d-oc 0.22 0.28 (DISENO_FASE_2.3.md, seccion 13)
         trabajos = [(da, do, a.max_anos, True, None, a.v31) for do in (a.d_oc or D_OC_REJILLA)
                     for da in (a.d_atm or D_ATM_REJILLA)]
     print(f"{len(trabajos)} simulaciones en modo Tierra, {a.nucleos} a la vez...", flush=True)

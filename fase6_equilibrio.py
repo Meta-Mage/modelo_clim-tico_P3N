@@ -1,5 +1,5 @@
-# fase6_equilibrio.py -- v3.1-pre12: criterio de equilibrio del modelo con nucleo dinamico (I16).
-# Diseno: DISENO_FASE6_3.md §6.3 (decisiones de Carlos del 06/10) y §6.10.
+# fase6_equilibrio.py -- v3.10.0: criterio de equilibrio del modelo con nucleo dinamico (I16).
+# Diseno: DISENO_FASE_6.3.md §6.3 (decisiones de Carlos del 06/10) y §6.10.
 #
 # Con el nucleo dinamico hay tiempo meteorologico: el criterio de la v3.1 (que ninguna celda cambie su media
 # anual mas de 0,015 K) no se cumpliria nunca. El equilibrio se juzga con MEDIAS GLOBALES ANUALES en una

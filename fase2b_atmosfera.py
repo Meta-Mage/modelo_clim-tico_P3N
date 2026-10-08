@@ -1,6 +1,6 @@
-# fase2b_atmosfera.py -- Fase 2b: atmosfera con cuerpo.
+# fase2b_atmosfera.py -- Fase 2.2: atmosfera con cuerpo.
 #
-# Diseño completo, fuentes y decisiones: DISENO_FASE2B.md. Resumen:
+# Diseño completo, fuentes y decisiones: DISENO_FASE_2.2.md. Resumen:
 #   - Dos capas de aire con temperatura y capacidad propias por celda:
 #     capa limite (CL, 1000-900 hPa) y troposfera (TR, 900-0 hPa).
 #   - Reparto de la luz segun el balance terrestre sin nubes (Wild et
@@ -15,10 +15,11 @@
 #   - Altitud dentro de la fisica (aire de referencia mas frio con la
 #     altura) y temperatura del aire a 2 m como temperatura de referencia.
 #
-# DIEZ INTERRUPTORES (INTERRUPTORES_FASE2B: I1-I7 de la Fase 2b, I8 de la
-# v2.2c, I9 del hielo marino de la Fase 3, I10 de la atmosfera de varias
-# capas de la v3.0; con I10 apagado y el resto encendidos, el modelo
-# reproduce la v2.4.2 bit a bit). Con todos apagados, el
+# DIECISEIS INTERRUPTORES (INTERRUPTORES_FASE2B; tabla completa en NOMENCLATURA.md): I1-I7 de la Fase 2.2,
+# I8 de la v2.2.2, I9 del hielo marino de la Fase 3, I10 de la atmosfera de varias capas (Fase 2.3, v3.0),
+# I11-I15 del agua (Fase 5.1, v3.1) e I16 del nucleo dinamico (Fase 6.3). Con I10-I16 apagados (por defecto)
+# es el modelo de 2 capas que se exporta (v2.4.3 con la correccion de la capa de mezcla, DISENO_FASE_2.3.md
+# §14; cada interruptor nuevo, apagado, deja el resultado identico bit a bit). Con todos apagados, el
 # modelo reproduce la Fase 2 (fase2_combinado.py, v2.2) -- es la
 # prueba V0 del diseño. Restriccion: sin capacidad de la atmosfera
 # (I2 apagado) la atmosfera es "instantanea" (modelo de una capa
@@ -53,23 +54,23 @@ INTERRUPTORES_FASE2B = {
     "ajuste_convectivo": True,      # I5: ajuste convectivo CL <-> TR
     "difusion_reubicada": True,     # I6: difusion en TR + oceano, no en la piel del suelo
     "altitud_en_fisica": True,      # I7: altitud dentro de la fisica, no a posteriori
-    "albedo_oceano_solar": True,    # I8 (v2.2c): albedo del agua segun la altura del sol (Fresnel + Cox-Munk)
+    "albedo_oceano_solar": True,    # I8 (v2.2.2): albedo del agua segun la altura del sol (Fresnel + Cox-Munk)
     "hielo_marino": True,           # I9 (Fase 3): hielo marino termodinamico (Semtner 1976; Wagner y Eisenman 2015)
-    "atmosfera_multicapa": False,   # I10 (v3.0): atmosfera de N capas en coordenada sigma (fase30_multicapa.py, DISENO_V3.0.md).
+    "atmosfera_multicapa": False,   # I10 (v3.0): atmosfera de N capas en coordenada sigma (fase30_multicapa.py, DISENO_FASE_2.3.md).
                                     # APAGADO hasta validarla y calibrarla en modo Tierra (calibrar_v30.py)
-    # v3.1 (Fase 5a, fase31_agua.py, DISENO_V3.1.md). Todos APAGADOS hasta validarlos; necesitan I10:
+    # v3.1 (Fase 5.1, fase31_agua.py, DISENO_FASE_5.1.md). Todos APAGADOS hasta validarlos; necesitan I10:
     "ciclo_agua": False,            # I11: vapor por capas, evaporacion, transporte, condensacion, lluvia/nieve, cubo, nieve
     "conveccion_humeda": False,     # I12: Betts-Miller simplificado (Frierson 2007) + ajuste seco al adiabatico seco
     "suelo_termico_agua": False,    # I13: propiedades termicas del suelo segun su agua (CLM5; Farouki 1981)
     "albedo_espectral": False,      # I14: albedo de la nieve y del hielo con el espectro de la estrella
     "vapor_radiativo": False,       # I15 (PROTOTIPO): el infrarrojo depende del vapor del modelo (Byrne y O'Gorman 2013)
-    # v3.1-pre11 (Fase 6.3, DISENO_FASE6_3.md §6.7). APAGADO hasta validarlo; necesita I10 e I11:
+    # v3.9.0 (Fase 6.3, DISENO_FASE_6.3.md §6.7). APAGADO hasta validarlo; necesita I10 e I11:
     "nucleo_dinamico": False,       # I16: nucleo dinamico propio (viento real) en vez de la difusion del aire y del vapor
 }
 INTERRUPTORES_APAGADOS = {k: False for k in INTERRUPTORES_FASE2B}
 
 # ================================================================
-# PARAMETROS (ver DISENO_FASE2B.md, seccion 3)
+# PARAMETROS (ver DISENO_FASE_2.2.md, seccion 3)
 # ================================================================
 R_AIRE = 287.05          # J/kg/K
 CP_AIRE = 1004.0         # J/kg/K
@@ -86,11 +87,11 @@ GRADIENTE_ADIABATICO = P3N_GRAVEDAD / CP_AIRE                   # K/m, ~9.0 K/km
 
 def diferencia_critica_cl_tr(gravedad, presion_superficie=PRESION_SUPERFICIE, presion_techo_cl=PRESION_TECHO_CL):
     """
-    v2.2c -- CORRIGE un error de la v2.2b. La diferencia maxima de
+    v2.2.2 -- CORRIGE un error de la v2.2.1. La diferencia maxima de
     temperatura entre la CL y la TR antes de que actue la conveccion debe
     medirse con las MISMAS definiciones de temperatura con las que se
     calibraron las emisividades: temperatura media PONDERADA EN MASA de
-    cada capa. En v2.2b se uso 6.5 K/km x (distancia entre los centros
+    cada capa. En v2.2.1 se uso 6.5 K/km x (distancia entre los centros
     de masa de las capas) = 28.7 K, pero la media en masa de la TR (que
     incluye la troposfera alta y la estratosfera, mucho mas frias) no es
     la temperatura de su centro de masa. Aqui se calcula como en la
@@ -128,8 +129,8 @@ EMISIVIDAD_TR = 0.661
 
 # Calor sensible
 VIENTO = 5.0                     # m/s, provisional hasta la Fase 6 (con I16, el viento real del nucleo)
-TAU_HIPERDIFUSION_DIAS = 0.5     # I16: amortiguamiento de la onda mas corta (criterio de CESM, DISENO_FASE6_2.md §7)
-CORRECTOR_ENERGIA_I16 = True     # v3.1-pre15: corrector global de energia de la dinamica (decision 1.8, §6.13)
+TAU_HIPERDIFUSION_DIAS = 0.5     # I16: amortiguamiento de la onda mas corta (criterio de CESM, DISENO_FASE_6.2.md §7)
+CORRECTOR_ENERGIA_I16 = True     # v3.11.0: corrector global de energia de la dinamica (decision 1.8, §6.13)
 KARMAN = 0.4
 Z_REF = 10.0                     # m, altura de referencia del aire
 Z0M = {TIERRA: 0.01, AGUA: 2e-4}       # suelo desnudo (Carlos 02/10); oceano ~Charnock a 5 m/s
@@ -140,11 +141,11 @@ LOUIS_B, LOUIS_C, LOUIS_D = 5.0, 5.0, 5.0
 DEPURAR = False
 # v3.1: funcion opcional f(año, estado) que se llama al acabar cada año (seguimiento de simulaciones largas)
 AL_ACABAR_ANO = None
-# v3.1-pre12: funcion opcional f(año, paso, pasos_del_año, registrado) que se llama tras cada paso de la fisica
+# v3.10.0: funcion opcional f(año, paso, pasos_del_año, registrado) que se llama tras cada paso de la fisica
 # (barra de progreso de las simulaciones largas; no cambia nada de la simulacion)
 AL_PASO = None
 
-# Difusion reubicada (I6), v2.2c: coeficientes PROPIOS de la atmosfera
+# Difusion reubicada (I6), v2.2.2: coeficientes PROPIOS de la atmosfera
 # (sobre la troposfera) y del oceano (sobre su capa de mezcla). El 0.55
 # de la literatura (North 1975; Williams y Kasting 1997) multiplica el
 # gradiente de temperatura de SUPERFICIE en un modelo de una sola
@@ -181,7 +182,7 @@ D_ATMOSFERA = 2.4
 D_OCEANO = 0.12
 
 # v3.0 (I10): coeficientes de difusion, CALIBRADOS en modo Tierra (05/10/2026,
-# calibrar_v30.py, 18 simulaciones; DISENO_V3.0.md seccion 13) frente a
+# calibrar_v30.py, 18 simulaciones; DISENO_FASE_2.3.md seccion 13) frente a
 # Trenberth y Caron (2001): la media de los dos hemisferios del transporte
 # atmosferico maximo = 5,0 PW y la media de la parte del oceano a 35 grados
 # = 15 % (observado 22 % N / 8 % S). Sin vapor de agua todavia: incluyen "de
@@ -213,7 +214,7 @@ def coeficientes_neutros(tipo_superficie):
 
 def factor_estabilidad_louis(ri, c_n, z0m):
     """Funcion de estabilidad para el calor de Louis, Tiedtke y Geleyn (1982),
-    version de capa superficial con b=c=d=5 (la del ECMWF). En v2.2b se
+    version de capa superficial con b=c=d=5 (la del ECMWF). En v2.2.1 se
     citaba por error como Louis (1979); la formula no cambia."""
     inestable = ri < 0
     ri_abs = np.abs(ri)
@@ -264,7 +265,7 @@ def construir_matriz_difusion_enmascarada(D, mascara):
 
 
 # ================================================================
-# ALBEDO DEL OCEANO SEGUN LA ALTURA DEL SOL (v2.2c, interruptor I8)
+# ALBEDO DEL OCEANO SEGUN LA ALTURA DEL SOL (v2.2.2, interruptor I8)
 # ================================================================
 # Calculado desde la fisica, con la misma base que Jin et al. (2004):
 #   - Reflexion de Fresnel del agua (indice de refraccion n = 1.34,
@@ -343,7 +344,7 @@ def albedo_oceano(mu, transmitancia):
 
 
 # ================================================================
-# FASE 3: HIELO MARINO (interruptor I9). Ver DISENO_FASE3.md.
+# FASE 3: HIELO MARINO (interruptor I9). Ver DISENO_FASE_3.md.
 # ================================================================
 # Modelo termodinamico "de capa cero" (Semtner 1976) en la formulacion
 # por ENTALPIA de Wagner y Eisenman (2015): cada celda de oceano guarda
@@ -411,7 +412,7 @@ def preparar_luz(albedo_grid, tau, reparto_nuevo, mascara_agua=None, albedo_sola
 
     def luz(toa, declinacion, ang_h_lon0, peso_hielo=None, nieve=None, factor_masa_paso=None, viento=None):
         # nieve (v3.1): (fraccion cubierta, albedo de la nieve), arrays (F, C), o None
-        # v3.1-pre11 (I16): factor_masa_paso = p_s/p0 de ESTE paso (la p_s del nucleo cambia) y viento (F, C)
+        # v3.9.0 (I16): factor_masa_paso = p_s/p0 de ESTE paso (la p_s del nucleo cambia) y viento (F, C)
         # para el albedo del oceano (Cox y Munk con el viento local). Sin ellos, exactamente como antes.
         if factor_masa_paso is not None:
             tc = tau * factor_masa_paso
@@ -472,7 +473,7 @@ def simular_fase2b(
     acelerar=True, estado_inicial="libre", n_capas_atm=None, archivo_estado=None, guardar_al_terminar=False,
 ):
     """
-    Simulacion de la Fase 2b. Devuelve un dict con:
+    Simulacion de la Fase 2.2. Devuelve un dict con:
       'anos', 'T_final' (C), 'reg_min', 'reg_media', 'reg_max' (temperatura
       de referencia: aire a 2 m si hay atmosfera con cuerpo; si no, suelo
       como en la Fase 2), 'suelo_min/media/max', 'cl_media', 'tr_media'
@@ -588,7 +589,7 @@ def simular_fase2b(
     # Estado del hielo (Fase 3): espesor h (m) y temperatura de su superficie.
     HIELO = {"h": np.zeros((FILAS, COLUMNAS)), "Ts": np.full((FILAS, COLUMNAS), T_CONGELACION)}
     if isinstance(estado_inicial, dict):
-        # v3.1-pre12: ARRANQUE CALIENTE (DISENO_FASE6_3.md §6.3 y §6.10): el oceano, el suelo y el hielo salen
+        # v3.10.0: ARRANQUE CALIENTE (DISENO_FASE_6.3.md §6.3 y §6.10): el oceano, el suelo y el hielo salen
         # de otra simulacion en equilibrio (el modelo de 2 capas con el mismo mapa y los mismos parametros); el
         # aire arranca en reposo con el perfil inicial de siempre, ahora sobre esa superficie.
         T_col0 = np.asarray(estado_inicial["T_col"], dtype=float)
@@ -639,7 +640,7 @@ def simular_fase2b(
         AREA_REL = (np.cos(np.radians(LATITUDES_GRADOS)).reshape(-1, 1) * np.ones((1, COLUMNAS)))
         AREA_OCEANO_REL = (AREA_REL * es_agua).sum()
 
-    # ---- v3.1-pre11: nucleo dinamico (I16), DISENO_FASE6_3.md §6.7 ----
+    # ---- v3.9.0: nucleo dinamico (I16), DISENO_FASE_6.3.md §6.7 ----
     DIN = None
     if din_on:
         from fase6_nucleo import NucleoSeco
@@ -690,7 +691,7 @@ def simular_fase2b(
                                             DIN["paridad"])
             DIN["paridad"] = not DIN["paridad"]
         DIN["residuo"] = 0.0 if E0 is None else (energia_dinamica(DIN["act"]) - E0) / paso_tiempo
-        # v3.1-pre15: CORRECTOR GLOBAL DE ENERGIA (decision 1.8; DISENO_FASE6_3.md §6.13). Lo que la dinamica y el
+        # v3.11.0: CORRECTOR GLOBAL DE ENERGIA (decision 1.8; DISENO_FASE_6.3.md §6.13). Lo que la dinamica y el
         # acoplamiento no conservan en este paso (su residuo, incluida la energia cinetica que quita el rozamiento,
         # mas el calor de rozamiento que devolvio la capa limite) se devuelve como un incremento UNIFORME de T en
         # toda la atmosfera, como el "energy fixer" de CAM (Lauritzen y Williamson 2019, JAMES). Asi el planeta
@@ -904,7 +905,7 @@ def simular_fase2b(
         T_col = T_col.copy()
         T_col[..., 0] = Ts + (paso_tiempo / C0) * neto_s
 
-        # transporte horizontal: oceano (como antes) y atmosfera (opcion C', seccion 6 de DISENO_V3.0.md):
+        # transporte horizontal: oceano (como antes) y atmosfera (opcion C', seccion 6 de DISENO_FASE_2.3.md):
         # difusion implicita de X = s/cp = T_aire + g*z/cp, con la capacidad de las capas que reciben lo
         # que llega; el cambio de X se suma por igual a esas capas (reparto proporcional a la masa).
         T_antes = T_col[..., 0].copy()
@@ -1239,7 +1240,7 @@ def simular_fase2b(
     anos = max_anos
     convergido = False
     W_media_anterior = None
-    # v3.1-pre12: con I16, medias globales anuales para el criterio de equilibrio (fase6_equilibrio.py)
+    # v3.10.0: con I16, medias globales anuales para el criterio de equilibrio (fase6_equilibrio.py)
     serie_equilibrio = {k: [] for k in EQ.CLAVES} if DIN is not None else None
     equilibrio_valores = {}
 
@@ -1355,7 +1356,7 @@ def simular_fase2b(
             if I.get("suelo_termico_agua", False):
                 # propiedades termicas del suelo con el agua media del año (I13). La temperatura del suelo NO
                 # cambia: el agua que entra o sale lo hace a la temperatura del suelo (su calor sensible no se
-                # contabiliza, opcion A de la 5a). Ese cambio de "energia" ocurre solo entre años, nunca dentro
+                # contabiliza, opcion A de la 5.1). Ese cambio de "energia" ocurre solo entre años, nunca dentro
                 # del año final, en el que se mide el cierre del balance. (Primera version: se conservaba
                 # C*(T - 0 C), lo que en suelos muy frios, como la Antartida, daba saltos de decenas de grados.)
                 capacidades_reales, conductancias = AG.columna_suelo(es_tierra, W_media, *CAPACIDADES_BASE)
@@ -1391,7 +1392,7 @@ def simular_fase2b(
             # grueso puede seguir creciendo unos cm/año durante siglos (en
             # la noche polar casi permanente de P3N solo lo frena el calor que
             # llega desde abajo), pero apenas cambia ya la temperatura:
-            # ver DISENO_FASE3.md, seccion 4.1.
+            # ver DISENO_FASE_3.md, seccion 4.1.
             dsup = np.abs(temp_superficie(T_col) - Tsup0)
             fino = es_agua & ((HIELO["h"] < 1.0) | (h0 < 1.0))
             dsup = np.where(fino, np.maximum(dsup, np.abs(entalpia(T_col) - E0) / SUPERFICIE[0]), dsup)
@@ -1421,7 +1422,7 @@ def simular_fase2b(
                 factor = r / (1 - r)
                 E1 = entalpia(T_col)
                 T_col = T_col + factor * (T_col - estado0[0])
-                if DIN is None:          # I16: el aire y el viento NO se extrapolan (DISENO_FASE6_3.md §6.3)
+                if DIN is None:          # I16: el aire y el viento NO se extrapolan (DISENO_FASE_6.3.md §6.3)
                     T_cl = T_cl + factor * (T_cl - estado0[1])
                     T_tr = T_tr + factor * (T_tr - estado0[2])
                 if agua_on:
@@ -1635,7 +1636,7 @@ def simular_fase2b(
         flujos["p_capas"] = COL.pm.copy()
         flujos["p_superficie"] = COL.ps.copy()
     if guardar_al_terminar and archivo_estado is not None:
-        # v3.1-pre12: el estado al acabar el año registrado tambien va al punto de control (como un año mas):
+        # v3.10.0: el estado al acabar el año registrado tambien va al punto de control (como un año mas):
         # llamando otra vez con max_anos = ese año, se simula directamente el SIGUIENTE año registrado. Asi
         # fase6_clima.py encadena los años de la climatologia (§6.10). El punto de control anterior (el del
         # comienzo de este año) se conserva en "<archivo>.previo" hasta que fase6_clima.py guarde el año.
@@ -1662,7 +1663,7 @@ def simular_fase2b(
                     "diferencia_relativa": abs(acum["abs"] - acum["olr"]) / acum["abs"],
                     "cierre_relativo": energia_cierre, **energia_din},
         "agua": agua,
-        # v3.1-pre12: estado final del oceano, el suelo y el hielo (para arrancar en caliente otra simulacion)
+        # v3.10.0: estado final del oceano, el suelo y el hielo (para arrancar en caliente otra simulacion)
         "estado_final": {"T_col": T_col.copy(), "HIELO": {k: np.array(v, copy=True) for k, v in HIELO.items()}},
         "equilibrio": None if DIN is None else {"serie": serie_equilibrio, "valores": equilibrio_valores},
     }

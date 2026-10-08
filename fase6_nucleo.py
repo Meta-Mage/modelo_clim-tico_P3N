@@ -1,13 +1,13 @@
 # fase6_nucleo.py -- Fase 6, etapa 6.2: nucleo dinamico PROPIO de M3N (ecuaciones primitivas, seco).
 #
-# Diseno completo y fuentes: DISENO_FASE6_2.md. Resumen:
+# Diseno completo y fuentes: DISENO_FASE_6.2.md. Resumen:
 #   - Ecuaciones primitivas hidrostaticas en coordenada sigma (Phillips 1957 ✅), forma vectorial invariante.
 #   - Vertical: Simmons y Burridge (1981) en sigma pura (✅² IFS Cy25r1 + codigo GFDL), seminiveles de M3N.
 #   - Horizontal: rejilla C de la 6.1 (decision de Carlos 05/10), Coriolis de Sadourny con flujos de masa.
-#     DEMOSTRACION PROPIA (DISENO_FASE6_2.md §3 bis): la energia total se conserva exactamente en el sistema
+#     DEMOSTRACION PROPIA (DISENO_FASE_6.2.md §3 bis): la energia total se conserva exactamente en el sistema
 #     semidiscreto; lo comprueba test_fase6_2.py.
 #   - Filtro polar de la 6.1 (desde 60 grados) sobre todas las tendencias.
-#   - Tiempo: leapfrog + RAW (Williams 2009 ✅); semiimplicito (DISENO_FASE6_2.md §4) en una segunda fase.
+#   - Tiempo: leapfrog + RAW (Williams 2009 ✅); semiimplicito (DISENO_FASE_6.2.md §4) en una segunda fase.
 #
 # Convenios: capa k = 0 arriba ... N-1 abajo. Seminiveles sh[0] = 0 (tope, p = 0) ... sh[N] = 1 (suelo).
 # Estado: ps (F, C) [Pa]; T (N, F, C) [K]; u (N, F, C) [m/s] en la cara oeste de cada celda;
@@ -22,7 +22,7 @@ from fase6_nucleo_nb import HAY_NUMBA, _tendencias_sin_filtro
 
 LIMITE_CORRECCION_PRESION = 0.5     # peso maximo de la interpolacion de la correccion de T (§6.11, §6.12)
 
-# v3.1-pre8: con numba, las tendencias explicitas se calculan con la version compilada de fase6_nucleo_nb.py,
+# v3.6.0: con numba, las tendencias explicitas se calculan con la version compilada de fase6_nucleo_nb.py,
 # IDENTICA BIT A BIT a la de numpy de este archivo (test_fase6_2.py). Poner a False para usar la de numpy.
 USAR_NUMBA = True
 
@@ -191,7 +191,7 @@ class NucleoSeco:
         return out
 
     def _filtro_varios(self, campos, cos_filas):
-        """v3.1-pre8: _filtro3 de varios campos con las mismas filas en UNA sola pareja de FFT (las FFT de cada
+        """v3.6.0: _filtro3 de varios campos con las mismas filas en UNA sola pareja de FFT (las FFT de cada
         fila son independientes: el resultado es identico bit a bit al de filtrarlos uno a uno, test_fase6_2)."""
         formas = [c.shape for c in campos]
         pila = np.concatenate([c.reshape((-1,) + c.shape[-2:]) for c in campos], axis=0)
@@ -230,7 +230,7 @@ class NucleoSeco:
         partes = np.array([t_u, t_v, t_T, t_s]) / g
         return float(partes.sum()), partes
 
-    # ------------------------------------------------------------------ semiimplicito (DISENO_FASE6_2.md §4)
+    # ------------------------------------------------------------------ semiimplicito (DISENO_FASE_6.2.md §4)
     def matrices_verticales(self, T_ref):
         """G (hidrostatica), tau (conversion de energia linealizada) y M = G tau + R T_ref 1 dsigma^T."""
         N, R = self.N, self.R
@@ -319,7 +319,7 @@ class NucleoSeco:
             return (-p_ref * np.tensordot(self.dsig, delta, axes=1),
                     -np.tensordot(self.si_tau, delta, axes=1), -gu, -gv)
         L1 = L(*act); L0 = L(*ant)
-        if self.filtrar:            # v3.1-pre8: los 8 filtros en 2 llamadas (identico bit a bit)
+        if self.filtrar:            # v3.6.0: los 8 filtros en 2 llamadas (identico bit a bit)
             a = self._filtro_varios((L1[0], L1[1], L1[2], L0[0], L0[1], L0[2]), Rj.cos_c)
             b_ = self._filtro_varios((L1[3], L0[3]), Rj.cos_v)
             L1 = (a[0], a[1], a[2], b_[0]); L0 = (a[3], a[4], a[5], b_[1])
@@ -382,7 +382,7 @@ class NucleoSeco:
         return ant, act
 
     def avanzar(self, ant, act, forzamiento=None, nu=RAW_NU):
-        """Un paso leapfrog semiimplicito + hiperdifusion + filtro RAW (v3.1-pre11: extraido de integrar_si,
+        """Un paso leapfrog semiimplicito + hiperdifusion + filtro RAW (v3.9.0: extraido de integrar_si,
         mismo codigo; lo usa tambien el acoplamiento con la fisica). Devuelve (ant, act) nuevos."""
         dt = self.si_dt
         nue = self.paso_semiimplicito(ant, act, forzamiento)
@@ -419,7 +419,7 @@ class NucleoSeco:
             self._hinv_cache[clave] = np.linalg.inv(np.eye(F)[None, None] - a2 * self.si_c2[:, None, None, None] * self.si_H[None])
         self.si_Hinv = self._hinv_cache[clave]
 
-    # ------------------------------------------------------------------ hiperdifusion (DISENO_FASE6_2.md §7)
+    # ------------------------------------------------------------------ hiperdifusion (DISENO_FASE_6.2.md §7)
     def _laplaciano_escalar(self, x):
         """div grad en la rejilla C (sin filtro). x: (..., F, C), puede ser complejo."""
         Rj = self.Rj
@@ -452,7 +452,7 @@ class NucleoSeco:
         dx_ec = Rj.a * Rj.dlam                                                   # anchura en el ecuador
         self.nu4 = 1.0 / (tau_dias * 86400.0 * (4.0 / dx_ec ** 2) ** 2)
         self.dif_dt = dt_efectivo
-        # v3.1-pre10 (DISENO_FASE6_3.md §6.2, decisiones 1.7 y 1.8; apagadas por defecto: Held y Suarez no
+        # v3.8.0 (DISENO_FASE_6.3.md §6.2, decisiones 1.7 y 1.8; apagadas por defecto: Held y Suarez no
         # cambia). calor_rozamiento: la energia cinetica que quita la hiperdifusion vuelve como calor en la
         # misma celda y capa (como CAM, difcor.F90 ✅). correccion_presion: la difusion de T actua como sobre
         # superficies de presion (CAM, difcor.F90 ✅, en sigma pura B = sigma), explicita como en CAM.
@@ -493,7 +493,7 @@ class NucleoSeco:
 
     def aplicar_hiperdifusion(self, T, u, v, dt, ps=None):
         """Paso implicito de la hiperdifusion de duracion dt (separado del resto de la dinamica).
-        Con las opciones de preparar_hiperdifusion (v3.1-pre10) necesita ps."""
+        Con las opciones de preparar_hiperdifusion (v3.8.0) necesita ps."""
         Rj = self.Rj
         F, C = Rj.filas, Rj.columnas
         Is, Iv = self._inversas_difusion(dt)
@@ -522,9 +522,9 @@ class NucleoSeco:
         ~ dt nu4 sigma (dT/dp) nabla^4 p_s."""
         if ps is None:
             raise ValueError("la correccion a superficies de presion necesita ps")
-        # v3.1-pre11: delps con el MISMO operador implicito de la hiperdifusion aplicado a p_s (sin cambiar p_s):
+        # v3.9.0: delps con el MISMO operador implicito de la hiperdifusion aplicado a p_s (sin cambiar p_s):
         # delps = p_s - p_s_difundida ~ dt nu4 nabla^4 p_s para campos suaves, y ACOTADO en la escala de la
-        # rejilla. La v3.1-pre10 usaba nabla^4 p_s explicito, que cerca de los polos (celdas estrechas) crece
+        # rejilla. La v3.8.0 usaba nabla^4 p_s explicito, que cerca de los polos (celdas estrechas) crece
         # hasta ~1/cos^4 y hacia inestable el modelo acoplado (medido el 07/10: T de +-6e5 K en 4 pasos).
         Is, _ = self._inversas_difusion(dt)
         C = self.Rj.columnas
@@ -532,10 +532,10 @@ class NucleoSeco:
         ps_dif = np.fft.irfft((np.matmul(Is, pk[..., None].real)[..., 0]
                                + 1j * np.matmul(Is, pk[..., None].imag)[..., 0]).T, n=C, axis=-1)
         delps = ps - ps_dif                                                              # Pa
-        # v3.1-pre14: la correccion es T en la superficie de presion que pasa por el centro de la capa, es decir,
+        # v3.10.2: la correccion es T en la superficie de presion que pasa por el centro de la capa, es decir,
         # T a la altura desplazada sigma_k + dsigma_k, con dsigma_k = sigma_k delps/p_s (lo que CAM aproxima con el
         # 1.er termino de Taylor, centrado). Aqui se calcula como INTERPOLACION LINEAL entre la capa y su vecina en
-        # la direccion del desplazamiento (DISENO_FASE6_3.md §6.12):
+        # la direccion del desplazamiento (DISENO_FASE_6.3.md §6.12):
         #   - para perfiles suaves y desplazamientos pequeños coincide con CAM a 1.er orden;
         #   - nunca extrapola con el perfil del modelo. La extrapolacion de CAM en las capas extremas, con una
         #     inversion termica fuerte (meseta antartica en la noche polar), se realimentaba: enfriaba la capa baja

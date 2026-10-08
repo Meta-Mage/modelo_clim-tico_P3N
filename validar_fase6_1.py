@@ -13,7 +13,7 @@ from fase6_aguas_someras import (AguasSomeras, A_TIERRA, OMEGA_TIERRA, G_TIERRA,
                                  caso2, caso5, caso6, errores_normalizados, velocidad_fase_rh)
 
 LAT_FILTRO = 60.0
-DT_5GRADOS = 150.0            # s; con RAW (alfa 0,53) hace falta omega_max*dt <~ 0,45 (DISENO_FASE6_1.md §5)
+DT_5GRADOS = 150.0            # s; con RAW (alfa 0,53) hace falta omega_max*dt <~ 0,45 (DISENO_FASE_6.1.md §5)
 
 
 def _modelo(filas=36, **kw):

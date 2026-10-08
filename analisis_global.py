@@ -213,7 +213,7 @@ def resumen_hielo(completo, tipo_superficie):
     medio = h.mean(axis=0)
     if (medio > 0).any():
         lineas.append(f"  Espesor medio anual donde hay hielo: medio {medio[medio > 0].mean():.1f} m, maximo {medio.max():.1f} m")
-        lineas.append("  (En los polos de P3N casi no hay verano: el hielo grueso sigue acercandose a su equilibrio, ver DISENO_FASE3.md)")
+        lineas.append("  (En los polos de P3N casi no hay verano: el hielo grueso sigue acercandose a su equilibrio, ver DISENO_FASE_3.md)")
     else:
         lineas.append("  Sin hielo marino en todo el año.")
     if "nieve_permanente_posible" in completo:

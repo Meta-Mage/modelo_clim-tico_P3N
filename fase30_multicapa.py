@@ -1,6 +1,6 @@
 # fase30_multicapa.py -- v3.0: atmosfera de varias capas (en seco).
 #
-# Diseño completo, fuentes y decisiones: DISENO_V3.0.md. Resumen:
+# Diseño completo, fuentes y decisiones: DISENO_FASE_2.3.md. Resumen:
 #   - N capas en coordenada sigma (sigma = p / p_superficie), que siguen el
 #     relieve: sobre una montaña hay menos aire encima (presion local real).
 #   - Infrarrojo "gris" de dos flujos con fuente de Planck lineal en tau;
@@ -12,7 +12,7 @@
 #   - Ajuste convectivo seco que conserva la entalpia (Manabe y Strickler
 #     1964) a un gradiente critico de 6,5 K/km (PROVISIONAL hasta la v3.1).
 #   - Transporte horizontal: difusion de la energia estatica seca cerca de
-#     la superficie, s = cp*T + g*z (opcion C' de DISENO_FASE5A.md), y lo
+#     la superficie, s = cp*T + g*z (opcion C' de DISENO_FASE_5.md), y lo
 #     que llega se reparte en la troposfera de forma proporcional a la masa.
 #
 # Este modulo solo contiene la fisica de la columna, vectorizada sobre todas
@@ -37,7 +37,7 @@ P0 = 1.0e5                     # Pa, presion de referencia al nivel del mar (1 b
 T_ALTURA_ESCALA = 255.0        # K, temperatura del aire para la presion en superficie de las montañas
                                # (la misma que usa ALTURA_ESCALA en fase2b_atmosfera.py; provisional)
 
-# ---- capas (DISENO_V3.0.md, seccion 1) ----
+# ---- capas (DISENO_FASE_2.3.md, seccion 1) ----
 N_CAPAS_ATM = 20               # PROVISIONAL: se fija con la prueba de convergencia del modelo completo
 Z_TOPE_RECETA = 40.0e3         # m: receta de espaciado (no es un dato fisico)
 H_RECETA = 7.5e3               # m
@@ -46,7 +46,7 @@ ESTIRAMIENTO = 1.6             # capas mas finas cerca del suelo
 # ---- infrarrojo (seccion 2): calibrado 04/10/2026, convergido en N ----
 TAU0_LW = 2.452
 F_LW = 0.240
-EXP_VAPOR_LW = 4.0             # (c) forma del vapor, provisional hasta la Fase 5b
+EXP_VAPOR_LW = 4.0             # (c) forma del vapor, provisional hasta la Fase 5.2
 
 # ---- luz absorbida por la atmosfera (seccion 3) ----
 EXP_VAPOR_SW = 4.0             # (c) forma de Isca (solar_exponent = 4)
@@ -176,13 +176,13 @@ def alfa_simmons_burridge(sh):
 
 class Columna:
     """Geometria vertical de todas las celdas. Fija en el tiempo salvo que se llame a actualizar_ps
-    (v3.1-pre9: con el nucleo dinamico, la presion en superficie cambia en cada paso)."""
+    (v3.7.0: con el nucleo dinamico, la presion en superficie cambia en cada paso)."""
 
     def __init__(self, altitud_metros, gravedad=P3N_GRAVEDAD, n=N_CAPAS_ATM, gradiente=GRADIENTE_CRITICO,
                  presion_capa="media"):
         # gradiente (K/m): el del ajuste convectivo SECO. v3.0: 6,5 K/km provisional; v3.1 con la
         # conveccion humeda (I13): el adiabatico seco g/cp de cada planeta (fisica, a)
-        # presion_capa (v3.1-pre9, DISENO_FASE6_3.md §6.2, decision 1.2): "media" = media aritmetica de los
+        # presion_capa (v3.7.0, DISENO_FASE_6.3.md §6.2, decision 1.2): "media" = media aritmetica de los
         # seminiveles (la de la v3.0/v3.1, por defecto: sin cambios); "sb81" = la de Simmons y Burridge
         # (1981), la del nucleo dinamico: ln p_k = ln p_{k+1/2} - alfa_k.
         if presion_capa not in ("media", "sb81"):

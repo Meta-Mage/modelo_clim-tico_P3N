@@ -1,5 +1,7 @@
 # Fase 6.2 de M3N: ecuaciones primitivas en seco (núcleo dinámico propio, 20 capas)
 
+> **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE6_2.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
+
 **Estado: DISEÑO v1 (05/10/2026), sin código todavía.** Parte de las decisiones de la 6.1 que confirmó Carlos: rejilla C, filtro polar desde 60°, leapfrog con RAW y semiimplícito obligatorio.
 
 Etiquetas:
@@ -423,7 +425,7 @@ Media de los días 200 a 1200, con 100 muestras (una cada 10 días). Estable los
 - **Estructura cualitativa como la de HS94:** dos chorros simétricos en la troposfera alta (σ ≈ 0,2–0,3) que bajan hasta la superficie como vientos del oeste; vientos del este en superficie en los trópicos y en latitudes altas; vientos débiles del este sobre el ecuador en altura; y una tropopausa tropical fría (~190 K).
 - **Con τ = 2** los chorros quedan algo más altos de latitud y más intensos.
 
-**v3.1-pre4:** `held_suarez.py` acepta `--filas 72` (2,5°, dt = 225 s, misma τ en la onda más corta de esa rejilla), para la prueba de resolución. En el entorno de la IA va a ~1 día simulado por minuto; en el PC de Carlos se esperan ~3–4 h para 1200 días ⚠️.
+**v3.2.0:** `held_suarez.py` acepta `--filas 72` (2,5°, dt = 225 s, misma τ en la onda más corta de esa rejilla), para la prueba de resolución. En el entorno de la IA va a ~1 día simulado por minuto; en el PC de Carlos se esperan ~3–4 h para 1200 días ⚠️.
 
 ### Prueba 6: prueba de resolución a 2,5° (PC de Carlos, 05–06/10) — CIERRE DE LA 6.2
 
@@ -449,4 +451,4 @@ Media de los días 200 a 1200, con 100 muestras (una cada 10 días). Estable los
   - (a) aceptarlo;
   - (b) simular a 2,5°, unas 8 veces más caro;
   - (c) una corrección de los remolinos no resueltos, solo si la validación en modo Tierra lo justifica.
-- ✅ **Decidido por Carlos (06/10/2026, reafirmado el 08/10):** de momento la rejilla se queda en 5°. La de 2,5° "ya habrá tiempo de pensarlo cuando estén decididas todas las características del planeta y podamos permitirnos una sola simulación larguísima" (`DISENO_FASE6_3.md` §6.3). La opción (c) solo se estudiaría si la validación en modo Tierra lo justificara.
+- ✅ **Decidido por Carlos (06/10/2026, reafirmado el 08/10):** de momento la rejilla se queda en 5°. La de 2,5° "ya habrá tiempo de pensarlo cuando estén decididas todas las características del planeta y podamos permitirnos una sola simulación larguísima" (`DISENO_FASE_6.3.md` §6.3). La opción (c) solo se estudiaría si la validación en modo Tierra lo justificara.

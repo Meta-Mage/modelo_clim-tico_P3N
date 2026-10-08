@@ -13,7 +13,7 @@ from fase1_geografia import TIERRA, ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from fase2_difusion import D_DIFUSION_REFERENCIA
 from cache_simulacion import precalcular_orbita_cacheada, simular_modelo_cacheado
 
-# D de referencia: en la Fase 2b solo fija el estado inicial y forma parte
+# D de referencia: en la Fase 2.2 solo fija el estado inicial y forma parte
 # de la clave de la cache; el transporte real usa D_ATMOSFERA y D_OCEANO
 # (fase2b_atmosfera.py). Para apagar el transporte, usa el interruptor I6.
 D_GRID_ACTIVO = np.full((FILAS, COLUMNAS), D_DIFUSION_REFERENCIA)
