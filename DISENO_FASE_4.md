@@ -130,3 +130,32 @@ La diferencia, un paso de 15 minutos, es despreciable, pero se documenta.
 | Tamaño | Manejable | 49,4 MB con la rejilla actual |
 | Hitos del año (v2.4.1) | Cada hito cae en el registro del día que lo contiene | ✅ Solsticio de verano en el día 138 (índice 137) y equinoccio de otoño en el 208 (índice 207); en la v2.4 salían un día tarde. Los otros cuatro no cambian |
 | Exportación completa (v2.4.1) | Con todas las correcciones, el clima sigue siendo el mismo | ✅ Mapa `prueba1`: aire a 2 m medio 15,29 °C (15,30 en la v2.4), océano helado 8,75–9,1 %, convergencia en 25 años; huella del mapa `2a6fe3e0cef76ac6` (cambia respecto a la v2.4 porque el agua tiene ahora altitud 0) |
+
+## 5. Claves nuevas de la climatología con el núcleo dinámico (M3N 3.16.0, 09/10/2026)
+
+`python exportar_clima.py --dinamico` exporta la climatología de `clima_dinamico.py` (Fase 6.3, I16) con **el mismo formato** (`m3n-clima`, versión 1). Las claves de siempre tienen el mismo significado, pero ahora son **medias de N años** (30, la normal de la OMM). Las nuevas **solo se añaden**, como prevé la regla de versiones del §3, así que la versión del formato no cambia. **Comprobado:** H3N v0.2.1 lee el archivo nuevo sin cambios (`clima.cargar`, `resumen`, `dia`, `celda`).
+
+**Mientras no sea el clima oficial** (la 4.0.0, con la Fase 6.4; decisión de Carlos del 09/10/2026), se escribe en `~/Documentos/B3N/clima_activo/clima_dinamico_m3n.json`, no en el que lee H3N. Con `--activo` se escribe en el oficial. La exportación **rechaza** una climatología hecha con otro mapa: `resultado.pkl` guarda desde la 3.16.0 la huella del mapa con el que se simuló.
+
+| Bloque | Clave | Forma | Unidad |
+|---|---|---|---|
+| `diario` | `precipitacion_mm_dia`, `nieve_mm_dia`, `evaporacion_mm_dia` | [días, 36, 72] | mm/día (kg/m² por día terrestre de 86 400 s; la nieve, en agua) |
+| `diario` | `viento_u_baja_m_s`, `viento_v_baja_m_s` | [días, 36, 72] | m/s (u hacia el este, v hacia el norte), capa más baja (~200 m) |
+| `diario` | `viento_rapidez_baja_m_s` | [días, 36, 72] | m/s (media de \|v\|) |
+| `diario` | `humedad_especifica_baja_g_kg`, `humedad_relativa_baja_pct` | [días, 36, 72] | g/kg; % respecto al agua líquida |
+| `extremos` | `aire2m_min_absoluta`, `aire2m_max_absoluta`, `superficie_min_absoluta`, `superficie_max_absoluta`, `viento_rapidez_baja_max_m_s` | [días, 36, 72] | °C; m/s. Por día del año, el mínimo de los mínimos o el máximo de los máximos de los N años |
+| `variabilidad` | `aire2m_media_desviacion_entre_anos` | [días, 36, 72] | °C (desviación típica entre años, n − 1) |
+| `variabilidad` | `precipitacion_desviacion_entre_anos_mm_dia` | [36, 72] | mm/día (de la media anual) |
+| `anual` | `precipitacion_mm_dia`, `evaporacion_mm_dia`, `agua_precipitable_kg_m2`, `nieve_suelo_cm_agua` | [36, 72] | mm/día; kg/m²; cm de agua (= kg/m² / 10, porque la nieve llega a 1000 kg/m² y en kg/m² pasaría del rango de las centésimas) |
+| `climatologia` | años promediados y objetivo, si es exploratoria, error máximo de la media, deriva, equilibrio, procedencia | — | — |
+| `unidades` | la unidad de cada clave de serie | — | — |
+
+Además, en `simulacion` van `nivel_modelo` (núcleo dinámico, 20 capas, ciclo del agua, sin nubes) y en `parametros` los D que se usan de verdad: la atmósfera no difunde (D_atmosfera = null) y el océano sí (D de la Fase 2.3, hasta la 6.5).
+
+**Rango:** todas las series siguen en centésimas en int16 (|x| ≤ 327,67). Un valor fuera de rango **no se recorta**: la exportación para con un error. En un clima real no pasa con estas unidades. En las simulaciones de prueba de un día, que son irreales y muy calientes, sí puede pasar, y la prueba automática escala sus campos de agua.
+
+**Validación (3.16.0, entorno de la IA):** con una climatología de prueba del modo Tierra:
+- las series se leen con `leer_serie` igual que los valores redondeados a la centésima (aire a 2 m, viento, extremos);
+- las claves obligatorias están todas;
+- la exportación rechaza otro mapa;
+- H3N v0.2.1 la carga y sirve el resumen, los días y las celdas (con las claves nuevas en `dia` y `celda`).

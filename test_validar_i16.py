@@ -192,6 +192,58 @@ def test_validacion_de_punta_a_punta(tmp_path):
     assert "PROCEDENCIA" in resumen and huella_codigo(MODULOS_I16) in resumen and "AVISO" not in resumen
     assert huella_codigo(MODULOS_I16) in texto
     assert pickle.load(open(os.path.join(salida, "ano_extra.pkl"), "rb"))["codigo"] == huella_codigo(MODULOS_I16)
+    # 3.16.0: la climatologia dice con que mapa se hizo y se exporta a m3n-clima v1 con las claves nuevas
+    guion_x = f"""
+import os, sys, json, pickle
+import numpy as np
+os.environ["M3N_MODO"] = "tierra"
+sys.path.insert(0, {AQUI!r})
+import exportar_clima as X
+from modo_tierra import mapa_tierra
+from cache_simulacion import precalcular_orbita_cacheada
+from temperatura import PASO_TIEMPO
+import parametros as P
+rc = pickle.load(open(os.path.join({carpeta!r}, "resultado.pkl"), "rb"))
+tipo, alt = mapa_tierra()
+assert rc["mapa"]["huella"] == X.huella_mapa(tipo, alt)
+# el estado de prueba ("años" de 1 dia desde un arranque de 1 dia) es irreal y muy caliente (lluvia de >300 mm/dia,
+# vapor de >400 kg/m2: fuera del rango de las centesimas, que la exportacion rechaza con un error claro). Para
+# probar el formato se escalan los campos de agua a valores reales; el resto, tal cual.
+a = rc["agua"]
+for k in ("precipitacion", "nieve", "evaporacion", "agua_precipitable", "diario_precipitacion", "diario_nieve",
+          "diario_evaporacion"):
+    a[k] = a[k] / 20.0
+rc["desviacion_entre_anos"]["precipitacion"] = rc["desviacion_entre_anos"]["precipitacion"] / 20.0
+try:
+    X.serie(np.array([400.0]))
+    raise SystemExit("tenia que rechazar un valor fuera de rango")
+except ValueError:
+    pass
+orb = precalcular_orbita_cacheada(P.S3N_LUMINOSIDAD, P.INCLINACION_AXIAL_RAD, P.SEMIEJE_MAYOR)
+out = json.loads(json.dumps(X.construir_exportacion_dinamica(rc, tipo, alt, "tierra", orb, PASO_TIEMPO)))
+for k in ("formato", "version_formato", "generado", "m3n", "mapa", "rejilla", "tiempo", "astronomia", "parametros",
+          "simulacion", "celdas", "diario", "horario"):
+    assert k in out, k
+assert out["formato"] == "m3n-clima" and out["version_formato"] == 1
+for k in ("aire2m_media", "precipitacion_mm_dia", "viento_u_baja_m_s", "viento_rapidez_baja_m_s",
+          "humedad_relativa_baja_pct"):
+    assert k in out["diario"] and k in out["unidades"], k
+assert np.allclose(X.leer_serie(out["diario"]["aire2m_media"]), np.round(rc["reg_media"] * 100) / 100, atol=1e-9)
+assert np.allclose(X.leer_serie(out["diario"]["viento_u_baja_m_s"]), np.round(rc["viento_u_baja"] * 100) / 100, atol=1e-9)
+assert np.allclose(X.leer_serie(out["extremos"]["aire2m_max_absoluta"]), np.round(rc["extremos"]["reg_max"] * 100) / 100, atol=1e-9)
+assert out["climatologia"]["anos_promediados"] == rc["climatologia"]["anos_promediados"]
+assert out["climatologia"]["exploratoria"] and out["parametros"]["D_atmosfera"] is None
+otro = alt.copy(); otro[0, 0] += 1.0
+try:
+    X.construir_exportacion_dinamica(rc, tipo, otro, "otro", orb, PASO_TIEMPO)
+    raise SystemExit("tenia que rechazar otro mapa")
+except ValueError:
+    pass
+print("EXPORTACION OK")
+"""
+    sal = subprocess.run([sys.executable, "-c", guion_x], cwd=AQUI, env=dict(entorno, M3N_MODO="tierra"),
+                         capture_output=True, text=True)
+    assert sal.returncode == 0 and "EXPORTACION OK" in sal.stdout, sal.stderr[-2000:]
     assert not os.path.exists(os.path.join(salida, "estado_i16_copia.pkl"))
     # el mismo año extra, sin leer los vientos
     guion = f"""

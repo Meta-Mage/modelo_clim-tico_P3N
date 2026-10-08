@@ -51,7 +51,7 @@ from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from cache_simulacion import precalcular_orbita_cacheada
 from rejilla import LATITUDES_GRADOS
 
-VERSION = "3.15.0"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
+VERSION = "3.16.0"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
 
 
 def main():
@@ -142,6 +142,9 @@ def main():
     except (AssertionError, FloatingPointError, IndexError, ValueError) as e:      # valores no validos
         informar(f"ERROR: la simulacion se ha vuelto inestable ({e}). Pasale a Claude {f_reg}.")
         sys.exit(2)
+    from exportar_clima import huella_mapa          # 3.16.0: con que mapa se hizo (lo comprueba la exportacion)
+    r["mapa"] = {"nombre": nombre, "huella": huella_mapa(tipo, alt)} if args.tierra else \
+        {"nombre": nombre_mapa, "huella": huella_mapa(tipo, alt)}
     with open(os.path.join(carpeta, "resultado.pkl"), "wb") as f:
         pickle.dump(r, f)
     escribir_resumen(r, carpeta, time.time() - t0, len(orbita))

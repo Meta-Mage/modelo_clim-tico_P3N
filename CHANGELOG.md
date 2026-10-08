@@ -7,6 +7,18 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.16.0] — 2026-10-09
+
+- Fase: 6.3 (y 4: claves nuevas de `m3n-clima` v1).
+- Clima exportado: no cambia (el oficial sigue siendo el modelo de 2 capas; el modelo con I16 es idéntico bit a bit).
+- Pruebas: 121.
+
+### Añadido
+- `exportar_clima.py --dinamico`: exporta la climatología con el núcleo dinámico (medias de N años, lluvia, nieve, evaporación, viento y humedad de la capa baja, extremos absolutos, desviación entre años, campos anuales, climatología y unidades) en `m3n-clima` v1 con claves nuevas (`DISENO_FASE_4.md` §5). Hasta la 4.0.0 va a `clima_dinamico_m3n.json`; con `--activo`, al oficial. Comprobado que H3N v0.2.1 lo lee sin cambios.
+- `clima_dinamico.py` guarda en `resultado.pkl` el nombre y la huella del mapa; la exportación rechaza otro mapa.
+- `DISENO_FASE_6.3.md` §6.18: análisis con fuentes de C_E frente a C_H (ECMWF; Large y Yeager 2004), de la masa del vapor (F_ps = 0: ~3,5 hPa, 0,35 % en q_s; Trenberth y Smith; Lauritzen et al. 2018) y de la presión del modo Tierra (~1 % más de aire seco que la Tierra), pendientes del visto bueno de Carlos.
+- La validación completa de prueba comprueba también la exportación.
+
 ## [3.15.0] — 2026-10-09
 
 - Fase: 6.3.

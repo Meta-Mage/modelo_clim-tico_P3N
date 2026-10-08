@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `3.15.0`** (octubre de 2026). Versiones con [SemVer](https://semver.org/lang/es/) y fases con numeración jerárquica: la norma está en `NOMENCLATURA.md` y la historia en `CHANGELOG.md`.
+**Versión actual: `3.16.0`** (octubre de 2026). Versiones con [SemVer](https://semver.org/lang/es/) y fases con numeración jerárquica: la norma está en `NOMENCLATURA.md` y la historia en `CHANGELOG.md`.
 
 Lo que se exporta es el **modelo de 2 capas** (fases 0–4; v2.4.3 con la corrección de la capa de mezcla, `DISENO_FASE_2.3.md` §14). Encima hay tres bloques programados, probados y **apagados** hasta validarlos, que no cambian el clima exportado:
 - la atmósfera de 20 capas (Fase 2.3, interruptor I10);
@@ -77,6 +77,7 @@ Todas las herramientas usan **la misma simulación** y la guardan en caché (`ou
 |---|---|
 | `python analisis_global.py` | Estado de todo el planeta: medias globales, tierra y agua, perihelio y afelio, hielo marino, tabla por bandas de latitud y gráfico anual |
 | `python exportar_clima.py` | Exporta el clima del mapa activo para H3N (Fase 4) |
+| `python exportar_clima.py --dinamico` | 3.16.0: exporta la climatología con el núcleo dinámico de `clima_dinamico.py` (lluvia, viento, humedad, extremos, variabilidad; `DISENO_FASE_4.md` §5). Hasta la 4.0.0 va a `clima_dinamico_m3n.json`, no al clima que lee H3N (`--activo` para ese) |
 | `python consulta_punto.py LAT LON` | Clima de un punto a lo largo del año: aire a 2 m, superficie y hielo. Sin argumentos, pregunta las coordenadas |
 | `python analisis_latitudes.py` | Tabla y gráfico por latitud |
 | `python mapa_calor.py` | Mapa de la temperatura media anual, con la costa y el hielo marino |
@@ -150,7 +151,7 @@ Uno por fase o etapa (`NOMENCLATURA.md` §7). Además: `NOMENCLATURA.md` (la nor
 | `DISENO_FASE_2.2.md` | Fase 2.2: atmósfera de dos capas: diseño, fuentes, calibración, validación y **valores vigentes** (§13) |
 | `DISENO_FASE_2.3.md` | Fase 2.3: atmósfera de N capas: diseño, pruebas, modo Tierra, calibración, validación y revisión del código |
 | `DISENO_FASE_3.md` | Fase 3: hielo marino: física, fuentes, validación |
-| `DISENO_FASE_4.md` | Fase 4: exportación, formato `m3n-clima` y validación |
+| `DISENO_FASE_4.md` | Fase 4: exportación, formato `m3n-clima` y validación; §5, las claves de la climatología con el núcleo dinámico (3.16.0) |
 | `DISENO_FASE_5.md` | Fase 5: plan del agua y las nubes (borrador de la 5.1 y división 5.1/5.2) |
 | `DISENO_FASE_5.1.md` | Fase 5.1: ciclo del agua sobre las N capas: implementación y validación |
 | `DISENO_FASE_6.md` | Fase 6: plan del núcleo dinámico propio, por etapas validadas |
@@ -181,7 +182,7 @@ Numeración y reglas: `NOMENCLATURA.md` §2. Qué versión trae cada cosa: `CHAN
 | 5.1 | Ciclo del agua | 🔧 apagada (I11–I15), espera a la circulación (`DISENO_FASE_5.1.md` §10 bis) | v3.1.0 |
 | 6.1 | Núcleo: una capa sobre la esfera | 🔧 cerrada | v3.1.0 |
 | 6.2 | Núcleo seco de 20 capas | 🔧 cerrada | v3.1.0–v3.3.0 |
-| 6.3 | Núcleo + física de M3N (I16) y validación en modo Tierra | 🟡 en curso | v3.3.0–v3.15.0 |
+| 6.3 | Núcleo + física de M3N (I16) y validación en modo Tierra | 🟡 en curso | v3.3.0–v3.16.0 |
 | 6.4 | P3N con el núcleo (clima oficial provisional, sin nubes: será la 4.0.0; decisión del 09/10/2026) | ⏳ | — |
 | 5.2 | Nubes y radiación; después, recalibrar la estrella | ⏳ | — |
 | 6.6 | Arrastre de ondas de gravedad que conserva el momento (después de la 5.2; sustituye a la capa esponja) | ⏳ | — |

@@ -1067,3 +1067,42 @@ Revisión completa del repositorio y de la validación del 08/10 (los seis últi
 - C_E = C_H (§6.8), verificado y justificado; medir F_ps = 0, los acantilados y el desglose del error de la dinámica.
 - Exportación a `m3n-clima` de la climatología con I16 (viento, humedad, lluvia, extremos, desviación entre años, metadatos de años y error) y su lectura en H3N.
 - El criterio escrito de cierre de la 6.3. Después, la 6.4: la inclinación del eje (worldbuilding), cómo tratar D_oc y la capa de mezcla en P3N, la prueba corta de P3N con I16 y la simulación larga.
+
+### 6.18 3.16.0 (09/10/2026): exportación de la climatología; análisis de C_E y de la masa del vapor
+
+**1. Exportación** (`exportar_clima.py --dinamico`; formato y claves en `DISENO_FASE_4.md` §5).
+- Lo decidido en §6.3 (medias de N años, extremos, desviación entre años, horarios medios, metadatos de años y error) más la lluvia, la nieve, la evaporación, el viento y la humedad de la capa baja (§6.17).
+- Va a `clima_dinamico_m3n.json` hasta la 4.0.0; con `--activo`, al oficial.
+- `clima_dinamico.py` guarda en `resultado.pkl` el nombre y la huella del mapa, y la exportación rechaza otro mapa.
+- **Sin cambios en el modelo:** la misma simulación corta da los mismos resultados bit a bit que con la 3.15.0.
+- **Falta en H3N:** mostrar el viento, la lluvia y la humedad (vistas nuevas, siguiente versión de H3N). Hoy ya las recibe en los datos de cada día y de cada celda.
+
+**2. C_E frente a C_H** (pregunta de §6.8, presentada a Carlos el 09/10, **pendiente de su visto bueno** 🔶):
+- **Hoy:** C_E = C_H en todas partes (decisión de la v3.1, siguiendo a Frierson 2007 e Isca, un modelo idealizado).
+- **Fuentes:**
+  - el ECMWF usa sobre el mar rugosidades distintas para el calor y el vapor: z₀ₕ = 0,40 ν/u*, z₀_q = 0,62 ν/u* (`sbcblk_algo_ecmwf.F90` de NEMO ✅, ya implementado en `fase6_superficie.py`). Calculado aquí: con u* = 0,2 m/s y a 10 m, C_E/C_H ≈ 1,036;
+  - las fórmulas de Large y Yeager (2004, nota técnica del NCAR; las que usan NEMO y los océanos de CORE ✅) dan C_E,n = 34,6·10⁻³ √C_D frente a C_H,n = 32,7·10⁻³ √C_D (inestable): C_E/C_H = 1,058.
+  - Las dos coinciden en que sobre el mar **C_E es algo mayor que C_H** (un 4–6 % en neutro o inestable).
+- **Recomendación:**
+  - sobre el océano, usar la z₀_q del ECMWF, la misma familia que la z₀ y la z₀ₕ que M3N ya usa con I16, así que es la opción coherente;
+  - sobre tierra, hielo y nieve, mantener C_E = C_H hasta verificar en la documentación del IFS cómo trata la humedad sobre tierra ⚠️.
+- **Efecto esperado:** del orden de un 4 % más de evaporación sobre el mar a igual gradiente de humedad. El efecto en el equilibrio será menor, porque el aire se humedece y el gradiente baja.
+- **No es un ajuste para corregir nada**: el modo Tierra ya llueve de más, y esto empuja un poco en la misma dirección. Se propone porque es la física de las fuentes.
+- **Coste:** cambia el modelo con I16 y deja anticuada la climatología del modo Tierra. Por eso conviene **juntarlo con cualquier otro cambio de física de la 6.3** y repetir **una sola vez** la simulación del modo Tierra (cadena limpia, ~9–10 h).
+
+**3. La masa del vapor, F_ps = 0** (medida analítica, sin simular):
+- El núcleo es de **masa seca**: la p_s del núcleo, que también usa la física, es la del aire seco. El vapor no pesa en la presión ni en la dinámica, y la evaporación y la lluvia no cambian p_s (§6.7.2, 🔶).
+- **Medido con la climatología del modo Tierra:** agua precipitable media 36,1 kg/m², así que el peso del vapor es g·W ≈ **3,5 hPa (0,35 % de p_s)**, y más en los trópicos. La física calcula la saturación con una presión ~0,35 % menor que la total, así que q_s sale ~0,35 % mayor.
+- **En la Tierra real**, el vapor aporta entre 2,33 y 2,62 hPa a la presión media en superficie, de 985,50 hPa en total (Trenberth y Smith, "The Mass of the Atmosphere: a Constraint on Global Analyses", resumen en el NCAR ✅).
+- **Los modelos de referencia:** CESM2 (CAM-SE) reformuló su núcleo con coordenada de **masa seca** y el agua condensada activa en la dinámica y en la energía (Lauritzen et al. 2018, *JAMES*, doi:10.1029/2017MS001257 ✅). La masa seca es la elección de los núcleos modernos, pero con el vapor bien contado en la presión total.
+- **Lectura:** la aproximación actual es pequeña (~0,35 % en q_s), conocida y declarada. Contar el vapor en la presión de la física sería una mejora concreta y medible; se propone para el cierre de la 6.3 junto con C_E, o para más adelante, a decidir.
+
+**4. Un hallazgo menor del modo Tierra:**
+- Con P₀ = 1000 hPa al nivel del mar (la decisión de 1 bar es para P3N) y la altitud de la rejilla de 5°, la presión media en superficie del modo Tierra sale **992,5 hPa de aire seco**.
+- En la Tierra, el aire seco aporta unos 983 hPa (985,50 en total menos el vapor; Trenberth y Smith): **~1 % más de aire en el modo Tierra**.
+- Pequeño, pero es un parámetro de la Tierra mal puesto en el modo que sirve para validar. Se propone corregirlo (P₀ del modo Tierra a partir de la masa de aire seco observada) junto con los demás cambios de física, antes de repetir la simulación del modo Tierra.
+
+**Pendiente** (sustituye a la lista de §6.17):
+- Visto bueno de Carlos a C_E (punto 2), al vapor en la presión (punto 3) y a la P₀ del modo Tierra (punto 4). Con lo aprobado, un paquete de física y **una** simulación limpia del modo Tierra, que también mide el coste real de la cadena, los acantilados y el desglose del error de la dinámica.
+- La siguiente versión de H3N: vistas de viento, lluvia y humedad.
+- El criterio escrito de cierre de la 6.3. Después, la 6.4.

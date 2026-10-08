@@ -29,6 +29,16 @@
 # Hora solar local de una celda = hora del meridiano 0 + longitud/15.
 #
 # La documentacion completa del formato esta en DISENO_FASE_4.md.
+#
+# 3.16.0 (DISENO_FASE_4.md §6; DISENO_FASE_6.3.md §6.18): exportacion de la CLIMATOLOGIA con el nucleo
+# dinamico (I16), resultado de "python clima_dinamico.py":
+#     python exportar_clima.py --dinamico            # P3N, carpeta outputs/clima_dinamico/p3n_dos_capas
+#     python exportar_clima.py --dinamico --carpeta RUTA
+# Mismo formato (m3n-clima v1) con CLAVES NUEVAS (las existentes no cambian): medias de N años, lluvia,
+# nieve, evaporacion, viento y humedad de la capa baja, extremos absolutos de los N años, desviacion entre
+# años, campos anuales y la climatologia (años, error, deriva, procedencia). Mientras no sea el clima oficial
+# (4.0.0, Fase 6.4), se escribe en ~/Documentos/B3N/clima_activo/clima_dinamico_m3n.json, NO en el que lee H3N;
+# con --activo se escribe en el oficial (lo que hara la 4.0.0).
 
 import hashlib
 import json
@@ -55,6 +65,22 @@ SIN_DATO = -32768
 
 CARPETA_SALIDA = os.path.expanduser(os.path.join("~", "Documentos", "B3N", "clima_activo"))
 RUTA_SALIDA = os.path.join(CARPETA_SALIDA, "clima_activo_m3n.json")
+RUTA_SALIDA_DINAMICO = os.path.join(CARPETA_SALIDA, "clima_dinamico_m3n.json")     # 3.16.0, hasta la 4.0.0
+
+# 3.16.0: unidades de cada clave de las series (las de antes: C, y m en el hielo)
+UNIDADES = {
+    "aire2m_min": "C", "aire2m_media": "C", "aire2m_max": "C", "superficie_min": "C", "superficie_media": "C",
+    "superficie_max": "C", "hielo_espesor_m": "m", "aire2m": "C", "superficie": "C",
+    "precipitacion_mm_dia": "mm/dia (kg/m2 por dia terrestre de 86400 s)", "nieve_mm_dia": "mm/dia de agua",
+    "evaporacion_mm_dia": "mm/dia", "viento_u_baja_m_s": "m/s (hacia el este +)",
+    "viento_v_baja_m_s": "m/s (hacia el norte +)", "viento_rapidez_baja_m_s": "m/s",
+    "humedad_especifica_baja_g_kg": "g/kg", "humedad_relativa_baja_pct": "% (respecto al agua liquida)",
+    "aire2m_min_absoluta": "C", "aire2m_max_absoluta": "C", "superficie_min_absoluta": "C",
+    "superficie_max_absoluta": "C", "viento_rapidez_baja_max_m_s": "m/s",
+    "aire2m_media_desviacion_entre_anos": "C", "precipitacion_desviacion_entre_anos_mm_dia": "mm/dia",
+    "agua_precipitable_kg_m2": "kg/m2",
+    "nieve_suelo_cm_agua": "cm de agua equivalente (= kg/m2 / 10; la nieve en tierra llega hasta 1000 kg/m2)",
+}
 
 
 def serie(array):
@@ -193,6 +219,73 @@ def construir_exportacion(r, tipo, altitud, nombre_mapa, datos_orbita, paso_tiem
     }
 
 
+def construir_exportacion_dinamica(rc, tipo, altitud, nombre_mapa, datos_orbita, paso_tiempo):
+    """3.16.0: la climatologia de clima_dinamico.py (resultado.pkl, media de N años con I16) en m3n-clima v1.
+    Las claves de siempre tienen el mismo significado (ahora, medias de N años); las nuevas, en 'diario'
+    (lluvia, viento, humedad), 'extremos', 'variabilidad', 'anual', 'climatologia' y 'unidades'."""
+    c = rc["climatologia"]
+    if rc.get("mapa") is not None and rc["mapa"]["huella"] != huella_mapa(tipo, altitud):
+        raise ValueError(f"La climatologia se hizo con otro mapa ({rc['mapa']['nombre']}, huella "
+                         f"{rc['mapa']['huella']}); el mapa activo es {nombre_mapa} ({huella_mapa(tipo, altitud)}). "
+                         "Vuelve a lanzar clima_dinamico.py con el mapa activo.")
+    es_tierra = np.asarray(tipo) == TIERRA
+    r = dict(rc)
+    r["anos"] = int(c["equilibrio"]["anos"])
+    r["saltos"] = 0
+    r["nieve_permanente_posible"] = F2B.nieve_permanente_posible(np.asarray(rc["reg_media"]), es_tierra)
+    e = rc.get("energia")
+    if not isinstance(e, dict) or "diferencia_relativa" not in e:
+        ultimo = c["por_ano"][-1]["energia"] if c.get("por_ano") else {}
+        r["energia"] = {"diferencia_relativa": float(abs(ultimo.get("cierre_relativo", float("nan"))))}
+    out = construir_exportacion(r, tipo, altitud, nombre_mapa, datos_orbita, paso_tiempo)
+    # con I16 la atmosfera no difunde (la mueve el nucleo); el oceano, si (D de la Fase 2.3, hasta la 6.5)
+    out["parametros"].update({"D_atmosfera": None, "D_oceano": float(F2B.D_OCEANO_V30),
+                              "D_esquema": "nucleo dinamico (I16); oceano por difusion"})
+    a = rc["agua"]
+    out["simulacion"].update({
+        "nivel_modelo": "completo: nucleo dinamico (I16), 20 capas, ciclo del agua; sin nubes (Fase 5.2)",
+        "anos_hasta_convergencia_significado": "años del modelo con nucleo hasta el equilibrio (fase6_equilibrio)",
+    })
+    diario = out["diario"]
+    for clave, origen in (("precipitacion_mm_dia", a.get("diario_precipitacion")),
+                          ("nieve_mm_dia", a.get("diario_nieve")),
+                          ("evaporacion_mm_dia", a.get("diario_evaporacion")),
+                          ("viento_u_baja_m_s", rc.get("viento_u_baja")), ("viento_v_baja_m_s", rc.get("viento_v_baja")),
+                          ("viento_rapidez_baja_m_s", rc.get("viento_rapidez_baja")),
+                          ("humedad_especifica_baja_g_kg", rc.get("humedad_especifica_baja")),
+                          ("humedad_relativa_baja_pct", rc.get("humedad_relativa_baja"))):
+        if origen is not None:
+            diario[clave] = serie(origen)
+    ext = rc.get("extremos", {})
+    out["extremos"] = {k: serie(ext[o]) for k, o in (
+        ("aire2m_min_absoluta", "reg_min"), ("aire2m_max_absoluta", "reg_max"),
+        ("superficie_min_absoluta", "suelo_min"), ("superficie_max_absoluta", "suelo_max"),
+        ("viento_rapidez_baja_max_m_s", "viento_rapidez_baja")) if o in ext}
+    out["extremos"]["nota"] = "por dia del año, el minimo de los minimos y el maximo de los maximos de los N años"
+    d = rc.get("desviacion_entre_anos", {})
+    out["variabilidad"] = {"nota": "desviacion tipica entre años (n - 1)"}
+    if "reg_media" in d:
+        out["variabilidad"]["aire2m_media_desviacion_entre_anos"] = serie(d["reg_media"])
+    if "precipitacion" in d:
+        out["variabilidad"]["precipitacion_desviacion_entre_anos_mm_dia"] = serie(d["precipitacion"])
+    out["anual"] = {k: serie(a[o]) for k, o in (("precipitacion_mm_dia", "precipitacion"), ("evaporacion_mm_dia", "evaporacion"),
+                                                  ("agua_precipitable_kg_m2", "agua_precipitable")) if o in a}
+    if "nieve_media" in a:          # en cm de agua: en kg/m2 pasaria del rango de las centesimas (|x| <= 327,67)
+        out["anual"]["nieve_suelo_cm_agua"] = serie(np.asarray(a["nieve_media"]) / 10.0)
+    dv = c.get("deriva") or {}
+    out["climatologia"] = {
+        "anos_promediados": int(c["anos_promediados"]), "anos_objetivo": int(c.get("anos_objetivo", c["anos_promediados"])),
+        "exploratoria": bool(c.get("exploratoria", False)),
+        "error_media_aire2m_max_K": float(c["error_T_max_K"]), "error_media_precipitacion_max_mm_dia": float(c["error_P_max_mm_dia"]),
+        "deriva": {"hay_deriva": bool(dv.get("hay_deriva", False)), "metodo": dv.get("metodo"),
+                   "aire2m_global_K_ano": dv.get("global_T", {}).get("pendiente")} if dv else None,
+        "equilibrio": {"anos": int(c["equilibrio"]["anos"]), "convergido": bool(c["equilibrio"]["convergido"])},
+        "procedencia": c.get("procedencia", []),
+    }
+    out["unidades"] = UNIDADES
+    return out
+
+
 def escribir_json_atomico(ruta, contenido):
     os.makedirs(os.path.dirname(ruta), exist_ok=True)
     temporal = ruta + ".tmp"
@@ -202,11 +295,38 @@ def escribir_json_atomico(ruta, contenido):
 
 
 if __name__ == "__main__":
+    import argparse
+    import pickle
     from puente_c3n import cargar_mapa_activo_de_c3n
     from temperatura import PASO_TIEMPO
 
+    ap = argparse.ArgumentParser(description="Exporta el clima de M3N para H3N (formato m3n-clima v1)")
+    ap.add_argument("--dinamico", action="store_true", help="3.16.0: la climatologia con nucleo dinamico (I16)")
+    ap.add_argument("--carpeta", default=None, help="carpeta de clima_dinamico.py (por defecto la de P3N)")
+    ap.add_argument("--activo", action="store_true", help="con --dinamico: escribir en el clima que lee H3N")
+    args = ap.parse_args()
+    if MODO_TIERRA:
+        sys.exit("exportar_clima.py es para P3N (quita M3N_MODO=tierra)")
     datos_orbita = precalcular_orbita_cacheada(S3N_LUMINOSIDAD, INCLINACION_AXIAL_RAD, SEMIEJE_MAYOR)
     tipo, altitud, nombre_mapa = cargar_mapa_activo_de_c3n()
+    if args.dinamico:
+        carpeta = args.carpeta or os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "clima_dinamico",
+                                               "p3n_dos_capas")
+        f_res = os.path.join(carpeta, "resultado.pkl")
+        if not os.path.exists(f_res):
+            sys.exit(f"Falta {f_res}: hay que terminar antes 'python clima_dinamico.py'.")
+        with open(f_res, "rb") as f:
+            rc = pickle.load(f)
+        if rc.get("mapa") is None:
+            sys.exit("Esta climatologia no dice con que mapa se hizo (es anterior a la 3.16.0): no se puede "
+                     "comprobar que sea la del mapa activo. Vuelve a lanzar clima_dinamico.py (si esta terminada, "
+                     "solo rehace el resumen y el resultado).")
+        exportacion = construir_exportacion_dinamica(rc, tipo, altitud, nombre_mapa, datos_orbita, PASO_TIEMPO)
+        ruta = RUTA_SALIDA if args.activo else RUTA_SALIDA_DINAMICO
+        escribir_json_atomico(ruta, exportacion)
+        print(f"Climatologia con nucleo dinamico exportada en {ruta} ({os.path.getsize(ruta) / 1e6:.1f} MB)"
+              + ("" if args.activo else " (no es el clima que lee H3N: eso sera la 4.0.0)"))
+        sys.exit(0)
     print(f"Simulando mapa '{nombre_mapa}' (si ya esta en cache, es instantaneo)...")
     r = simular_fase2b_cacheada(datos_orbita, tipo, altitud, EMISIVIDAD, ALBEDO_POR_TIPO, INERCIA_POR_TIPO,
                                 PROFUNDIDAD_OPTICA, float(D_DIFUSION_REFERENCIA), nombre_mapa=nombre_mapa)
