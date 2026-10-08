@@ -273,12 +273,15 @@ def construir_exportacion_dinamica(rc, tipo, altitud, nombre_mapa, datos_orbita,
     if "nieve_media" in a:          # en cm de agua: en kg/m2 pasaria del rango de las centesimas (|x| <= 327,67)
         out["anual"]["nieve_suelo_cm_agua"] = serie(np.asarray(a["nieve_media"]) / 10.0)
     dv = c.get("deriva") or {}
+
+    def finito(x):      # 3.17.0: NaN -> null (JSON estandar; con pocos años la deriva no tiene pendiente)
+        return float(x) if x is not None and np.isfinite(x) else None
     out["climatologia"] = {
         "anos_promediados": int(c["anos_promediados"]), "anos_objetivo": int(c.get("anos_objetivo", c["anos_promediados"])),
         "exploratoria": bool(c.get("exploratoria", False)),
-        "error_media_aire2m_max_K": float(c["error_T_max_K"]), "error_media_precipitacion_max_mm_dia": float(c["error_P_max_mm_dia"]),
+        "error_media_aire2m_max_K": finito(c["error_T_max_K"]), "error_media_precipitacion_max_mm_dia": finito(c["error_P_max_mm_dia"]),
         "deriva": {"hay_deriva": bool(dv.get("hay_deriva", False)), "metodo": dv.get("metodo"),
-                   "aire2m_global_K_ano": dv.get("global_T", {}).get("pendiente")} if dv else None,
+                   "aire2m_global_K_ano": finito(dv.get("global_T", {}).get("pendiente"))} if dv else None,
         "equilibrio": {"anos": int(c["equilibrio"]["anos"]), "convergido": bool(c["equilibrio"]["convergido"])},
         "procedencia": c.get("procedencia", []),
     }
@@ -286,11 +289,23 @@ def construir_exportacion_dinamica(rc, tipo, altitud, nombre_mapa, datos_orbita,
     return out
 
 
+def sin_nan(x):
+    """3.17.0: NaN o infinito -> None (null). El JSON estandar no admite NaN y el navegador (H3N) no
+    lo lee; Python lo escribia sin avisar (por ejemplo, la deriva de una climatologia muy corta)."""
+    if isinstance(x, float):
+        return x if np.isfinite(x) else None
+    if isinstance(x, dict):
+        return {k: sin_nan(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [sin_nan(v) for v in x]
+    return x
+
+
 def escribir_json_atomico(ruta, contenido):
     os.makedirs(os.path.dirname(ruta), exist_ok=True)
     temporal = ruta + ".tmp"
     with open(temporal, "w", encoding="utf-8") as f:
-        json.dump(contenido, f, ensure_ascii=False)
+        json.dump(sin_nan(contenido), f, ensure_ascii=False, allow_nan=False)
     os.replace(temporal, ruta)
 
 

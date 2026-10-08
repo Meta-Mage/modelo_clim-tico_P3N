@@ -267,3 +267,14 @@ pickle.dump(r["flujos"], open({str(tmp_path / "sin_vientos.pkl")!r}, "wb"))
     con = pickle.load(open(os.path.join(salida, "ano_extra.pkl"), "rb"))["r"]["flujos"]
     for k in ("toa_neto", "olr_celda", "T_atm", "sw_suelo"):
         assert np.array_equal(sin[k], con[k]), k
+
+
+def test_la_exportacion_no_escribe_nan(tmp_path):
+    """3.17.0: NaN o infinito -> null; el JSON es estandar (H3N lo lee en el navegador)."""
+    import json
+    import exportar_clima as X
+    ruta = os.path.join(str(tmp_path), "sub", "clima.json")
+    X.escribir_json_atomico(ruta, {"a": float("nan"), "b": [1.0, float("inf"), {"c": -float("inf")}], "d": (2.5, "x")})
+    texto = open(ruta, encoding="utf-8").read()
+    assert "NaN" not in texto and "Infinity" not in texto
+    assert json.loads(texto) == {"a": None, "b": [1.0, None, {"c": None}], "d": [2.5, "x"]}

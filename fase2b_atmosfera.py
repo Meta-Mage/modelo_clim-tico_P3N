@@ -131,6 +131,8 @@ EMISIVIDAD_TR = 0.661
 VIENTO = 5.0                     # m/s, provisional hasta la Fase 6 (con I16, el viento real del nucleo)
 TAU_HIPERDIFUSION_DIAS = 0.5     # I16: amortiguamiento de la onda mas corta (criterio de CESM, DISENO_FASE_6.2.md §7)
 CORRECTOR_ENERGIA_I16 = True     # v3.11.0: corrector global de energia de la dinamica (decision 1.8, §6.13)
+EVAPORACION_Z0Q_I16 = True       # 3.17.0: con I16, evaporacion sobre el agua con la z0q del ECMWF (C_E > C_H;
+                                 # decision de Carlos del 09/10/2026, DISENO_FASE_6.3.md §6.19); False = C_E = C_H
 KARMAN = 0.4
 Z_REF = 10.0                     # m, altura de referencia del aire
 Z0M = {TIERRA: 0.01, AGUA: 2e-4}       # suelo desnudo (Carlos 02/10); oceano ~Charnock a 5 m/s
@@ -1091,10 +1093,12 @@ def simular_fase2b(
         if DIN is None:
             ri = P3N_GRAVEDAD * Z_REF * (theta_aire - Ts) / (theta_media * VIENTO ** 2)
             c_h = c_hn * factor_estabilidad_louis(ri, c_n, z0m)
+            c_e = c_h
             viento_s = VIENTO
         else:
             COEF = SUP.coeficientes(z_a, v_a, theta_aire, Ts, es_agua, Z0M[TIERRA], Z0H[TIERRA], P3N_GRAVEDAD)
             c_h = COEF["c_h"]
+            c_e = COEF["c_e"] if EVAPORACION_Z0Q_I16 else c_h
             viento_s = v_a
         rho = COL.ps / (R_AIRE * theta_aire)
         g = rho * CP_AIRE * c_h * viento_s
@@ -1108,10 +1112,11 @@ def simular_fase2b(
         T_atm[-1] = T_atm[-1] + flujo / (cap1 / dt)
 
         # ---- evaporacion (oceano libre, suelo) y sublimacion (nieve en tierra) ----
-        # E = rho*C_E*U*beta*(q_s(T_sup) - q_aire), C_E = C_H (Frierson 2007; Isca). Implicita en el
-        # vapor de la capa baja (DISENO_FASE5A 3.3), explicita en la temperatura de la superficie.
+        # E = rho*C_E*U*beta*(q_s(T_sup) - q_aire). Sin I16, C_E = C_H (Frierson 2007; Isca); con I16, desde la
+        # 3.17.0, C_E con la z0q del ECMWF sobre el agua (EVAPORACION_Z0Q_I16). Implicita en el vapor de la capa
+        # baja (DISENO_FASE_5.md 3.3), explicita en la temperatura de la superficie.
         Ts = T_col[..., 0]
-        g_q = np.where(sin_hielo, rho * c_h * viento_s, 0.0)
+        g_q = np.where(sin_hielo, rho * c_e * viento_s, 0.0)
         qs_l, _ = AG.qs_y_derivada(Ts, COL.ps)
         qs_i, _ = AG.qs_y_derivada(Ts, COL.ps, hielo=True)
         f_n = np.where(es_tierra, AG.fraccion_cubierta_nieve(S), 0.0)

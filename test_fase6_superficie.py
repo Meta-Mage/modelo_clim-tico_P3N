@@ -33,6 +33,21 @@ def test_coeficientes_sobre_tierra_y_estabilidad():
     assert d["c_h"][0] < d["c_h"][1] < d["c_h"][2]                     # estable < neutro < inestable
 
 
+def test_coeficiente_del_vapor_sobre_el_agua_y_la_tierra():
+    """3.17.0 (DISENO_FASE_6.3.md §6.19): sobre el agua, C_E con la z0q del ECMWF es algo mayor que C_H (en neutro,
+    entre +3 y +5 %, del orden de lo que dan Large y Yeager 2004: 34,6/32,7 = 1,058); sobre tierra, C_E = C_H
+    exactamente; la z0q es la del ECMWF con el u* final."""
+    U = np.array([3.0, 5.0, 10.0, 15.0, 20.0])
+    d = S.coeficientes(10.0, U, np.full(5, 290.0), np.full(5, 290.0), np.ones(5, bool), 0.01, 0.001, 9.81)
+    r = d["c_e"] / d["c_h"]
+    assert np.all((r > 1.02) & (r < 1.06)), r
+    _, _, z0q = S.rugosidad_oceano(d["u_estrella"], 9.81)
+    assert np.allclose(d["z0q"], z0q, rtol=1e-12)
+    t = S.coeficientes(185.0, np.full(3, 5.0), np.full(3, 290.0), np.array([287.0, 290.0, 293.0]),
+                       np.zeros(3, bool), 0.01, 0.001, 9.81)
+    assert np.array_equal(t["c_e"], t["c_h"]) and np.array_equal(t["z0q"], t["z0h"])
+
+
 @pytest.mark.slow
 def test_albedo_con_5_m_s_identico_a_la_v31_y_dependencia_del_viento():
     mu = np.linspace(0.01, 1.0, 50); tr = np.full(50, 0.8)

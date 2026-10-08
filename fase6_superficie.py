@@ -8,8 +8,9 @@
 # 2. Coeficientes de intercambio a la altura real z_a de la capa mas baja (§6.5, hallazgo 1), con la estabilidad
 #    de Louis, Tiedtke y Geleyn (1982) para el momento y para el calor (fase6_capa_limite.py ✅). Sobre el oceano
 #    z0 depende de u*, que depende de z0: punto fijo, iterado hasta < 1e-12 relativo.
-#    EVAPORACION: la v3.1 decidio C_E = C_H (Frierson 2007; Isca). z0q se calcula pero NO se usa: cambiarlo
-#    sustituiria esa decision y queda pendiente de Carlos (DISENO_FASE_6.3.md §6.8).
+#    EVAPORACION: la v3.1 decidio C_E = C_H (Frierson 2007; Isca). 3.17.0 (decision de Carlos del 09/10/2026,
+#    DISENO_FASE_6.3.md §6.18-§6.19): sobre el AGUA, C_E con la z0q del ECMWF (C_E/C_H ~1,04; Large y Yeager 2004
+#    dan 1,058); sobre tierra, C_E = C_H (z0q = z0h). Se devuelve como "c_e".
 # 3. Albedo directo del oceano de Cox y Munk (1954) con el viento LOCAL: tabla en (mu, U) con la misma funcion
 #    de fase2b_atmosfera.py (que hoy usa U = 5 m/s fijo). En U = 5 m/s da exactamente el albedo de la v3.1.
 
@@ -36,8 +37,9 @@ def rugosidad_oceano(u_estrella, g):
 
 
 def coeficientes(z_a, viento, theta_a, theta_s, es_agua, z0m_tierra, z0h_tierra, g, iteraciones=30):
-    """C_m (momento) y C_h (calor; tambien vapor, C_E = C_H) a la altura z_a, con la estabilidad de Louis.
-    Sobre el agua, z0 y z0h de la rugosidad del ECMWF con el u* que resulta (punto fijo). Devuelve un dict."""
+    """C_m (momento), C_h (calor) y, desde la 3.17.0, C_e (vapor) a la altura z_a, con la estabilidad de Louis
+    (la del calor tambien para el vapor). Sobre el agua, z0, z0h y z0q de la rugosidad del ECMWF con el u* que
+    resulta (punto fijo); sobre tierra, z0q = z0h, asi que C_e = C_h exactamente. Devuelve un dict."""
     v = np.maximum(viento, 1e-2)                                              # minimo numerico (§6.2, 1.3)
     ri = g * z_a * (theta_a - theta_s) / (0.5 * (theta_a + theta_s) * v * v)
     z0m = np.where(es_agua, 2e-4, z0m_tierra)
@@ -57,9 +59,13 @@ def coeficientes(z_a, viento, theta_a, theta_s, es_agua, z0m_tierra, z0h_tierra,
     lm = np.log(z_a / z0m); lh = np.log(z_a / z0h)
     c_n = (KARMAN / lm) ** 2
     c_m = c_n * louis_momento(ri, c_n, z_a / z0m)
-    c_h = KARMAN ** 2 / (lm * lh) * louis_calor(ri, c_n, z_a / z0m)
-    return {"c_m": c_m, "c_h": c_h, "u_estrella": np.sqrt(c_m) * v, "z0m": z0m, "z0h": z0h, "ri": ri,
-            "cambio_final": cambio}
+    f_h = louis_calor(ri, c_n, z_a / z0m)
+    c_h = KARMAN ** 2 / (lm * lh) * f_h
+    _, _, z0q_o = rugosidad_oceano(np.sqrt(c_m) * v, g)          # 3.17.0: con el u* final, como z0 y z0h
+    z0q = np.where(es_agua, z0q_o, z0h)
+    c_e = np.where(es_agua, KARMAN ** 2 / (lm * np.log(z_a / z0q)) * f_h, c_h)
+    return {"c_m": c_m, "c_h": c_h, "c_e": c_e, "u_estrella": np.sqrt(c_m) * v, "z0m": z0m, "z0h": z0h,
+            "z0q": z0q, "ri": ri, "cambio_final": cambio}
 
 
 _tabla_2d = None

@@ -135,7 +135,7 @@ La diferencia, un paso de 15 minutos, es despreciable, pero se documenta.
 
 `python exportar_clima.py --dinamico` exporta la climatología de `clima_dinamico.py` (Fase 6.3, I16) con **el mismo formato** (`m3n-clima`, versión 1). Las claves de siempre tienen el mismo significado, pero ahora son **medias de N años** (30, la normal de la OMM). Las nuevas **solo se añaden**, como prevé la regla de versiones del §3, así que la versión del formato no cambia. **Comprobado:** H3N v0.2.1 lee el archivo nuevo sin cambios (`clima.cargar`, `resumen`, `dia`, `celda`).
 
-**Mientras no sea el clima oficial** (la 4.0.0, con la Fase 6.4; decisión de Carlos del 09/10/2026), se escribe en `~/Documentos/B3N/clima_activo/clima_dinamico_m3n.json`, no en el que lee H3N. Con `--activo` se escribe en el oficial. La exportación **rechaza** una climatología hecha con otro mapa: `resultado.pkl` guarda desde la 3.16.0 la huella del mapa con el que se simuló.
+**Mientras no sea el clima oficial** (la 4.0.0, con la Fase 6.4; decisión de Carlos del 09/10/2026), se escribe en `~/Documentos/B3N/clima_activo/clima_dinamico_m3n.json`, no en el oficial (`clima_activo_m3n.json`). Con `--activo` se escribe en el oficial. **Desde H3N v0.2.2** (con M3N 3.17.0), H3N muestra este archivo como segunda fuente, marcada como provisional, con vistas de precipitación, viento y humedad. La 3.17.0 garantiza además que el JSON no lleva NaN (`null` en su lugar). La exportación **rechaza** una climatología hecha con otro mapa: `resultado.pkl` guarda desde la 3.16.0 la huella del mapa con el que se simuló.
 
 | Bloque | Clave | Forma | Unidad |
 |---|---|---|---|

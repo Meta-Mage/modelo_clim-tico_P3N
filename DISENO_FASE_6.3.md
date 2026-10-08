@@ -1106,3 +1106,36 @@ Revisión completa del repositorio y de la validación del 08/10 (los seis últi
 - Visto bueno de Carlos a C_E (punto 2), al vapor en la presión (punto 3) y a la P₀ del modo Tierra (punto 4). Con lo aprobado, un paquete de física y **una** simulación limpia del modo Tierra, que también mide el coste real de la cadena, los acantilados y el desglose del error de la dinámica.
 - La siguiente versión de H3N: vistas de viento, lluvia y humedad.
 - El criterio escrito de cierre de la 6.3. Después, la 6.4.
+
+### 6.19 3.17.0 (09/10/2026): C_E sobre el océano; el vapor en la presión y la P₀ del modo Tierra necesitan un diseño previo
+
+**1. Decisión de Carlos (09/10/2026):** acepta las tres propuestas de §6.18 (C_E, el vapor en la presión, la P₀ del modo Tierra) y pide las vistas nuevas de H3N en la misma entrega.
+
+**2. C_E con la z₀_q del ECMWF sobre el agua (hecho, `EVAPORACION_Z0Q_I16 = True`):**
+- `fase6_superficie.coeficientes` devuelve `"c_e"` y `"z0q"`. Sobre el agua, z₀_q = 0,62 ν/u* con el u* final del punto fijo (el mismo con el que salen z₀ y z₀ₕ); sobre tierra, z₀_q = z₀ₕ, así que C_E = C_H **exactamente**. La estabilidad (Louis) es la del calor, la misma función para el calor y el vapor, como en el IFS.
+- `fase2b_atmosfera`: con I16, `g_q = ρ·C_E·|v|` en la evaporación y la sublimación; sin I16, C_E = C_H (el clima oficial no cambia).
+- **Pruebas:** C_E/C_H sobre el agua entre 1,02 y 1,06 en neutro (las fuentes de §6.18: 1,036 y 1,058); igualdad exacta sobre tierra. Con el interruptor apagado, la simulación corta del modo Tierra da **los mismos resultados bit a bit que la 3.16.0** (268/268 campos); encendido, cambian.
+- **El efecto en el clima del modo Tierra no está medido**: hace falta la simulación limpia de 30 años. Lo esperable a igual gradiente de humedad es un ~4 % más de evaporación sobre el mar; en equilibrio, menos, porque el aire se humedece.
+
+**3. Corrección honesta sobre los otros dos puntos.** En §6.18 los presenté como cambios pequeños y directos. Al ir a programarlos, no lo son: tocan definiciones que comparten la física, el núcleo y el cierre de energía y de agua. Programarlos sin un diseño escrito sería arriesgar la conservación que hoy se verifica año a año (cierre de energía ~1e-8, agua ~1e-13). Por eso **no van en la 3.17.0**; lo que falta decidir:
+
+*3a. El vapor en la presión.* Hallazgo nuevo al revisarlo (medido analíticamente, sin simular):
+- En el balance, M3N trata q como **kg de vapor por kg de aire seco** (la masa de agua es q·dp/g con el dp del núcleo, que es de masa seca).
+- Pero calcula la saturación con la fórmula de la **humedad específica** (por kg de aire húmedo), q_s = ε·e/(p − (1−ε)·e), y con la presión **seca** (`fase31_agua.qs_y_derivada`).
+- Para un núcleo de masa seca, lo coherente es la **razón de mezcla** r_s = ε·e/p_d (con p_d la presión del aire seco; la total es p_d + e, ley de Dalton). La fórmula actual da un valor algo mayor, en un factor 1/(1 − (1−ε)·e/p_d): **+1,15 % con e = 30 hPa** (aire saturado a unos 24 °C), +0,76 % con 20 hPa, +0,38 % con 10 hPa, +0,11 % con 3 hPa (a 1000 hPa de aire seco).
+- Es decir: el error está en la **definición** de q_s, no solo en qué presión se usa, y en los trópicos es **mayor** que el 0,35 % que presenté en §6.18 (aquella cifra era el peso medio del vapor, no el error de la saturación).
+- Las opciones a comparar, con fuentes: (i) pasar q_s a razón de mezcla con la presión seca (coherente con el núcleo; cambia poco código, pero también hay que revisar la derivada, la Betts-Miller y la humedad relativa que se exporta); (ii) contar el vapor en la presión de la física, como CAM-SE (Lauritzen et al. 2018), que exige revisar la ecuación de la energía y la densidad del aire de la capa límite. Hay que elegir con el cierre de energía y de agua por delante.
+
+*3b. La P₀ del modo Tierra.* P₀ no es un solo papel en M3N:
+- referencia de la temperatura potencial (θ) en la Betts-Miller, que por convención es 1000 hPa y **no debe cambiar** con la masa del planeta;
+- presión absoluta en el espesor óptico del infrarrojo (τ), en `peso_sw` y en `factor_masa`, que sí dependen de cuánto aire hay.
+- Además, con el relieve suavizado a 5° y una altura de escala fija (255 K), no se pueden ajustar a la vez la presión media al nivel del mar y la masa total de aire: hay que elegir el objetivo (lo físico es la **masa de aire seco**: 983,05 hPa de presión media en superficie, Trenberth y Smith).
+- Y la calibración del infrarrojo usa P₀: `calibrar_tau_vapor.py` integra dτ = (A + B·q)·dp/P₀ con `P0 = M30.P0`. Cambiar P₀ sin decidir qué pasa con A y B (si se recalibran o se mantienen, y con qué referencia) sería mezclar parámetros.
+- Lo que hay que hacer: separar en el código la **constante de referencia** (1000 hPa) del **parámetro de masa**, y fijar el de masa del modo Tierra a partir de la masa observada.
+
+**4. Arreglo menor:** la exportación escribía NaN (no válido en JSON estándar) en la deriva de una climatología muy corta, y H3N no podía leerla. Ahora `exportar_clima.escribir_json_atomico` pasa NaN e infinitos a `null` y escribe con `allow_nan=False`.
+
+**Pendiente** (sustituye a la lista de §6.18):
+- Un apartado de diseño (§6.20) con las opciones de 3a y 3b, sus fuentes y su efecto sobre la conservación, para el visto bueno de Carlos. Después, un paquete con lo aprobado.
+- **Una** simulación limpia del modo Tierra con todos los cambios de física (C_E y lo que se apruebe de 3a y 3b), que también mide el coste real de la cadena, los acantilados y el desglose del error de la dinámica.
+- El criterio escrito de cierre de la 6.3. Después, la 6.4.

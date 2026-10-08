@@ -7,6 +7,22 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.17.0] — 2026-10-09
+
+- Fase: 6.3.
+- Clima exportado: no cambia (el oficial sigue siendo el modelo de 2 capas, que no usa C_E; cambia el modelo con I16).
+- Pruebas: 123.
+
+### Cambiado
+- Con I16, la evaporación y la sublimación sobre el agua usan C_E con la rugosidad del vapor del ECMWF (z₀_q = 0,62 ν/u*), algo mayor que C_H (C_E/C_H ≈ 1,04 en neutro); sobre tierra, C_E = C_H exactamente. Interruptor `EVAPORACION_Z0Q_I16` (decisión de Carlos del 09/10/2026; `DISENO_FASE_6.3.md` §6.19). Con el interruptor apagado, idéntico bit a bit a la 3.16.0. Deja anticuada la climatología del modo Tierra hasta la próxima simulación limpia.
+
+### Corregido
+- La exportación escribía NaN (no válido en JSON) en la deriva de una climatología muy corta; ahora escribe `null` y nunca NaN (`allow_nan=False`).
+
+### Añadido
+- `DISENO_FASE_6.3.md` §6.19: el vapor en la presión y la P₀ del modo Tierra necesitan un diseño previo (la saturación usa la fórmula de la humedad específica con la presión seca, mientras el balance trata q como razón de mezcla: +1,15 % en q_s con e = 30 hPa; P₀ tiene a la vez el papel de referencia de θ y de masa de aire, y la calibración del infrarrojo depende de ella).
+- 2 pruebas (C_E sobre el agua y la tierra; JSON sin NaN).
+
 ## [3.16.0] — 2026-10-09
 
 - Fase: 6.3 (y 4: claves nuevas de `m3n-clima` v1).
