@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `3.13.0`** (octubre de 2026). Versiones con [SemVer](https://semver.org/lang/es/) y fases con numeración jerárquica: la norma está en `NOMENCLATURA.md` y la historia en `CHANGELOG.md`.
+**Versión actual: `3.13.1`** (octubre de 2026). Versiones con [SemVer](https://semver.org/lang/es/) y fases con numeración jerárquica: la norma está en `NOMENCLATURA.md` y la historia en `CHANGELOG.md`.
 
 Lo que se exporta es el **modelo de 2 capas** (fases 0–4; v2.4.3 con la corrección de la capa de mezcla, `DISENO_FASE_2.3.md` §14). Encima hay tres bloques programados, probados y **apagados** hasta validarlos, que no cambian el clima exportado:
 - la atmósfera de 20 capas (Fase 2.3, interruptor I10);

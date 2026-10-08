@@ -109,7 +109,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | v2.2c (sin etiqueta: incluida en la v2.3) | v2.2.2 | — | 2.2 |
 | v2.3 | v2.3.0 | 79d98b7 | 3 |
 | v2.4 (sin etiqueta: incluida en la v2.4.1) | v2.4.0 | — | 4 |
-| v2.4.1, v2.4.2, v2.4.3 | v2.4.1, v2.4.2, v2.4.3 (sin cambio) | — | 4; parámetros |
+| v2.4.1, v2.4.2, v2.4.3 | v2.4.1, v2.4.2, v2.4.3 (sin cambio) | 0165ba7, 9ada011, bdfc2ab | 4; parámetros |
 | v3.0-pre1 | v3.0.0 | b879bd4 | 2.3 |
 | v3.0-pre2, v3.1-pre1, v3.1-pre2 (nunca etiquetadas) | incluidas en la v3.1.0 | — | 2.3, 5.1 |
 | v3.1-pre3 | v3.1.0 | fd3e84f | 5.1, 6.1, 6.2 |
@@ -127,6 +127,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | v3.1-pre15 | v3.11.0 | 5275548 | 6.3 |
 | v3.1-pre16 | v3.12.0 | 627d938 | 6.3 |
 | — | v3.12.1 (primera con esta norma) | 1165eca | — |
+| — | v3.13.0 | 6d1f720 | 6.3 |
 
 "—" en Commit significa que el hash no consta en los documentos. Se obtiene con `git rev-list -n1 <etiqueta>`.
 
@@ -171,6 +172,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | 10 – 20 | v3.1-pre6 – v3.1-pre16 | v3.4.0 – v3.12.0 (tabla 3.1) |
 | 021 | — | v3.12.1 (esta norma) |
 | 022 | — | v3.13.0 |
+| 023 | — | v3.13.1 |
 
 ---
 

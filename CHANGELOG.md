@@ -7,6 +7,19 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.13.1] — 2026-10-08
+
+- Fase: 6.3.
+- Clima exportado: no cambia (solo documentación).
+- Pruebas: 116.
+
+### Cambiado
+- `DISENO_FASE_6.3.md` §6.15 completado con el informe de la 3.13.0: células de Hadley, chorros, vientos de la capa baja y tropopausa frente a ERA-Interim, y su lectura.
+- `NOMENCLATURA.md`: commits de la v2.4.1–v2.4.3 y de la v3.13.0.
+
+### Corregido
+- §6.15: la alta atmósfera no tenía "causa desconocida": es la limitación declarada de la radiación gris y sin ozono (`DISENO_FASE_2.3.md` §12), con una corrección a lo que allí se esperaba (en los trópicos la estratosfera sale más caliente, no más fría).
+
 ## [3.13.0] — 2026-10-08
 
 - Fase: 6.3.

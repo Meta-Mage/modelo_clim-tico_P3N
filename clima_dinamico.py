@@ -44,7 +44,7 @@ from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from cache_simulacion import precalcular_orbita_cacheada
 from rejilla import LATITUDES_GRADOS
 
-VERSION = "3.13.0"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
+VERSION = "3.13.1"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
 
 
 def main():

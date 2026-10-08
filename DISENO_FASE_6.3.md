@@ -841,6 +841,8 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 
 ### 6.15 v3.13.0 (08/10/2026): resultado de la validación, fallos de la herramienta y referencias de vientos, Hadley y tropopausa
 
+*(Completado en la 3.13.1 con el informe de la 3.13.0.)*
+
 **La validación en el PC de Carlos (08/10, `validar_i16.py` de la 3.12.0).** 106 pruebas en 91 s; el año extra a 40 pasos/s (~15 min). El informe confirma lo que la herramienta tenía que medir y deja el diagnóstico por partes que sigue. Lo que se escribe aquí como causa es **hipótesis compatible con los datos, no demostración**: solo se demostrará cuando el modelo tenga lo que falta (nubes, Fase 5.2). Nada de esto se corrige ajustando parámetros.
 
 **Lo que está bien:**
@@ -855,7 +857,7 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 3. **Ciclo del agua +25 % (lluvia) y +45 % (vapor):** coherente con +5 K (Clausius-Clapeyron, ~7 %/K, da el del vapor). No es un fallo aparte.
 4. **El Ártico se derrite casi entero en verano** (0,4 frente a 6,0 millones de km²): sin nubes de verano y sin dinámica del hielo.
 5. **La atmósfera transporta poco** (3,3 PW frente a 5,0) y la circulación es floja: Hadley anual 5,9 / −3,5 frente a 8,4 / −11,5 de ERA-Interim; diciembre–febrero 14,3 frente a 20,8; junio–agosto −10,7 frente a −23,9 (10¹⁰ kg/s; valores de la 3.12.0, que para estas tres celdas buscaba bien). Los chorros de la troposfera, más flojos y más cerca de los polos (~21–22 m/s hacia 50–70°, frente a 27–31 m/s hacia 32,5° en ERA-Interim). Hipótesis: a 5° los remolinos de latitudes medias, que llevan gran parte del calor, se resuelven mal. **No reabre la decisión de la rejilla** (§6.14): es un dato para cuando se mejore. El océano del sur, en cambio, lleva demasiado (1,46 PW a 50° S): una difusión no tiene la barrera de la corriente circumpolar antártica.
-6. **La alta atmósfera está mal y la causa no se conoce todavía:** la tropopausa del ecuador a ~12,5 km y −42 °C frente a 16,6 km y −81 °C (ERA-Interim; Seidel et al. 2001 con radiosondas: ~16,5 km y ~−81 °C); en la estratosfera alta, ~75 m/s de viento del oeste en media anual frente a 17 (norte) y 34 (sur) en ERA-Interim. Candidatos: el esquema de radiación por encima de la troposfera (sin ozono que caliente la estratosfera) y la resolución vertical; hay que estudiarlo antes de proponer nada.
+6. **La alta atmósfera** (tropopausa demasiado baja y caliente, estratosfera con demasiado viento). En la primera lectura la IA la dio como "causa desconocida"; **corrección (08/10, noche):** es, sobre todo, una limitación **ya declarada** en `DISENO_FASE_2.3.md` §12 (puntos 1 y 2): radiación gris y sin ozono, con revisión prevista en la Fase 5.2 (radiación por bandas). Ver el informe completo más abajo.
 
 **Tres fallos de la herramienta de la 3.12.0 (no del modelo), arreglados en la 3.13.0:**
 1. Las dos células de Hadley se buscaban en 40° S–40° N: en diciembre–febrero, la "del sur" salió en +35°, que era la célula de Ferrel del norte (mismo signo), y su borde, el de la del norte. Ahora cada una se busca en su lado (la del norte entre 20° S y 40° N, la del sur entre 40° S y 20° N), con prueba.
@@ -872,7 +874,47 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 - Los 18 avisos "Mean of empty slice" de las pruebas: venían de `nieve_permanente_posible` en simulaciones de menos de 12 días (meses sin días). Mismo resultado (NaN) sin pedir la media de un trozo vacío; comprobado igual que la versión anterior con 41 duraciones distintas.
 - Etiquetas: se suben una a una (NOMENCLATURA §4.1); la tabla de correspondencias tiene ya todos los commits; la `v2.0` nunca se etiquetó.
 
+**El informe con la 3.13.0 (PC de Carlos, 08/10, 21:08; el año extra reutilizado).** Lo de la parte 1 y la radiación, igual que con la 3.12.0. Lo nuevo:
+
+*Células de Hadley (10¹⁰ kg/s; M3N frente a ERA-Interim en la misma rejilla):*
+
+| | M3N | ERA-Interim |
+|---|---|---|
+| Anual, norte | +5,90 a 10° N, borde 29,7° N | +8,37 a 15° N, borde 32,5° N |
+| Anual, sur | −3,45 a 10° S, borde 27,3° S | −11,48 a 10° S, borde 32,1° S |
+| Dic–feb, norte (invierno) | +14,33 a 5° N, borde 28,6° N | +20,80 a 10° N, borde 30,0° N |
+| Dic–feb, sur | −1,78 a 15° S, borde 26,3° S (ya bien buscada) | −5,45 a 20° S, borde 36,3° S |
+| Jun–ago, norte | +1,39 a 20° N, borde 32,4° N | +2,53 a 25° N, borde 37,9° N |
+| Jun–ago, sur (invierno) | −10,67 a 5° S, borde 24,9° S | −23,91 a 5° S, borde 29,0° S |
+
+- Las células de M3N tienen la forma y la estación correctas, pero son más débiles (del 30 al 70 % de las de ERA-Interim; la del sur es la más floja) y algo más estrechas (2–5° menos).
+
+*Chorros y vientos:*
+- Troposfera: 33,5 m/s a 52,5° N y 28,2 a 52,5° S, ambos a ~112 hPa, frente a 27,1 a 32,5° N (175 hPa) y 30,8 a 32,5° S (200 hPa). La intensidad es parecida; están **~20° más cerca de los polos y más altos**. A 250 hPa, en el sur, M3N tiene 18 m/s entre 30 y 60° S, frente a 27–28 en ERA-Interim.
+- Estratosfera alta: 77,4 (norte) y 73,9 (sur) m/s a ~4 hPa, frente a 16,5 y 33,7: entre 2 y 4,5 veces más.
+- Capa baja: alisios del norte bien (−3,7 frente a −3,8 m/s); los del sur, más flojos (−3,2 frente a −4,7). Vientos del oeste: en el norte, más fuertes y al norte (5,8 a 57,5° N frente a 2,3 a 47,5° N); en el sur, más flojos y al sur (6,1 a 57,5° S frente a 9,2 a 52,5° S).
+- Lectura: con la circulación de latitudes medias desplazada hacia los polos y unas células de Hadley flojas y estrechas, todo apunta a lo mismo que el transporte de calor (punto 5): la parte de la circulación que mueven los remolinos de latitudes medias. Hipótesis principal: la rejilla de 5° (decisión vigente, no se reabre).
+
+*Tropopausa y estratosfera (interpolada; ERA-Interim):*
+
+| Banda | M3N | ERA-Interim |
+|---|---|---|
+| 90–60° N | 10,1 km, −49 °C | 9,3 km, −53 °C |
+| 60–30° N | 9,3 km, −34 °C | 11,7 km, −54 °C |
+| 30–10° N | 13,7 km, −40 °C | 16,4 km, −76 °C |
+| 10° N–10° S | 13,3 km, −44 °C | 16,5 km, −80 °C |
+| 10–30° S | 13,7 km, −41 °C | 16,3 km, −76 °C |
+| 30–60° S | 9,4 km, −33 °C | 11,3 km, −55 °C |
+| 60–90° S | 10,4 km, −46 °C | 9,1 km, −58 °C |
+
+- A 25 km, M3N está a −44/−45 °C en los trópicos y latitudes medias (ERA-Interim: −54) y a −57/−58 en los polos (igual que ERA-Interim). El gradiente de 0 a 6 km es normal (5,2–6,2 K/km).
+- Lectura: es la limitación declarada en `DISENO_FASE_2.3.md` §12, puntos 1 y 2: **radiación gris y sin ozono**. Con un infrarrojo gris, la estratosfera tiende a una temperatura uniforme ("de piel") de unos 2^(−1/4)·T_e; con el OLR de M3N (293 W/m², sin nubes), T_e ≈ 268 K y esa temperatura es ≈ 225 K (−48 °C), cerca de lo que M3N tiene por encima de ~13 km en los trópicos y latitudes medias (−44 °C a 25 km). La tropopausa tropical real, a −80 °C, la hacen la radiación no gris (CO₂, vapor, ventana) y el ascenso lento del aire tropical, que un esquema gris no puede reproducir. Una corrección a §12 de la 2.3: allí se esperaba una estratosfera **más fría** que la real por falta de ozono; en los trópicos sale **más caliente**, porque manda el efecto gris y el OLR alto sin nubes. Se revisa en la Fase 5.2 (radiación por bandas).
+- Los vientos de la estratosfera alta salen del contraste de temperatura de esa estratosfera gris (viento térmico) y de que el núcleo no tiene arrastre de ondas de gravedad ni capa esponja (decisión de §6.4, tomada con la prueba de Held y Suarez, que no tiene estratosfera). Hipótesis por comprobar; no afecta a la superficie de forma apreciable, pero hay que vigilarlo.
+
+**Etiquetas en GitHub (comprobado por la IA el 08/10 con `git ls-remote`):** las 20 canónicas y la v3.13.0 están subidas, cada una en el mismo commit que su etiqueta antigua. Las v2.4.1, v2.4.2 y v2.4.3 existen con su nombre canónico desde siempre (0165ba7, 9ada011, bdfc2ab).
+
 **Pendiente:**
-- Volver a lanzar `python validar_i16.py`: reutiliza el año extra guardado (no repite la simulación) y da los vientos y la tropopausa frente a ERA-Interim; con ese informe se completa este apartado.
-- Estudiar la alta atmósfera (punto 6).
+- Estudiar si los vientos de la estratosfera alta piden arrastre o esponja en la parte alta del núcleo (sin tocar nada hasta tener el diagnóstico con fuentes).
 - Revisar el umbral de la climatología (§6.14).
+- El coste de la cadena completa (14–15 h).
+- Con todo esto, decidir el cierre de la Fase 6.3 y si el clima de P3N se exporta con I16 (4.0.0).
