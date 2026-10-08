@@ -284,3 +284,22 @@ def test_correccion_presion_interpola_sin_extrapolar():
     vec_min = np.minimum(T, np.minimum(np.concatenate([T[:1], T[:-1]]), np.concatenate([T[1:], T[-1:]])))
     vec_max = np.maximum(T, np.maximum(np.concatenate([T[:1], T[:-1]]), np.concatenate([T[1:], T[-1:]])))
     assert (Tn >= vec_min - 1e-9).all() and (Tn <= vec_max + 1e-9).all()
+
+
+def test_procedencia_registra_y_avisa_si_cambia_el_codigo(tmp_path):
+    """3.14.0 (DISENO_FASE_6.3.md §6.16): cada vez que una simulacion larga empieza o continua queda un tramo en
+    procedencia.json; si el codigo no es el del tramo anterior, avisa (sin parar); una simulacion empezada antes
+    de la 3.14.0 (sin procedencia y con años hechos) tambien avisa."""
+    import fase6_clima as C
+    avisos = []
+    t = C.registrar_procedencia(str(tmp_path), "9.9.9", "aaa", 0, 0, avisos.append)
+    assert len(t) == 1 and not avisos and t[0]["version"] == "9.9.9" and t[0]["codigo"] == "aaa"
+    t = C.registrar_procedencia(str(tmp_path), "9.9.9", "aaa", 7, 0, avisos.append)
+    assert len(t) == 2 and not avisos
+    t = C.registrar_procedencia(str(tmp_path), "9.9.10", "bbb", 12, 3, avisos.append)
+    assert len(t) == 3 and len(avisos) == 1 and "ha cambiado" in avisos[0]
+    assert C.leer_procedencia(str(tmp_path)) == t
+    otra = tmp_path / "antigua"
+    otra.mkdir()
+    C.registrar_procedencia(str(otra), "9.9.9", "aaa", 30, 5, avisos.append)
+    assert len(avisos) == 2 and "antes de la 3.14.0" in avisos[1]

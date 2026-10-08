@@ -1,8 +1,10 @@
-# Fase 6.3 de M3N: acoplar el núcleo dinámico con la física de M3N (BORRADOR v1)
+# Fase 6.3 de M3N: acoplar el núcleo dinámico con la física de M3N
 
 > **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE6_3.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
 
-**Estado: v2 (06–07/10/2026).** Las decisiones del §1 están revisadas con fuentes y **aprobadas por Carlos** (§6). Hechos: el transporte del vapor (§5), el paso 2 del §3 (núcleo con los niveles de M3N: **sin capa esponja**, §6.4) y la capa límite en columna (paso 4, §6.5). La 6.2 está cerrada (`DISENO_FASE_6.2.md`).
+**Estado actual (08/10/2026, M3N 3.14.0):** modelo acoplado (I16) hecho, estable y con el cierre de energía y de agua; primera climatología del modo Tierra y su validación (§6.14–§6.16). Falta lo que lista el final de §6.16 para cerrar la fase. El título decía "BORRADOR v1": era la versión de los §0–§4 del 05/10.
+
+**Estado v2 (06–07/10/2026).** Las decisiones del §1 están revisadas con fuentes y **aprobadas por Carlos** (§6). Hechos: el transporte del vapor (§5), el paso 2 del §3 (núcleo con los niveles de M3N: **sin capa esponja**, §6.4) y la capa límite en columna (paso 4, §6.5). La 6.2 está cerrada (`DISENO_FASE_6.2.md`).
 
 Etiquetas:
 - ✅ verificado;
@@ -856,7 +858,7 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 2. **La banda de lluvias al sur del ecuador (2,5° S; GPCP 7,5° N).** La atmósfera de M3N lleva +0,35 PW hacia el norte a través del ecuador; en la Tierra lleva 0,1 PW hacia el sur, y la banda de lluvias se desplaza al lado contrario del transporte (Donohoe et al. 2013, *J. Climate* 26, 3597: −2,4 a −3,2° por PW). Es el mismo sesgo que Hwang y Frierson (2013, *PNAS* 110, 4935) ligaron a la luz de más absorbida en el océano Austral por falta de nubes, sumado al que ya estaba en §6.14 (sin circulación del océano entre hemisferios: aquí el océano cruza el ecuador con +0,14 PW).
 3. **Ciclo del agua +25 % (lluvia) y +45 % (vapor):** coherente con +5 K (Clausius-Clapeyron, ~7 %/K, da el del vapor). No es un fallo aparte.
 4. **El Ártico se derrite casi entero en verano** (0,4 frente a 6,0 millones de km²): sin nubes de verano y sin dinámica del hielo.
-5. **La atmósfera transporta poco** (3,3 PW frente a 5,0) y la circulación es floja: Hadley anual 5,9 / −3,5 frente a 8,4 / −11,5 de ERA-Interim; diciembre–febrero 14,3 frente a 20,8; junio–agosto −10,7 frente a −23,9 (10¹⁰ kg/s; valores de la 3.12.0, que para estas tres celdas buscaba bien). Los chorros de la troposfera, más flojos y más cerca de los polos (~21–22 m/s hacia 50–70°, frente a 27–31 m/s hacia 32,5° en ERA-Interim). Hipótesis: a 5° los remolinos de latitudes medias, que llevan gran parte del calor, se resuelven mal. **No reabre la decisión de la rejilla** (§6.14): es un dato para cuando se mejore. El océano del sur, en cambio, lleva demasiado (1,46 PW a 50° S): una difusión no tiene la barrera de la corriente circumpolar antártica.
+5. **La atmósfera transporta poco** (3,3 PW frente a 5,0) y la circulación es floja: Hadley anual 5,9 / −3,5 frente a 8,4 / −11,5 de ERA-Interim; diciembre–febrero 14,3 frente a 20,8; junio–agosto −10,7 frente a −23,9 (10¹⁰ kg/s; valores de la 3.12.0, que para estas tres celdas buscaba bien). Los chorros de la troposfera, más flojos y más cerca de los polos (~21–22 m/s hacia 50–70°, frente a 27–31 m/s hacia 32,5° en ERA-Interim). **[Corrección en §6.16 (3.14.0): esos "chorros" eran la cola del chorro de la estratosfera; el subtropical real está más cerca del ecuador y es flojo, y la rejilla no explica el desplazamiento hacia el polo de los vientos de superficie.]** Hipótesis: a 5° los remolinos de latitudes medias, que llevan gran parte del calor, se resuelven mal. **No reabre la decisión de la rejilla** (§6.14): es un dato para cuando se mejore. El océano del sur, en cambio, lleva demasiado (1,46 PW a 50° S): una difusión no tiene la barrera de la corriente circumpolar antártica.
 6. **La alta atmósfera** (tropopausa demasiado baja y caliente, estratosfera con demasiado viento). En la primera lectura la IA la dio como "causa desconocida"; **corrección (08/10, noche):** es, sobre todo, una limitación **ya declarada** en `DISENO_FASE_2.3.md` §12 (puntos 1 y 2): radiación gris y sin ozono, con revisión prevista en la Fase 5.2 (radiación por bandas). Ver el informe completo más abajo.
 
 **Tres fallos de la herramienta de la 3.12.0 (no del modelo), arreglados en la 3.13.0:**
@@ -890,7 +892,7 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 - Las células de M3N tienen la forma y la estación correctas, pero son más débiles (del 30 al 70 % de las de ERA-Interim; la del sur es la más floja) y algo más estrechas (2–5° menos).
 
 *Chorros y vientos:*
-- Troposfera: 33,5 m/s a 52,5° N y 28,2 a 52,5° S, ambos a ~112 hPa, frente a 27,1 a 32,5° N (175 hPa) y 30,8 a 32,5° S (200 hPa). La intensidad es parecida; están **~20° más cerca de los polos y más altos**. A 250 hPa, en el sur, M3N tiene 18 m/s entre 30 y 60° S, frente a 27–28 en ERA-Interim.
+- **[Corrección en §6.16 (3.14.0): este "chorro de la troposfera" era la cola del chorro de la estratosfera, medido en el borde de la ventana.]** Troposfera: 33,5 m/s a 52,5° N y 28,2 a 52,5° S, ambos a ~112 hPa, frente a 27,1 a 32,5° N (175 hPa) y 30,8 a 32,5° S (200 hPa). La intensidad es parecida; están **~20° más cerca de los polos y más altos**. A 250 hPa, en el sur, M3N tiene 18 m/s entre 30 y 60° S, frente a 27–28 en ERA-Interim.
 - Estratosfera alta: 77,4 (norte) y 73,9 (sur) m/s a ~4 hPa, frente a 16,5 y 33,7: entre 2 y 4,5 veces más.
 - Capa baja: alisios del norte bien (−3,7 frente a −3,8 m/s); los del sur, más flojos (−3,2 frente a −4,7). Vientos del oeste: en el norte, más fuertes y al norte (5,8 a 57,5° N frente a 2,3 a 47,5° N); en el sur, más flojos y al sur (6,1 a 57,5° S frente a 9,2 a 52,5° S).
 - Lectura: con la circulación de latitudes medias desplazada hacia los polos y unas células de Hadley flojas y estrechas, todo apunta a lo mismo que el transporte de calor (punto 5): la parte de la circulación que mueven los remolinos de latitudes medias. Hipótesis principal: la rejilla de 5° (decisión vigente, no se reabre).
@@ -909,7 +911,7 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 
 - A 25 km, M3N está a −44/−45 °C en los trópicos y latitudes medias (ERA-Interim: −54) y a −57/−58 en los polos (igual que ERA-Interim). El gradiente de 0 a 6 km es normal (5,2–6,2 K/km).
 - Lectura: es la limitación declarada en `DISENO_FASE_2.3.md` §12, puntos 1 y 2: **radiación gris y sin ozono**. Con un infrarrojo gris, la estratosfera tiende a una temperatura uniforme ("de piel") de unos 2^(−1/4)·T_e; con el OLR de M3N (293 W/m², sin nubes), T_e ≈ 268 K y esa temperatura es ≈ 225 K (−48 °C), cerca de lo que M3N tiene por encima de ~13 km en los trópicos y latitudes medias (−44 °C a 25 km). La tropopausa tropical real, a −80 °C, la hacen la radiación no gris (CO₂, vapor, ventana) y el ascenso lento del aire tropical, que un esquema gris no puede reproducir. Una corrección a §12 de la 2.3: allí se esperaba una estratosfera **más fría** que la real por falta de ozono; en los trópicos sale **más caliente**, porque manda el efecto gris y el OLR alto sin nubes. Se revisa en la Fase 5.2 (radiación por bandas).
-- Los vientos de la estratosfera alta salen del contraste de temperatura de esa estratosfera gris (viento térmico) y de que el núcleo no tiene arrastre de ondas de gravedad ni capa esponja (decisión de §6.4, tomada con la prueba de Held y Suarez, que no tiene estratosfera). Hipótesis por comprobar; no afecta a la superficie de forma apreciable, pero hay que vigilarlo.
+- Los vientos de la estratosfera alta salen del contraste de temperatura de esa estratosfera gris (viento térmico) y de que el núcleo no tiene arrastre de ondas de gravedad ni capa esponja (decisión de §6.4, tomada con la prueba de Held y Suarez, que no tiene estratosfera). Hipótesis por comprobar; no afecta a la superficie de forma apreciable, pero hay que vigilarlo. **[Retirado en §6.16 (3.14.0): puede afectar a la superficie (Polvani y Kushner 2002).]**
 
 **Etiquetas en GitHub (comprobado por la IA el 08/10 con `git ls-remote`):** las 20 canónicas y la v3.13.0 están subidas, cada una en el mismo commit que su etiqueta antigua. Las v2.4.1, v2.4.2 y v2.4.3 existen con su nombre canónico desde siempre (0165ba7, 9ada011, bdfc2ab).
 
@@ -918,3 +920,80 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 - Revisar el umbral de la climatología (§6.14).
 - El coste de la cadena completa (14–15 h).
 - Con todo esto, decidir el cierre de la Fase 6.3 y si el clima de P3N se exporta con I16 (4.0.0).
+
+### 6.16 3.14.0 (08/10/2026): el chorro de la troposfera, bien medido; trazabilidad; datos de la revisión
+
+Revisión completa del repositorio y de la validación del 08/10 (los seis últimos briefings, los documentos, el código, las 116 pruebas y `campos.npz` y `informe.txt` del PC de Carlos). Lo medido sale de esos archivos del PC, recalculado en el entorno de la IA; lo que es lectura se marca como hipótesis.
+
+**1. Un error de la herramienta (no del modelo): el "chorro de la troposfera".**
+- En la 3.13.0, `validar_i16.chorros` tomaba el máximo del viento en la ventana 100–500 hPa. En M3N, en latitudes medias, el viento crece con la altura **desde el suelo hasta el tope** (por ejemplo, a 57,5° N en la media anual: 6 m/s abajo, 24 a 200 hPa, 31 a 112 hPa, 77 a 4 hPa). El máximo de la ventana caía siempre en su borde de arriba (~112 hPa): era la parte de abajo del chorro de la estratosfera, no un chorro de la troposfera.
+- **Corrección a §6.15:** los "chorros ~20° más cerca de los polos y más altos" (punto 5 y apartado *Chorros y vientos*) no existen. Los "~21–22 m/s hacia 50–70°" del punto 5 eran además los de la 3.12.0, con el mismo problema.
+- **Definición nueva:** el chorro de la troposfera es un **núcleo**: un máximo local del viento a la vez en latitud y en altura dentro de la ventana, en el que el viento **baja** en el nivel de encima. Es el criterio de Manney et al. (2011, *ACP* 11, 6115–6137, doi:10.5194/acp-11-6115-2011) ✅: §3.1, núcleos como máximos en 2-D entre 400 y 100 hPa; §3.2, el chorro del vórtice polar se extiende hacia abajo mientras el viento sea mayor en el nivel de encima. Sus umbrales de 40 y 30 m/s son para campos instantáneos y no se usan en medias zonales. Sin núcleo, el informe dice "sin núcleo".
+- **ERA-Interim no cambia:** con la definición nueva da exactamente los mismos chorros anuales (27,08 m/s a 32,5° N y 175 hPa; 30,76 a 32,5° S y 200 hPa), porque su chorro subtropical es un máximo claro. Se añaden los de cada temporada (`REF_ERAI["chorros_temporada"]`, mismo programa y mismos datos).
+
+**Resultado con la definición nueva** (`campos.npz` del año extra de la 3.13.0):
+
+| | M3N | ERA-Interim |
+|---|---|---|
+| Troposfera, media anual, norte / sur | sin núcleo / sin núcleo | 27,1 m/s a 32,5° N, 175 hPa / 30,8 a 32,5° S, 200 hPa |
+| Troposfera, invierno del norte (dic–feb) | 28,0 m/s a 27,5° N, 259 hPa | 42,1 a 32,5° N, 200 hPa |
+| Troposfera, invierno del sur (jun–ago) | 21,3 m/s a 17,5° S, 331 hPa | 41,0 a 27,5° S, 200 hPa |
+| Estratosfera, invierno del norte | 83,0 a 62,5° N, 4 hPa | 45,6 a 47,5° N, 1 hPa |
+| Estratosfera, invierno del sur | 77,3 a 62,5° S, 4 hPa | 88,9 a 47,5° S, 1 hPa |
+| Estratosfera de **verano**, norte (jun–ago) | **+68,0** a 57,5° N, 4 hPa | **−7,1** a 67,5° N, 10 hPa |
+| Estratosfera de **verano**, sur (dic–feb) | **+71,7** a 57,5° S, 4 hPa | **−6,1** a 67,5° S, 10 hPa |
+
+(El tope de M3N está a ~4 hPa y el de ERA-Interim a 1 hPa: la estratosfera alta se compara en niveles distintos.)
+
+**Lectura corregida** (hipótesis compatibles con los datos, no demostraciones):
+- **El chorro subtropical existe, pero es flojo:** en invierno tiene del 50 al 70 % de la intensidad observada, está 5–10° más cerca del ecuador y más bajo. En la media anual no se separa del vórtice estratosférico. Es coherente con unas células de Hadley flojas y estrechas (§6.15: del 30 al 70 % de ERA-Interim), porque la célula de Hadley lleva el momento angular que forma ese chorro.
+- **Lo que sí está desplazado hacia los polos es el viento del oeste en superficie** (el chorro de los remolinos): máximo a 57,5° en los dos hemisferios, frente a 47,5° N y 52,5° S en ERA-Interim. **Esto no lo explica la rejilla de 5°:** la prueba de Held y Suarez con los mismos niveles y la misma rejilla (§6.4) lo puso **más cerca del ecuador**, a 34°. Así que la "hipótesis principal: la rejilla" de §6.15 (punto 5) se retira para el desplazamiento (no se reabre la decisión de la rejilla, que sigue vigente).
+- **Hipótesis alternativa, con fuente verificada:** en un modelo seco tipo Held y Suarez, un vórtice polar estratosférico más fuerte desplaza hacia el polo el chorro de superficie del hemisferio de invierno, de ~30° a ~45° (Polvani y Kushner 2002, *GRL* 29(7), 18-1, doi:10.1029/2001GL014284 ✅). M3N tiene un vórtice de 70–80 m/s, entre 2,2 y 4,7 veces el real en la media anual.
+- **La estratosfera de verano tiene el signo cambiado:** viento del oeste de ~70 m/s donde el real es del este. Es la limitación declarada de `DISENO_FASE_2.3.md` §12: sin ozono que caliente el polo de verano, el gradiente de temperatura de la estratosfera no se invierte. P3N tiene oxígeno (decisión de worldbuilding del 04/10), así que la Fase 5.2 tendrá que incluir el calentamiento del ozono.
+- **Por tanto, se retira la frase de §6.15** "no afecta a la superficie de forma apreciable": puede afectar a los vientos y la lluvia de latitudes medias (hipótesis por comprobar).
+- **Criterio fijado de antemano en §6.4:** "en la validación en modo Tierra se vigilará el viento de las capas altas con el mismo criterio 2 [deriva < 10 % entre mitades]; si se desboca, se diseña la esponja (1.6)". La deriva no se puede medir con un solo año de vientos (el año extra). El valor es de 2,2 a 4,7 veces el observado, frente a los 9,9 m/s de Held y Suarez. Decidirlo es parte del cierre de la 6.3.
+
+**2. Trazabilidad** (nuevo en la 3.14.0; no cambia ningún resultado):
+- **`procedencia.json`** en la carpeta de cada simulación larga (`fase6_clima.registrar_procedencia`). Cada vez que la simulación empieza o continúa, se añade un tramo: fecha, versión de M3N (`clima_dinamico.VERSION`), huella del código, año simulado y años registrados.
+  - Si el código no es el del tramo anterior, **avisa sin parar**: seguir con otro código puede ser lo que se quiere, pero tiene que constar.
+  - Si una simulación anterior a la 3.14.0 continúa, avisa de que sus primeros años no tienen procedencia.
+  - `resumen.txt` tiene una sección PROCEDENCIA y `r["climatologia"]["procedencia"]` la lleva en `resultado.pkl`.
+  - Motivo: la climatología del modo Tierra del 07–08/10 se hizo con la 3.10.2 hasta el año 21 y con la 3.11.0 desde el 22, y eso no constaba en ningún archivo, solo en la conversación.
+- **Huella del código** (`cache_simulacion.MODULOS_I16`): la física (`MODULOS_FISICA`) más `fase6_clima.py`.
+- **El año extra de `validar_i16.py`** se reutiliza solo si coinciden el punto de control **y** la huella del código. Antes bastaba el punto de control: tras un cambio de física se habría reutilizado un año viejo.
+  - El informe dice con qué código se valida y la procedencia de la simulación.
+  - Un año extra guardado por la 3.13.x no tiene huella y se rehace una vez (~15 min en el PC).
+- **La caché (`MODULOS_FISICA`) tenía huecos:**
+  - faltaban los módulos del núcleo (`fase6_*`);
+  - faltaban también los que importa `fase1_geografia.py` (`fase0_geometria`, `fase0_atmosfera`, `fase0_radiacion`, `fase0_temperatura`) y `fase1_mapa_mixto.py`. Los encontró la prueba nueva, que recorre todas las importaciones de la física, también las de dentro de funciones.
+
+  Consecuencia: la caché del modelo de 2 capas se invalida una vez. La primera `exportar_clima.py` vuelve a simular (~6 min en el PC) y da el mismo clima, porque la física es idéntica.
+
+**3. Datos de la revisión para los pendientes de la 6.3** (no cambian nada; sirven para decidir):
+- **Ruido de las magnitudes del equilibrio** (`resumen.txt`, años 6–20, quitada la tendencia):
+  - aire a 2 m global: σ entre años 0,074 K, autocorrelación 0,57. El error de la pendiente de 5 años (~0,023 K/año) es mayor que el umbral (0,02): ese criterio pasa o no casi por azar;
+  - N: σ 0,25 W/m². El error de la media de 5 años, ±0,11, es la mitad del umbral (0,2);
+  - para el criterio de la climatología, un error de 0,1 K en las bandas polares exigiría del orden de 80 años efectivos.
+  - Antes de revisar los umbrales hay que comprobar si los 30 años registrados tienen todavía deriva. El aire a 2 m subió ~0,3 K entre los años 21 y 26, al encender el corrector. Las bandas de cada año están en `climatologia.pkl`.
+- **Coste:** las 14–15 h de la cadena del modo Tierra incluyen 21 años con la fuga de energía de antes del corrector.
+  - Una cadena limpia (unos 10 años de equilibrio + 30 de climatología, a ~14,5 min por año terrestre): ~9–10 h.
+  - En P3N (23 526 pasos por año, 0,67 veces el terrestre): ~6,5 h. Dentro del techo de una noche, lejos del objetivo de 2 h (§6.3).
+- **La climatología no acumula el viento ni la humedad del aire** (`fase6_clima.Acumulador`). Para exportar viento a H3N (claves decididas en §6.3), hay que añadirlo **antes** de la simulación larga de P3N (6.4); si no, habría que repetirla. Tampoco existe todavía el camino de `clima_dinamico.py` a `m3n-clima`.
+- **El océano con I16** sigue con la difusión D_oc = 0,27 (`D_OCEANO_V30`), calibrada en la Fase 2.3 junto con una atmósfera difusiva (D_atm 1,55) frente a Trenberth y Caron. Con I16 la atmósfera ya no difunde, pero esa D_oc sigue activa: es un valor (c) terrestre y será el único transporte del océano de P3N hasta la 6.5, igual que la capa de mezcla fija (~48,7 m). Hay que decidir cómo tratarla en la 6.4 (principio del 04/10: no asumir valores de la Tierra).
+- **P3N con I16 no se ha ejecutado nunca**, ni el arranque. En el mapa de pruebas, el arranque desde el modelo de 2 capas tenía el ecuador a ~45 °C (§6.10.2). Antes de la simulación larga de la 6.4: una prueba corta (`clima_dinamico.py --dias N`).
+
+**Pruebas nuevas** (suite: 119):
+- `test_validar_i16.py`:
+  - el chorro de la troposfera es un núcleo: con una cola de estratosfera que gana en la ventana, se encuentra el núcleo subtropical; sin él, "sin núcleo";
+  - las referencias de cada temporada (chorro de invierno más fuerte que el anual, estratosfera de verano del este);
+  - en la validación completa: `procedencia.json`, la sección PROCEDENCIA del resumen y la huella del año extra.
+- `test_modelo.py`: la huella del código cubre todos los módulos que importa la física.
+- `test_fase6_i16.py`: la procedencia registra y avisa.
+
+**Pendiente** (sustituye a la lista del final de §6.15):
+- Volver a pasar `validar_i16.py` en el PC con la 3.14.0, para el informe con la definición nueva (el año extra se rehace una vez, ~15 min).
+- Comprobar la deriva de los 30 años registrados; después, umbrales de equilibrio y de climatología con el ruido medido.
+- La estratosfera: con el criterio de §6.4 y la hipótesis de Polvani y Kushner, decidir entre una esponja o un arrastre estándar con fuente ya, o esperar a la Fase 5.2 (ozono y radiación por bandas). Para distinguirlo hace falta un experimento de sensibilidad en modo Tierra.
+- C_E = C_H (§6.8), verificado y justificado; medir F_ps = 0, los acantilados y el desglose del error de la dinámica.
+- Acumular viento y humedad en la climatología, y la exportación a `m3n-clima`.
+- Con todo esto, el criterio escrito de cierre de la 6.3 y la decisión de la 4.0.0.

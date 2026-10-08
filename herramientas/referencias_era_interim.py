@@ -1,4 +1,4 @@
-# herramientas/referencias_era_interim.py -- M3N 3.13.0: calcula las referencias de vientos, celulas de Hadley
+# herramientas/referencias_era_interim.py -- M3N 3.13.0 (3.14.0: chorros como nucleos y de cada temporada): calcula las referencias de vientos, celulas de Hadley
 # y tropopausa (referencias_tierra.REF_ERAI) a partir del reanalisis ERA-Interim (Dee et al. 2011, QJRMS 137,
 # 553-597), medias zonales mensuales de enero de 1979 a diciembre de 2016, 37 niveles de presion, rejilla de
 # 1,5 grados, tal como las distribuye el paquete TropD (Adam et al. 2018, GMD 11, 4339) en su repositorio:
@@ -94,7 +94,7 @@ def main(carpeta):
     k5 = int(np.argmin(np.abs(nivel - 0.5)))
     R = {"fuente": "ERA-Interim (Dee et al. 2011), medias zonales mensuales 1979-2016 de TropD "
                    "(github.com/tropd/pytropd, ValidationData, commit c25ce11), en la rejilla de 5 grados de M3N",
-         "hadley": {}, "chorros": {}, "vientos_bajos_975hPa": {}, "vientos_bajos_10m": {}, "u_bandas": {},
+         "hadley": {}, "chorros": {}, "chorros_temporada": {}, "vientos_bajos_975hPa": {}, "vientos_bajos_10m": {}, "u_bandas": {},
          "tropopausa": {}}
     for clave in TEMPORADAS:
         psi = funcion_corriente_p(media_temporada(va, clave), lat, lev) / 1e10
@@ -103,8 +103,11 @@ def main(carpeta):
         R["hadley"][clave] = {k: tuple(round(x, 2) for x in t) for k, t in
                               V.celulas_hadley(psi_c, caras, nivel, k5).items()}
     u = a_filas(media_temporada(ua, "anual"), lat)        # (37, 36)
-    R["chorros"] = {f"{c}_{h}": tuple(round(x, 4 if i == 2 else 2) for i, x in enumerate(t))
-                    for (c, h), t in V.chorros(u, LAT, nivel).items()}
+    redondeo = lambda t: tuple(round(x, 4 if i == 2 else 2) for i, x in enumerate(t))
+    R["chorros"] = {f"{c}_{h}": redondeo(t) for (c, h), t in V.chorros(u, LAT, nivel).items()}
+    for clave in ("dic-feb", "jun-ago"):                   # 3.14.0: chorros de cada temporada
+        ut = a_filas(media_temporada(ua, clave), lat)
+        R["chorros_temporada"][clave] = {f"{c}_{h}": redondeo(t) for (c, h), t in V.chorros(ut, LAT, nivel).items()}
     k975 = int(np.where(lev == 975)[0][0])
     R["vientos_bajos_975hPa"] = {k: tuple(round(x, 2) for x in t) for k, t in V.vientos_bajos(u[k975], LAT).items()}
     R["vientos_bajos_10m"] = {k: tuple(round(x, 2) for x in t)

@@ -1,4 +1,6 @@
-# validar_i16.py -- 3.12.0; 3.13.0: referencias de vientos, Hadley y tropopausa, y arreglos (§6.15).
+# validar_i16.py -- 3.12.0; 3.13.0: referencias de vientos, Hadley y tropopausa, y arreglos (§6.15);
+# 3.14.0: el chorro de la troposfera es un nucleo (maximo local en latitud y altura), chorros de invierno y
+# huella del codigo en el año extra (§6.16).
 # VALIDACION del modo Tierra de M3N con el nucleo dinamico (I16) frente a la Tierra real (DISENO_FASE_6.3.md §6.14).
 # Diagnostico: no cambia nada del modelo ni de la simulacion larga.
 #
@@ -146,6 +148,16 @@ NIVEL_HADLEY = (0.15, 0.95)           # interior de la columna donde se busca el
 VENTANA_HADLEY = {"norte": (-20.0, 40.0), "sur": (-40.0, 20.0)}
 NIVEL_TROPOSFERA = (0.1, 0.5)         # chorro de la troposfera: ~100-500 hPa
 NIVEL_ESTRATOSFERA = 0.0101           # viento de la estratosfera alta: ~10 hPa y por encima
+# 3.14.0 (§6.16): el chorro de la troposfera es un NUCLEO, un maximo local del viento a la vez en la vertical y en
+# latitud dentro de la ventana de niveles (como Manney et al. 2011, ACP 11, 6115, §3.1: maximos en 2-D entre 400
+# y 100 hPa). Ademas el viento tiene que BAJAR en el nivel de encima: si sigue subiendo, ese punto es la parte de
+# abajo del chorro de la estratosfera, no un chorro de la troposfera (el mismo criterio con el que Manney et al.
+# 2011, §3.2, separan el chorro del vortice polar). En la 3.13.0 el chorro era el maximo de la ventana sin mas, y
+# en M3N, cuyo viento crece con la altura hasta el tope en latitudes medias, salia siempre en el borde de arriba
+# (~112 hPa) y a 52,5 grados: era la cola del chorro de la estratosfera. Si no hay nucleo, se da NaN ("sin
+# nucleo"). Los umbrales de 40 y 30 m/s de Manney et al. son para campos instantaneos y no se usan aqui (medias
+# zonales de una temporada o un año).
+TEMPORADAS_INVIERNO = (("dic-feb", "norte"), ("jun-ago", "sur"))   # chorros de invierno de cada hemisferio
 VENTANAS_VIENTO_BAJO = (("Alisios norte (0-30 N): minimo", "alisios_n", (0, 30), np.argmin),
                         ("Alisios sur (0-30 S): minimo", "alisios_s", (-30, 0), np.argmin),
                         ("Oeste norte (30-70 N): maximo", "oeste_n", (30, 70), np.argmax),
@@ -168,19 +180,50 @@ def celulas_hadley(psi, lat_c, nivel, k5):
     return out
 
 
+def nucleo_troposfera(u, lat, nivel, m):
+    """El nucleo del chorro de la troposfera (3.14.0, ver arriba) en las filas de la mascara m: el mayor de los
+    puntos de la ventana de niveles en los que u es mayor que en el nivel de encima, no menor que en el de
+    debajo y no menor que en las filas vecinas. Niveles de arriba (indice 0) a abajo. Sin nucleo: NaN."""
+    nk, ni = u.shape
+    mejor = (np.nan, np.nan, np.nan)
+    for k in range(1, nk - 1):
+        if not (NIVEL_TROPOSFERA[0] <= nivel[k] <= NIVEL_TROPOSFERA[1]):
+            continue
+        for i in np.where(m)[0]:
+            c = u[k, i]
+            if not (c > u[k - 1, i] and c >= u[k + 1, i]):
+                continue
+            if (i > 0 and u[k, i - 1] > c) or (i < ni - 1 and u[k, i + 1] > c):
+                continue
+            if np.isnan(mejor[0]) or c > mejor[0]:
+                mejor = (float(c), float(lat[i]), float(nivel[k]))
+    return mejor
+
+
 def chorros(u, lat, nivel):
-    """u (capas, filas) media zonal; nivel de cada capa. Maximo del viento del oeste entre 15 y 70 grados de
-    cada hemisferio, en la troposfera (nivel 0,1-0,5) y en la estratosfera alta (nivel <= 0,01).
-    Devuelve {(capa, hemisferio): (m/s, lat, nivel)}."""
+    """u (capas, filas) media zonal, de arriba abajo; nivel de cada capa. Entre 15 y 70 grados de cada
+    hemisferio: el nucleo del chorro de la troposfera (nivel 0,1-0,5; NaN si no hay) y el maximo del viento del
+    oeste en la estratosfera alta (nivel <= 0,01). Devuelve {(capa, hemisferio): (m/s, lat, nivel)}."""
     nivel = np.asarray(nivel)
+    u = np.asarray(u, dtype=float)
     out = {}
-    for capa, sel in (("troposfera", (nivel >= NIVEL_TROPOSFERA[0]) & (nivel <= NIVEL_TROPOSFERA[1])),
-                      ("estratosfera", nivel <= NIVEL_ESTRATOSFERA)):
-        for hemi, m in (("norte", (lat > 15) & (lat < 70)), ("sur", (lat < -15) & (lat > -70))):
-            sub = np.where(sel[:, None] & m[None, :], u, -np.inf)
-            k, i = np.unravel_index(np.argmax(sub), sub.shape)
-            out[(capa, hemi)] = (float(u[k, i]), float(lat[i]), float(nivel[k]))
+    hemis = (("norte", (lat > 15) & (lat < 70)), ("sur", (lat < -15) & (lat > -70)))
+    for hemi, m in hemis:
+        out[("troposfera", hemi)] = nucleo_troposfera(u, lat, nivel, m)
+    sel = nivel <= NIVEL_ESTRATOSFERA
+    for hemi, m in hemis:
+        sub = np.where(sel[:, None] & m[None, :], u, -np.inf)
+        k, i = np.unravel_index(np.argmax(sub), sub.shape)
+        out[("estratosfera", hemi)] = (float(u[k, i]), float(lat[i]), float(nivel[k]))
     return out
+
+
+def texto_chorro(t, con_nivel=True):
+    """(m/s, lat, nivel) -> texto; 'sin nucleo' si es NaN."""
+    v, la, niv = t
+    if v is None or not np.isfinite(v):
+        return "sin nucleo".ljust(25 if con_nivel else 16)
+    return f"{v:5.1f} m/s a {la:+5.1f}, {1000 * niv:4.0f} hPa" if con_nivel else f"{v:5.1f} a {la:+5.1f}"
 
 
 def vientos_bajos(us, lat):
@@ -262,13 +305,18 @@ def ano_extra(carpeta, argumentos, I):
         if not os.path.exists(f):
             sys.exit(f"Falta {f}: hay que terminar antes 'python clima_dinamico.py --tierra'.")
     huella = sha256(f_sim)
+    from cache_simulacion import huella_codigo, MODULOS_I16
+    codigo = huella_codigo(MODULOS_I16)      # 3.14.0: el año extra se rehace tambien si cambia el codigo
     f_guardado = os.path.join(SALIDA, "ano_extra.pkl")
     if os.path.exists(f_guardado):
         with open(f_guardado, "rb") as f:
             d = pickle.load(f)
-        if d["huella"] == huella:
-            print("Año extra: ya estaba hecho con este punto de control (se reutiliza).", flush=True)
+        if d["huella"] == huella and d.get("codigo") == codigo:
+            print("Año extra: ya estaba hecho con este punto de control y este codigo (se reutiliza).", flush=True)
             return d["r"], d["vientos"]
+        print("Año extra: el guardado es de otro punto de control o de otro codigo"
+              + (" (o anterior a la 3.14.0, sin huella del codigo)" if "codigo" not in d else "") + ": se rehace.",
+              flush=True)
     with open(f_clima, "rb") as f:
         ano_sim = pickle.load(f)["ano_sim"]
     with open(f_sim, "rb") as f:
@@ -340,7 +388,7 @@ def ano_extra(carpeta, argumentos, I):
             d = V[clave]
             vientos[clave] = {k: d[k] / d["n"] for k in ("u", "vps", "ps")}
     with open(f_guardado + ".tmp", "wb") as f:
-        pickle.dump({"huella": huella, "r": r, "vientos": vientos}, f)
+        pickle.dump({"huella": huella, "codigo": codigo, "r": r, "vientos": vientos}, f)
     os.replace(f_guardado + ".tmp", f_guardado)
     return r, vientos
 
@@ -524,11 +572,23 @@ def parte_2(r, vientos, L, campos):
     L.append("7. VIENTOS DEL NUCLEO (obs.: ERA-Interim 1979-2016 en la rejilla de 5 grados de M3N, medido igual)")
     u = vientos["anual"]["u"]                                         # (N, FILAS) media zonal
     ch, cho = chorros(u, LAT, sm), R.REF_ERAI["chorros"]
-    for (capa, hemi), (val, la, niv) in ch.items():
-        vo, lo, no = cho[f"{capa}_{hemi}"]
-        nom = f"Chorro {'de la troposfera' if capa == 'troposfera' else 'de la estratosfera'} ({hemi})"
-        L.append(f"   {nom:34s} M3N {val:5.1f} m/s a {la:+5.1f}, ~{1000 * niv:3.0f} hPa   "
-                 f"obs. {vo:5.1f} a {lo:+5.1f}, {1000 * no:3.0f} hPa")
+    L.append("   Chorros, media anual (troposfera: nucleo, maximo local en latitud y altura; 'sin nucleo' si el viento")
+    L.append("   sigue creciendo hacia la estratosfera. Estratosfera: maximo por encima de ~10 hPa):")
+    for (capa, hemi), t in ch.items():
+        nom = f"{'Troposfera' if capa == 'troposfera' else 'Estratosfera'} ({hemi})"
+        L.append(f"     {nom:22s} M3N {texto_chorro(t)}   obs. {texto_chorro(cho[f'{capa}_{hemi}'])}")
+    cht = R.REF_ERAI["chorros_temporada"]
+    L.append("   Chorros de invierno de cada hemisferio (dic-feb el norte, jun-ago el sur) y estratosfera de verano:")
+    for temp, hemi in TEMPORADAS_INVIERNO:
+        if temp not in vientos:
+            continue
+        verano = "sur" if hemi == "norte" else "norte"
+        c = chorros(vientos[temp]["u"], LAT, sm)
+        for capa, h, nom in (("troposfera", hemi, f"Troposfera ({hemi}, {temp})"),
+                             ("estratosfera", hemi, f"Estratosfera ({hemi}, {temp})"),
+                             ("estratosfera", verano, f"Estratosfera ({verano}, verano)")):
+            L.append(f"     {nom:30s} M3N {texto_chorro(c[(capa, h)])}   obs. {texto_chorro(cht[temp][f'{capa}_{h}'])}")
+    L.append("   (en verano la estratosfera real tiene viento del ESTE, negativo, por el calentamiento del ozono)")
     vb, vbo, vb10 = vientos_bajos(u[-1], LAT), R.REF_ERAI["vientos_bajos_975hPa"], R.REF_ERAI["vientos_bajos_10m"]
     for nom, clave, _, _ in VENTANAS_VIENTO_BAJO:
         L.append(f"   Capa baja, {nom:32s} M3N {vb[clave][0]:+5.1f} m/s a {vb[clave][1]:+5.1f}   "
@@ -571,6 +631,12 @@ def main():
     tipo, _ = mapa_tierra()
     L = [f"VALIDACION DEL MODO TIERRA CON EL NUCLEO DINAMICO (validar_i16.py) -- {time.strftime('%Y-%m-%d %H:%M')}",
          f"carpeta: {carpeta}", ""]
+    from cache_simulacion import huella_codigo, MODULOS_I16
+    tramos = rc.get("climatologia", {}).get("procedencia") or []
+    L.append(f"codigo de esta validacion: {huella_codigo(MODULOS_I16)} | simulacion: "
+             + (", ".join(f"M3N {t['version']} ({t['codigo']}) desde el año {t['ano_sim']}" for t in tramos)
+                if tramos else "procedencia no consta (anterior a la 3.14.0)"))
+    L.append("")
     campos = {}
     parte_1(rc, tipo, L, campos)
     if not args.sin_ano_extra:

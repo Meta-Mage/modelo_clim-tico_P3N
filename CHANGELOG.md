@@ -7,6 +7,27 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.14.0] — 2026-10-08
+
+- Fase: 6.3.
+- Clima exportado: no cambia (el modelo es idéntico; diagnósticos, trazabilidad y documentación). La caché del modelo de 2 capas se invalida una vez porque la huella del código cubre ahora más módulos: la primera `exportar_clima.py` vuelve a simular y da el mismo clima.
+- Pruebas: 119.
+
+### Añadido
+- Trazabilidad de las simulaciones largas: `procedencia.json` (versión y huella del código de cada tramo, con aviso si el código cambia a mitad), sección PROCEDENCIA en `resumen.txt` y `r["climatologia"]["procedencia"]` (`DISENO_FASE_6.3.md` §6.16).
+- `cache_simulacion.MODULOS_I16`: la huella del código de una simulación con I16.
+- `validar_i16.py`: chorros de invierno de cada hemisferio y estratosfera de verano; la huella del código y la procedencia en el informe. `referencias_tierra.REF_ERAI["chorros_temporada"]`, calculado con `herramientas/referencias_era_interim.py`.
+- `DISENO_FASE_6.3.md` §6.16: el chorro bien medido, la lectura corregida (el desplazamiento hacia el polo de los vientos de superficie no lo explica la rejilla; hipótesis del vórtice estratosférico, Polvani y Kushner 2002) y los datos de la revisión para los pendientes (ruido del equilibrio, coste, viento sin acumular, difusión del océano, P3N sin probar con I16).
+- 3 pruebas: chorro como núcleo, huella del código completa, procedencia.
+
+### Corregido
+- `validar_i16.py`: el chorro de la troposfera es un núcleo (máximo local en latitud y altura, con el viento bajando encima; Manney et al. 2011). En M3N la definición anterior medía la cola del chorro de la estratosfera en el borde de la ventana (~112 hPa). Con ERA-Interim da los mismos valores que antes.
+- `validar_i16.py`: el año extra se reutiliza solo si coinciden el punto de control y la huella del código.
+- `cache_simulacion.MODULOS_FISICA`: faltaban los módulos del núcleo dinámico (`fase6_*`) y los de la Fase 0 que importa `fase1_geografia.py`, y `fase1_mapa_mixto.py`.
+- `DISENO_FASE_6.3.md`: el título ya no dice "BORRADOR v1"; §6.15, notas de corrección en el chorro y en "no afecta a la superficie".
+- `NOMENCLATURA.md` y `README.md`: la 6.3 abarca hasta la v3.14.0 (la v3.12.1 no tiene fase); commit de la v3.13.1; paquete 024; espesor del hielo con pizarra1.
+- `fase30_multicapa.py`: el comentario de `GRADIENTE_CRITICO` (con I12 el ajuste seco usa g/c_p).
+
 ## [3.13.1] — 2026-10-08
 
 - Fase: 6.3.

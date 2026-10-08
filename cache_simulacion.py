@@ -228,7 +228,17 @@ MODULOS_FISICA = (
     "orbita.py", "geometria.py", "fase30_multicapa.py",
     # v3.1: radiacion.py (i_toa, que usa precalcular_orbita) y atmosfera.py faltaban
     "radiacion.py", "atmosfera.py", "fase31_agua.py",
+    # 3.14.0: los modulos del nucleo dinamico (I16) faltaban; con I16 apagado no cambian el resultado, pero sin
+    # ellos un cambio del nucleo no invalidaria una simulacion con I16 (DISENO_FASE_6.3.md §6.16)
+    "fase6_aguas_someras.py", "fase6_nucleo.py", "fase6_nucleo_nb.py", "fase6_trazadores.py",
+    "fase6_acoplamiento.py", "fase6_superficie.py", "fase6_capa_limite.py", "fase6_equilibrio.py",
+    # 3.14.0: tambien faltaban los que importa fase1_geografia (geometria solar, masa de aire y luz de la Fase 0)
+    # y fase1_mapa_mixto; los encontro la prueba test_huella_del_codigo_cubre_todos_los_modulos_de_la_fisica
+    "fase0_geometria.py", "fase0_atmosfera.py", "fase0_radiacion.py", "fase0_temperatura.py", "fase1_mapa_mixto.py",
 )
+# 3.14.0: el codigo que decide una simulacion larga con I16 (la fisica mas la cadena equilibrio -> climatologia).
+# Su huella queda en procedencia.json de cada simulacion larga y en el año extra de validar_i16.py.
+MODULOS_I16 = MODULOS_FISICA + ("fase6_clima.py",)
 
 
 def huella_codigo(modulos=MODULOS_FISICA):

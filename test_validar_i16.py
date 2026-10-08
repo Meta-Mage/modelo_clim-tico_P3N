@@ -1,4 +1,4 @@
-# test_validar_i16.py -- 3.12.0 (3.13.0: celulas de Hadley, tropopausa y ERA-Interim): pruebas de la validacion del modo Tierra con I16 (validar_i16.py,
+# test_validar_i16.py -- 3.12.0 (3.13.0: celulas de Hadley, tropopausa y ERA-Interim; 3.14.0: chorros y trazabilidad): pruebas de la validacion del modo Tierra con I16 (validar_i16.py,
 # referencias_tierra.py; DISENO_FASE_6.3.md §6.14).
 #
 # Uso:  python -m pytest test_validar_i16.py      (alrededor de dos minutos: la ultima prueba hace una
@@ -84,6 +84,38 @@ def test_referencias_era_interim_coherentes_con_otras_fuentes():
         v, la, niv = E["chorros"]["troposfera_" + h]
         assert 20 < v < 40 and 25 < signo * la < 45 and 0.1 <= niv <= 0.5
     assert len(E["u_bandas"][250]) == 36 and R.REF_TRANSPORTE_ECUADOR["atm_PW"] < 0
+    # 3.14.0: el chorro de invierno es mas fuerte que el de la media anual, y la estratosfera de verano tiene
+    # viento del este (negativo)
+    T = E["chorros_temporada"]
+    assert T["dic-feb"]["troposfera_norte"][0] > E["chorros"]["troposfera_norte"][0] + 5
+    assert T["jun-ago"]["troposfera_sur"][0] > E["chorros"]["troposfera_sur"][0] + 5
+    assert T["dic-feb"]["estratosfera_sur"][0] < 0 and T["jun-ago"]["estratosfera_norte"][0] < 0
+
+
+def test_chorro_de_la_troposfera_es_un_nucleo():
+    """3.14.0: el chorro de la troposfera es un maximo local en latitud y altura. Un viento que crece con la altura
+    hasta el tope (la parte de abajo de un chorro de la estratosfera) no es un chorro de la troposfera, aunque sea
+    el mayor de la ventana: con la definicion de la 3.13.0 salia ahi, en el borde de arriba."""
+    nivel = np.array([0.004, 0.01, 0.03, 0.08, 0.11, 0.15, 0.2, 0.26, 0.33, 0.41, 0.5, 0.6, 0.8, 0.98])
+    lat = V.LAT
+    phi = np.radians(lat)
+    z = -np.log(nivel)                                                  # ~altura en escalas
+    # chorro de la estratosfera: crece con la altura hasta el tope, centrado en 60 grados de cada hemisferio
+    estrat = 20.0 * z[:, None] * np.exp(-((np.abs(lat)[None] - 60) / 10) ** 2)
+    # chorro subtropical: nucleo a 0,2 (200 hPa) y 30 grados
+    sub = 30.0 * np.exp(-((np.log(nivel / 0.2)) / 0.5) ** 2)[:, None] * np.exp(-((np.abs(lat)[None] - 30) / 8) ** 2)
+    u = estrat + sub
+    k011 = int(np.where(nivel == 0.11)[0][0])
+    assert u[k011, np.argmin(np.abs(lat - 57.5))] > 30.0                # la cola de la estratosfera gana en la ventana
+    c = V.chorros(u, lat, nivel)
+    for h, signo in (("norte", 1), ("sur", -1)):
+        v, la, niv = c[("troposfera", h)]
+        assert abs(la - signo * 32.5) <= 2.5 and niv == 0.2 and 25 < v < 35, (h, c[("troposfera", h)])
+        assert c[("estratosfera", h)][2] <= 0.0101
+    # sin chorro subtropical: no hay nucleo en la troposfera
+    c = V.chorros(estrat, lat, nivel)
+    assert all(np.isnan(c[("troposfera", h)][0]) for h in ("norte", "sur"))
+    assert V.texto_chorro(c[("troposfera", "norte")]).startswith("sin nucleo")
 
 
 def test_calendario_del_modo_tierra():
@@ -144,9 +176,22 @@ def test_validacion_de_punta_a_punta(tmp_path):
     for parte in ("1. AIRE A 2 m", "2. PRECIPITACION", "3. TRANSPORTE", "4. BALANCE DE RADIACION",
                   "5. HIELO MARINO", "6. PERFIL VERTICAL", "7. VIENTOS"):
         assert parte in texto, parte
-    for parte in ("A traves del ecuador", "Chorro de la troposfera (norte)", "Chorro de la estratosfera (sur)",
-                  "obs. 975 hPa", "interpolada", "dic-feb  norte  M3N"):           # 3.13.0
+    for parte in ("A traves del ecuador", "Chorros, media anual", "Troposfera (norte)", "Estratosfera (sur)",
+                  "Troposfera (norte, dic-feb)", "obs. 975 hPa", "interpolada", "dic-feb  norte  M3N"):   # 3.13-3.14
         assert parte in texto, parte
+    # 3.14.0: trazabilidad: la simulacion apunta su version y su codigo; el año extra guarda el codigo
+    from cache_simulacion import huella_codigo, MODULOS_I16
+    import json
+    tramos = json.load(open(os.path.join(carpeta, "procedencia.json"), encoding="utf-8"))
+    import re
+    version = re.search(r'^VERSION = "([^"]+)"', open(os.path.join(AQUI, "clima_dinamico.py"), encoding="utf-8").read(),
+                        re.M).group(1)
+    assert len(tramos) == 1 and tramos[0]["version"] == version and tramos[0]["ano_sim"] == 0
+    assert tramos[0]["codigo"] == huella_codigo(MODULOS_I16)
+    resumen = open(os.path.join(carpeta, "resumen.txt"), encoding="utf-8").read()
+    assert "PROCEDENCIA" in resumen and huella_codigo(MODULOS_I16) in resumen and "AVISO" not in resumen
+    assert huella_codigo(MODULOS_I16) in texto
+    assert pickle.load(open(os.path.join(salida, "ano_extra.pkl"), "rb"))["codigo"] == huella_codigo(MODULOS_I16)
     assert not os.path.exists(os.path.join(salida, "estado_i16_copia.pkl"))
     # el mismo año extra, sin leer los vientos
     guion = f"""

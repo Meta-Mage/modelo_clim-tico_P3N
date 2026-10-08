@@ -21,7 +21,9 @@
 #   - minimo 5 años registrados, maximo 30.
 
 import hashlib
+import json
 import os
+import time
 import pickle
 import shutil
 
@@ -159,13 +161,49 @@ def arranque_caliente(argumentos, carpeta, informar=print, opciones=None, exigir
     return r["estado_final"]
 
 
+def leer_procedencia(carpeta):
+    """La lista de tramos de procedencia.json de una simulacion larga ([] si no hay: anterior a la 3.14.0)."""
+    ruta = os.path.join(carpeta, "procedencia.json")
+    if not os.path.exists(ruta):
+        return []
+    with open(ruta, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def registrar_procedencia(carpeta, version, codigo, ano_sim, anos_registrados, informar=print):
+    """3.14.0 (DISENO_FASE_6.3.md §6.16): TRAZABILIDAD de una simulacion larga. Cada vez que empieza o continua,
+    añade a <carpeta>/procedencia.json un tramo con la fecha, la version de M3N, la huella del codigo
+    (cache_simulacion.MODULOS_I16), el año simulado y los años registrados en ese momento. Si el codigo no es el
+    del tramo anterior, AVISA (no para: continuar con otro codigo puede ser lo que se quiere, pero tiene que
+    constar). Devuelve la lista de tramos. No cambia nada de la simulacion."""
+    tramos = leer_procedencia(carpeta)
+    if tramos and tramos[-1]["codigo"] != codigo:
+        informar(f"    AVISO: el codigo de M3N ha cambiado desde el ultimo tramo de esta simulacion (version "
+                 f"{tramos[-1]['version']}, huella {tramos[-1]['codigo']}; ahora {version}, {codigo}). El resultado "
+                 "mezclara versiones; queda registrado en procedencia.json y en el resumen.")
+    elif not tramos and (ano_sim or anos_registrados):
+        informar("    AVISO: esta simulacion empezo antes de la 3.14.0: no consta con que codigo se hicieron los "
+                 f"{ano_sim} años anteriores.")
+    tramos.append({"fecha": time.strftime("%Y-%m-%d %H:%M:%S"), "version": version, "codigo": codigo,
+                   "ano_sim": int(ano_sim), "anos_registrados": int(anos_registrados)})
+    _escribir_json(tramos, os.path.join(carpeta, "procedencia.json"))
+    return tramos
+
+
+def _escribir_json(obj, ruta):
+    with open(ruta + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(obj, f, indent=1, ensure_ascii=False)
+    os.replace(ruta + ".tmp", ruta)
+
+
 def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_anos=MAX_ANOS,
                   max_anos_equilibrio=MAX_ANOS_EQUILIBRIO, informar=print, opciones_dos_capas=None,
-                  exigir_equilibrio_dos_capas=True, estado_inicial=None, arranque="dos_capas"):
+                  exigir_equilibrio_dos_capas=True, estado_inicial=None, arranque="dos_capas", version=None):
     """argumentos: los 8 posicionales de simular_fase2b (orbita, tipo, altitud, emisividad, albedos,
     inercias, profundidad optica, D). interruptores: con I16 encendido. Devuelve un dict como el de
     simular_fase2b con las MEDIAS de los años registrados, mas 'extremos', 'desviacion_entre_anos' y
-    'climatologia' (años promediados, errores, criterio, equilibrio, diagnosticos de cada año)."""
+    'climatologia' (años promediados, errores, criterio, equilibrio, diagnosticos de cada año y, desde la
+    3.14.0, 'procedencia': los tramos de procedencia.json). version: la de M3N, para la procedencia."""
     if not interruptores.get("nucleo_dinamico", False):
         raise ValueError("simular_clima es para el modelo con nucleo dinamico (I16)")
     os.makedirs(carpeta, exist_ok=True)
@@ -199,7 +237,11 @@ def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_ano
         informar(f"-> continua: {acum.n} años registrados")
         cumple, info = criterio_climatologia(acum.bandas_T, acum.bandas_P, min_anos)
         if cumple or acum.n >= max_anos:               # ya estaba terminada: no se simula nada mas
-            return combinar(acum, equilibrio, info, cumple)
+            return combinar(acum, equilibrio, info, cumple, leer_procedencia(carpeta))
+    from cache_simulacion import huella_codigo, MODULOS_I16
+    ck0 = leer(f_sim) if os.path.exists(f_sim) else None
+    tramos = registrar_procedencia(carpeta, version, huella_codigo(MODULOS_I16), ck0["ano"] if ck0 else 0, acum.n,
+                                   informar)
 
     while True:
         # ¿desde donde sigue el simulador? (un corte entre el final de un año registrado y el guardado de la
@@ -241,10 +283,10 @@ def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_ano
                  + (" -> CUMPLE" if cumple else ""))
         if cumple or acum.n >= max_anos:
             break
-    return combinar(acum, equilibrio, info, cumple)
+    return combinar(acum, equilibrio, info, cumple, tramos)
 
 
-def combinar(acum, equilibrio, info, cumple):
+def combinar(acum, equilibrio, info, cumple, procedencia=None):
     n = acum.n
     m = {k: v / n for k, v in acum.suma.items()}
     r = {k: m[k] for k, _ in DIARIOS}
@@ -259,5 +301,6 @@ def combinar(acum, equilibrio, info, cumple):
                                   "precipitacion": np.sqrt(var("agua_precipitacion"))}
     r["climatologia"] = {"anos_promediados": n, "cumple_criterio": cumple, **info,
                          "equilibrio": equilibrio, "por_ano": acum.por_ano,
-                         "bandas_aire2m_C": np.array(acum.bandas_T), "bandas_precipitacion": np.array(acum.bandas_P)}
+                         "bandas_aire2m_C": np.array(acum.bandas_T), "bandas_precipitacion": np.array(acum.bandas_P),
+                         "procedencia": list(procedencia or [])}
     return r

@@ -104,7 +104,11 @@ REF_HIELO = {"N_max": 15.6, "N_min": 6, "S_max": 18.5, "S_min": 3}
 # Se miden con las MISMAS funciones que M3N (validar_i16.celulas_hadley, chorros, vientos_bajos, perfil_banda),
 # despues de pasar ERA-Interim a la rejilla de 5 grados de M3N.
 #   hadley[temporada][celula] = (maximo de psi en 10^10 kg/s, latitud de la cara, borde a 500 hPa)
-#   chorros["capa_hemisferio"] = (m/s, latitud, p / 1000 hPa)
+#   chorros["capa_hemisferio"] = (m/s, latitud, p / 1000 hPa), de la media anual. 3.14.0: el de la troposfera
+#       es el NUCLEO (maximo local en latitud y altura, validar_i16.chorros); en ERA-Interim sale igual que con la
+#       definicion de la 3.13.0 (comprobado: mismos valores), porque su chorro subtropical es un maximo claro.
+#   chorros_temporada[temporada]["capa_hemisferio"] (3.14.0): lo mismo en diciembre-febrero y junio-agosto. En la
+#       estratosfera de verano el "maximo" es negativo: alli el viento es del este (calentamiento del ozono).
 #   vientos_bajos_975hPa (comparable con la capa baja de M3N, a ~200 m) y vientos_bajos_10m = (m/s, latitud)
 #   u_bandas[hPa] = viento zonal medio anual en cada fila de M3N, de 87,5 N a 87,5 S. A 975 hPa, por debajo
 #       de ~65 S (Antartida) y en parte sobre las montañas, ese nivel queda bajo el suelo y el valor es extrapolado.
@@ -120,6 +124,14 @@ REF_ERAI = {'fuente': 'ERA-Interim (Dee et al. 2011), medias zonales mensuales 1
              'troposfera_sur': (30.76, -32.5, 0.2),
              'estratosfera_norte': (16.53, 57.5, 0.001),
              'estratosfera_sur': (33.7, -62.5, 0.005)},
+ 'chorros_temporada': {'dic-feb': {'troposfera_norte': (42.13, 32.5, 0.2),
+                                   'troposfera_sur': (31.4, -47.5, 0.225),
+                                   'estratosfera_norte': (45.58, 47.5, 0.001),
+                                   'estratosfera_sur': (-6.08, -67.5, 0.01)},
+                       'jun-ago': {'troposfera_norte': (21.6, 42.5, 0.2),
+                                   'troposfera_sur': (40.98, -27.5, 0.2),
+                                   'estratosfera_norte': (-7.07, 67.5, 0.01),
+                                   'estratosfera_sur': (88.9, -47.5, 0.001)}},
  'vientos_bajos_975hPa': {'alisios_n': (-3.76, 17.5),
                           'alisios_s': (-4.73, -17.5),
                           'oeste_n': (2.33, 47.5),

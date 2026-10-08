@@ -15,6 +15,8 @@
 # - PUNTO DE CONTROL: si se corta (Ctrl+C, apagon...), la MISMA orden continua donde iba (el resultado es el
 #   mismo bit a bit). Lo mas que se pierde es el año en curso.
 # - Al terminar: <carpeta>/resumen.txt (lo que hay que pasarle a Claude) y <carpeta>/resultado.pkl.
+# - 3.14.0: TRAZABILIDAD. Cada vez que empieza o continua, apunta en <carpeta>/procedencia.json la version y la
+#   huella del codigo; si el codigo ha cambiado desde la vez anterior, avisa. El resumen lo recoge.
 
 import argparse
 import os
@@ -44,7 +46,7 @@ from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from cache_simulacion import precalcular_orbita_cacheada
 from rejilla import LATITUDES_GRADOS
 
-VERSION = "3.13.1"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
+VERSION = "3.14.0"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
 
 
 def main():
@@ -123,7 +125,8 @@ def main():
         prueba = {} if not args.dias else dict(          # prueba: pocos años y sin exigir equilibrio
             max_anos_equilibrio=2, min_anos=2, max_anos=2, opciones_dos_capas={"max_anos": 2},
             exigir_equilibrio_dos_capas=False)
-        r = C.simular_clima(argumentos, I, carpeta, informar=informar, arranque=args.arranque, **prueba)
+        r = C.simular_clima(argumentos, I, carpeta, informar=informar, arranque=args.arranque, version=VERSION,
+                            **prueba)
     except KeyboardInterrupt:
         informar("Interrumpido. Para seguir, lanza la MISMA orden: continua desde el ultimo año guardado.")
         sys.exit(1)
@@ -165,6 +168,17 @@ def escribir_resumen(r, carpeta, segundos, pasos_ano):
         L.append(f"  {i + 1:2d}: cierre energia {e.get('cierre_relativo', float('nan')):+.2e} | error dinamica "
                  f"{e.get('error_dinamica_W_m2', float('nan')):+.4f} W/m2 | resto {e.get('cierre_sin_dinamica', float('nan')):+.1e} | "
                  f"agua atm {d['cierre_agua_atmosfera_kg_m2']:+.1e} tierra {d['cierre_agua_tierra_kg_m2']:+.1e}")
+    L += ["", "PROCEDENCIA (version y huella del codigo de cada tramo de esta simulacion; procedencia.json):"]
+    tramos = c.get("procedencia") or []
+    if not tramos:
+        L.append("  no consta (simulacion empezada antes de la 3.14.0)")
+    for t in tramos:
+        L.append(f"  desde el año simulado {t['ano_sim']:3d} ({t['anos_registrados']:2d} registrados): M3N {t['version']}, "
+                 f"codigo {t['codigo']} ({t['fecha']})")
+    if tramos and tramos[0]["ano_sim"] > 0:
+        L.append(f"  AVISO: los {tramos[0]['ano_sim']} primeros años se hicieron antes de la 3.14.0 (codigo no registrado)")
+    if len({t["codigo"] for t in tramos}) > 1:
+        L.append("  AVISO: la simulacion mezcla versiones del codigo")
     L += ["", "BANDAS (latitud, aire 2 m C, precipitacion mm/dia):"]
     for lat, t, p in zip(LATITUDES_GRADOS, T, Pz):
         L.append(f"  {lat:+6.1f} {t:8.2f} {p:8.3f}")

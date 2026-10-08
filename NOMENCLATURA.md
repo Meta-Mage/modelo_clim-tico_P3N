@@ -57,7 +57,7 @@ Es el esquema estándar de gestión de proyectos (WBS, *work breakdown structure
 | 6 | Circulación (plan general del motor de vientos propio) | — | — | `DISENO_FASE_6.md` | Fase 6 |
 | 6.1 | Una capa de fluido sobre la esfera (aguas someras) | 🔧 cerrada | v3.1.0 | `DISENO_FASE_6.1.md` | 6.1 |
 | 6.2 | Núcleo dinámico seco de 20 capas | 🔧 cerrada | v3.1.0 – v3.3.0 | `DISENO_FASE_6.2.md` | 6.2 |
-| 6.3 | Núcleo + física de M3N (I16) y validación en modo Tierra | 🟡 | v3.3.0 – v3.12.1 | `DISENO_FASE_6.3.md` | 6.3 |
+| 6.3 | Núcleo + física de M3N (I16) y validación en modo Tierra | 🟡 | v3.3.0 – v3.14.0 (salvo la v3.12.1, sin fase) | `DISENO_FASE_6.3.md` | 6.3 |
 | 6.4 | P3N con el núcleo dinámico (clima oficial) | ⏳ | — | — | 6.4 |
 | 6.5 | Corrientes oceánicas | ⏳ | — | — | Fase 6b |
 | 7 | Biomas | — | — | — | Fase 7 |
@@ -128,6 +128,8 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | v3.1-pre16 | v3.12.0 | 627d938 | 6.3 |
 | — | v3.12.1 (primera con esta norma) | 1165eca | — |
 | — | v3.13.0 | 6d1f720 | 6.3 |
+| — | v3.13.1 | 6f45433 | 6.3 |
+| — | v3.14.0 | — | 6.3 |
 
 "—" en Commit significa que el hash no consta en los documentos. Se obtiene con `git rev-list -n1 <etiqueta>`.
 
@@ -173,6 +175,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | 021 | — | v3.12.1 (esta norma) |
 | 022 | — | v3.13.0 |
 | 023 | — | v3.13.1 |
+| 024 | — | v3.14.0 |
 
 ---
 

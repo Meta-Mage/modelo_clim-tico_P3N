@@ -80,6 +80,36 @@ def test_clave_cache_cambia_con_los_argumentos():
     assert _clave() != _clave(estado_inicial="helado")
 
 
+def test_huella_del_codigo_cubre_todos_los_modulos_de_la_fisica():
+    """3.14.0: todo modulo del repositorio que importe (directa o indirectamente, tambien dentro de funciones)
+    la fisica de simular_fase2b, incluido el nucleo dinamico (I16), esta en MODULOS_FISICA; y MODULOS_I16 añade la
+    cadena de la climatologia. Antes faltaban los fase6_*: un cambio del nucleo no se habria notado."""
+    import ast
+    import os
+    aqui = os.path.dirname(os.path.abspath(C.__file__))
+    propios = {f[:-3] for f in os.listdir(aqui) if f.endswith(".py")}
+
+    def importados(modulo):
+        arbol = ast.parse(open(os.path.join(aqui, modulo + ".py"), encoding="utf-8").read())
+        for nodo in ast.walk(arbol):
+            if isinstance(nodo, ast.Import):
+                yield from (a.name.split(".")[0] for a in nodo.names)
+            elif isinstance(nodo, ast.ImportFrom) and nodo.module and nodo.level == 0:
+                yield nodo.module.split(".")[0]
+
+    vistos, pendientes = set(), ["fase2b_atmosfera"]
+    while pendientes:
+        m = pendientes.pop()
+        if m in vistos:
+            continue
+        vistos.add(m)
+        pendientes += [x for x in importados(m) if x in propios]
+    faltan = sorted(m + ".py" for m in vistos if m + ".py" not in C.MODULOS_FISICA)
+    assert not faltan, f"faltan en MODULOS_FISICA: {faltan}"
+    assert set(C.MODULOS_FISICA) < set(C.MODULOS_I16) and "fase6_clima.py" in C.MODULOS_I16
+    assert all(os.path.exists(os.path.join(aqui, m)) for m in C.MODULOS_I16)
+
+
 def test_clave_cache_incluye_el_codigo_y_no_depurar(monkeypatch):
     base = _clave()
     monkeypatch.setattr(F, "DEPURAR", not F.DEPURAR)

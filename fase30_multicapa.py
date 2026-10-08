@@ -52,7 +52,7 @@ EXP_VAPOR_LW = 4.0             # (c) forma del vapor, provisional hasta la Fase 
 EXP_VAPOR_SW = 4.0             # (c) forma de Isca (solar_exponent = 4)
 
 # ---- conveccion (seccion 4) ----
-GRADIENTE_CRITICO = 0.0065     # K/m (c) PROVISIONAL: en la v3.1, gradiente adiabatico humedo de P3N
+GRADIENTE_CRITICO = 0.0065     # K/m (c): solo sin la conveccion humeda; con I12 el ajuste seco usa g/c_p (fase2b_atmosfera)
 
 # ---- transporte horizontal (seccion 6) ----
 SIGMA_TOPE_TRANSPORTE = 0.25
