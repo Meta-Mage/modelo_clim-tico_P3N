@@ -739,3 +739,100 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 **Suite: 101.**
 
 **Pendiente:** continuar la simulación larga en modo Tierra con la pre15 y comprobar que N tiende a 0 en el equilibrio.
+
+### 6.14 v3.1-pre16 (08/10/2026): primera climatología del modo Tierra con I16 y validación frente a la Tierra real
+
+**La simulación larga (PC de Carlos, 07–08/10, ~9,5 h).** `clima_dinamico.py --tierra` con la pre14 hasta el año 21 y con la pre15 (corrector de energía, §6.13) desde el 22:
+- **Equilibrio en el año 30**, con los cuatro criterios cumplidos: N +0,07 W/m², pendientes del aire a 2 m +0,010 K/año, del hielo −0,0007 y del agua del suelo −0,00001.
+- Con el corrector, N bajó de +1,4 a ~0 W/m² en tres años. En el equilibrio, el error de la dinámica es de **−1,31 ± 0,29 W/m²** (30 años), frente a −0,6 a −1,1 en CAM.
+- **Climatología de 30 años** (el máximo):
+  - precipitación: cumple, error del 3,0 %;
+  - aire a 2 m: **no cumple en 4 bandas**, error máximo 0,169 K frente a un umbral de 0,1 K.
+  - El umbral se puso antes de conocer la variabilidad del modelo y es demasiado estricto en las bandas polares. Queda pendiente revisarlo con la variabilidad medida, sin cambiarlo para que "salga".
+- Cierres: energía ~10⁻⁸ y agua ~10⁻¹³ en todos los años.
+
+**Primera comparación con la Tierra (resumen.txt):**
+
+| | M3N | Tierra |
+|---|---|---|
+| Aire a 2 m, media global | 19,02 °C | 13,97 °C (CRU 1961–1990); 14,38 °C (ERA5 1991–2020) |
+| Norte − sur | −0,89 K | +1,23 K (CRU) |
+| Precipitación global | 3,36 mm/día | 2,67 (GPCP v2.2), 2,69 (v2.3) |
+| Máximo de lluvia (ITCZ, media anual) | 2,5° S | 7,5° N (GPCP) |
+| 87,5° N / 87,5° S | −11,3 / −33,7 °C | −17,1 / −46,2 °C (CRU) |
+
+**Lectura:**
+- **El exceso de calor global se explica sobre todo porque M3N no tiene nubes**, como ya estaba documentado (§13 de `DISENO_V3.0.md`: "con la v3.0, el mismo Sol da un P3N unos 5 °C más cálido mientras no haya nubes"; Fase 5b). En la Tierra real las nubes quitan neto ~18 W/m² en el tope (CERES, Loeb et al. 2018).
+  - La v3.1 con la **misma física pero sin núcleo** (§10 bis de `DISENO_V3.1.md`) también se quedaba en ~19,0 °C.
+  - La dinámica no cambia la media global.
+  - **Sí cambia el contraste entre el ecuador y los polos:**
+    - sin núcleo, los polos estaban a +8,5 °C (norte) y −6,2 °C (sur), sin hielo marino;
+    - con núcleo están a −11,3 y −33,7 °C, con hielo, mucho más cerca de los observados.
+  - Esto es lo que la Fase 6 tenía que aportar.
+- **Hemisferios al revés y la ITCZ al sur del ecuador.** El sesgo es conocido en modelos sin transporte de calor por el océano entre hemisferios: en la Tierra, la circulación del Atlántico lleva calor al norte y desplaza la ITCZ hacia el norte. M3N tiene un océano de capa de mezcla con difusión.
+- **Corrección de la IA (08/10):** en la conversación se atribuyó primero el exceso de calor a "la física de la columna sin calibrar en conjunto", comparándolo con el modelo de 2 capas del arranque (20,2 °C en superficie). Fue un error: el modelo de 2 capas es la v2.4.3, con otra física. La causa documentada es la falta de nubes.
+
+**Herramienta nueva: `validar_i16.py`** (diagnóstico; no cambia el modelo). Se lanza después de `clima_dinamico.py --tierra`.
+
+*Parte 1*, al momento, con la climatología de N años (`resultado.pkl`):
+- **Aire a 2 m:** global, por hemisferios, contrastes entre el ecuador y los polos, por bandas, y ciclo anual de cada banda (mes más cálido − más frío).
+- **Precipitación:** global y por bandas; la ITCZ en enero, julio y el año; mínimos subtropicales; evaporación y agua precipitable.
+- **Transporte de calor hacia los polos:**
+  - total, desde el balance en el tope: en equilibrio, la convergencia del transporte es −N de cada celda;
+  - del océano, desde la convergencia de su difusión;
+  - de la atmósfera, como el resto;
+  - latente, L_v (P − E);
+  - antes de integrar se quita el pequeño desequilibrio global y se declara.
+
+*Parte 2*, un año más (~15 min en el PC de Carlos), desde una **copia** del último punto de control. La simulación larga no se toca, y lo comprueba una prueba. Da los diagnósticos que la climatología no guarda:
+- **Balance de radiación en el tope y en la superficie**, frente a CERES con cielo despejado (lo comparable con un modelo sin nubes) y con nubes. La diferencia es el efecto de las nubes.
+- **Hielo marino.**
+- **Perfil vertical.**
+- **Vientos del núcleo:** chorros, alisios y vientos del oeste, y células de Hadley (función de corriente de masa) anuales, de diciembre–febrero y de junio–agosto.
+  - Los vientos se leen en cada subpaso **sin cambiar nada**: el año extra sale idéntico bit a bit con y sin la lectura (prueba).
+  - Todavía **no tienen referencia observada verificada**: se dan los valores del modelo, y la referencia es el paso siguiente.
+
+**Referencias** (`referencias_tierra.py`, cada valor con su fuente):
+- **Aire a 2 m: climatología CRU 1961–1990** (Jones et al. 1999, *Rev. Geophys.* 37, 173, doi:10.1029/1999RG900002), en la **misma rejilla de 5°** que M3N.
+  - Media global 13,97 °C (norte 14,59, sur 13,36), la del artículo.
+  - Es aire a 2 m sobre tierra y temperatura del agua sobre el mar.
+  - Se usa en lugar de ERA5 porque ERA5 exige una cuenta y una descarga que la IA no puede hacer desde su entorno, y CRU es la climatología observacional de referencia en esa misma rejilla.
+- **Precipitación: GPCP v2.2, 1979–2010** (Huffman et al. 2009, *GRL* 36, L17808), media global 2,674 mm/día. Además, la cifra global de la v2.3 (2,69; Adler et al. 2018).
+- **Origen de los dos archivos:** copias públicas del repositorio NCAR/GeoCAT-datafiles (`absolute.nc` y `V22_GPCP.1979-2010.nc`), con su sha256 en el módulo.
+- **Cómo se hicieron las tablas:**
+  - medias zonales por mes;
+  - GPCP: climatología de cada mes con los 32 años (julio de 1987 tiene 2 celdas sin dato y se promedian los demás años); cada fila de 5° es la media de sus dos filas de 2,5° pesada por el área; el año es la media de los meses pesada por sus días;
+  - CRU: el año es la media de los 12 meses.
+- **Valores globales:**
+  - CERES EBAF Ed4.0, julio 2005–junio 2015 (Loeb et al. 2018, *J. Climate* 31, 895, tabla 5), con el valor ajustado:
+    - entrada 340,0 W/m²;
+    - reflejada: 53,3 con cielo despejado, 99,1 con nubes;
+    - infrarrojo al espacio: 268,1 con cielo despejado, 240,1 con nubes;
+    - neto con nubes: 0,7;
+  - Wild et al. (2019);
+  - Trenberth y Caron (2001);
+  - NSIDC;
+  - agua precipitable: 24,9 kg/m² (Trenberth y Smith 2005).
+- **Calendario del modo Tierra:** el día 0 de la órbita es el solsticio de diciembre (declinación −23,44°; perihelio 12,7 días después). Por tanto, el 1 de enero es el día 11 (±1 día).
+
+**También en la pre16:**
+- `clima_dinamico.py` escribe la versión desde una sola constante (`VERSION`). Las cabeceras decían "pre12" y "pre14".
+- El resumen indica cómo lanzar la validación.
+
+**Pruebas nuevas** (`test_validar_i16.py`, 5):
+- las tablas dan las medias de sus fuentes;
+- el calendario;
+- el transporte de una convergencia simétrica;
+- la función de corriente de una célula cerrada;
+- una validación completa de prueba, que comprueba que el punto de control no cambia y que leer los vientos no cambia el año.
+
+**Suite: 106.**
+
+**Pendiente:**
+- `validar_i16.py` en el PC de Carlos.
+- Referencias verificadas para los vientos y el perfil vertical.
+- Revisar el umbral de la climatología.
+
+**Decisiones de Carlos que NO están abiertas** (aclaración del 08/10, tras una compactación de la conversación en la que la IA volvió a plantearlas por error):
+- **La estrella no se recalibra hasta tener las nubes** (Fase 5b; decisión del 05/10, `DISENO_V3.0.md` §13). El exceso de calor del modo Tierra sin nubes es una limitación conocida, no algo que corregir ahora.
+- **La rejilla se queda en 5° por ahora**; se mejorará más adelante (decisión del 06/10, §6.3 y `DISENO_FASE6_2.md` §10). La zona de borrascas desplazada es una limitación conocida y medida.

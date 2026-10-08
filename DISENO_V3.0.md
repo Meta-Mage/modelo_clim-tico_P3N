@@ -264,6 +264,7 @@ Llamar a la radiación cada 2 pasos ahorraría solo un ~15 %, así que **no se h
 - La masa de S3N (0,874) se calibró en la v2.2c para un aire a 2 m de 15,94 °C con el modelo de dos capas.
 - Con la v3.0, el mismo Sol da un P3N unos 5 °C más cálido mientras no haya nubes.
 - **Decisión de Carlos, cuando la v3.0 esté validada:** recalibrar la estrella ya, o esperar a las nubes (Fase 5b), que enfriarán.
+  - ✅ **Decidido por Carlos (05/10/2026): esperar a las nubes.** La estrella no se recalibra hasta tener la Fase 5b (o en el barrido final). Reafirmado el 08/10 (`DISENO_FASE6_3.md` §6.14).
 
 ## 13 bis. Validación de la v3.0 (05/10/2026, en el entorno de la IA, con hielo)
 

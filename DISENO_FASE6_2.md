@@ -449,3 +449,4 @@ Media de los días 200 a 1200, con 100 muestras (una cada 10 días). Estable los
   - (a) aceptarlo;
   - (b) simular a 2,5°, unas 8 veces más caro;
   - (c) una corrección de los remolinos no resueltos, solo si la validación en modo Tierra lo justifica.
+- ✅ **Decidido por Carlos (06/10/2026, reafirmado el 08/10):** de momento la rejilla se queda en 5°. La de 2,5° "ya habrá tiempo de pensarlo cuando estén decididas todas las características del planeta y podamos permitirnos una sola simulación larguísima" (`DISENO_FASE6_3.md` §6.3). La opción (c) solo se estudiaría si la validación en modo Tierra lo justificara.

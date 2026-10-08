@@ -44,6 +44,8 @@ from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from cache_simulacion import precalcular_orbita_cacheada
 from rejilla import LATITUDES_GRADOS
 
+VERSION = "v3.1-pre16"       # la version de M3N que escribe la cabecera del registro y del resumen
+
 
 def main():
     assert P.MODO_TIERRA == args.tierra
@@ -115,7 +117,7 @@ def main():
 
     F.AL_PASO = al_paso
     F.AL_ACABAR_ANO = al_acabar_ano
-    informar(f"=== M3N v3.1-pre14 con nucleo dinamico | {'modo Tierra' if args.tierra else 'P3N, mapa ' + nombre_mapa} | "
+    informar(f"=== M3N {VERSION} con nucleo dinamico | {'modo Tierra' if args.tierra else 'P3N, mapa ' + nombre_mapa} | "
              f"arranque {args.arranque} | {len(orbita)} pasos por año | carpeta {carpeta}")
     try:
         prueba = {} if not args.dias else dict(          # prueba: pocos años y sin exigir equilibrio
@@ -140,10 +142,11 @@ def escribir_resumen(r, carpeta, segundos, pasos_ano):
     peso = np.cos(np.radians(LATITUDES_GRADOS))
     T = c["bandas_aire2m_C"].mean(axis=0)
     Pz = c["bandas_precipitacion"].mean(axis=0)
-    L = ["RESUMEN de clima_dinamico.py (M3N v3.1-pre12, nucleo dinamico I16)",
+    L = [f"RESUMEN de clima_dinamico.py (M3N {VERSION}, nucleo dinamico I16)",
          f"modo: {'Tierra' if args.tierra else 'P3N'} | arranque: {args.arranque} | pasos por año: {pasos_ano}"
          + (f" | PRUEBA con años de {args.dias} dias" if args.dias else ""),
          f"tiempo de esta ejecucion: {segundos / 3600:.2f} h",
+         "Validacion frente a la Tierra real (solo modo Tierra): python validar_i16.py",
          "",
          f"EQUILIBRIO: convergido {eq['convergido']} tras {eq['anos']} años"]
     for k, (val, umbral, cumple) in eq["valores"].items():
