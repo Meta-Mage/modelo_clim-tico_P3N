@@ -102,12 +102,12 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 
 | Etiqueta antigua (se conserva) | Versión canónica | Commit | Fase |
 |---|---|---|---|
-| v2.0 | v2.0.0 | — | 0 |
-| v2.1 | v2.1.0 | — | 1 |
-| v2.2 | v2.2.0 | a0b5059 | 2.1 |
-| v2.2b | v2.2.1 | — | 2.2 |
+| v2.0 (nunca se etiquetó: comprobado el 08/10/2026) | v2.0.0 (sin etiqueta) | — | 0 |
+| v2.1 | v2.1.0 | 92e3b9c | 1 |
+| v2.2 | v2.2.0 | c67729d (a0b5059 más el arreglo del solsticio) | 2.1 |
+| v2.2b | v2.2.1 | f7f7d1c | 2.2 |
 | v2.2c (sin etiqueta: incluida en la v2.3) | v2.2.2 | — | 2.2 |
-| v2.3 | v2.3.0 | — | 3 |
+| v2.3 | v2.3.0 | 79d98b7 | 3 |
 | v2.4 (sin etiqueta: incluida en la v2.4.1) | v2.4.0 | — | 4 |
 | v2.4.1, v2.4.2, v2.4.3 | v2.4.1, v2.4.2, v2.4.3 (sin cambio) | — | 4; parámetros |
 | v3.0-pre1 | v3.0.0 | b879bd4 | 2.3 |
@@ -115,18 +115,18 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | v3.1-pre3 | v3.1.0 | fd3e84f | 5.1, 6.1, 6.2 |
 | v3.1-pre4 | v3.2.0 | 5bd92ac | 6.2 |
 | v3.1-pre5 | v3.3.0 | 37e8b87 | 6.2, 6.3 |
-| v3.1-pre6 | v3.4.0 | — | 6.3 |
+| v3.1-pre6 | v3.4.0 | 216f535 | 6.3 |
 | v3.1-pre7 | v3.5.0 | 573e83f | 6.3 |
 | v3.1-pre8 | v3.6.0 | bce0b5b | 6.3 |
-| v3.1-pre9 | v3.7.0 | — | 6.3 |
-| v3.1-pre10 | v3.8.0 | — | 6.3 |
-| v3.1-pre11 | v3.9.0 | — (probablemente 948aa36) | 6.3 |
+| v3.1-pre9 | v3.7.0 | d8b4995 | 6.3 |
+| v3.1-pre10 | v3.8.0 | 73aebab | 6.3 |
+| v3.1-pre11 | v3.9.0 | 948aa36 | 6.3 |
 | v3.1-pre12 | v3.10.0 | 17d31a6 | 6.3 |
 | v3.1-pre13 | v3.10.1 | 84e6f18 | 6.3 |
-| v3.1-pre14 | v3.10.2 | — | 6.3 |
-| v3.1-pre15 | v3.11.0 | — | 6.3 |
-| v3.1-pre16 | v3.12.0 | — | 6.3 |
-| — | v3.12.1 (primera con esta norma) | — | — |
+| v3.1-pre14 | v3.10.2 | 5ab05f8 | 6.3 |
+| v3.1-pre15 | v3.11.0 | 5275548 | 6.3 |
+| v3.1-pre16 | v3.12.0 | 627d938 | 6.3 |
+| — | v3.12.1 (primera con esta norma) | 1165eca | — |
 
 "—" en Commit significa que el hash no consta en los documentos. Se obtiene con `git rev-list -n1 <etiqueta>`.
 
@@ -159,7 +159,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
   2. pasar las pruebas (`python -m pytest -q`);
   3. hacer el commit;
   4. crear la etiqueta;
-  5. subir (`git push && git push origin vX.Y.Z`).
+  5. subir (`git push && git push origin vX.Y.Z`). Las etiquetas se suben **una a una**: el 08/10/2026 GitHub rechazó en bloque, sin dar el motivo, un `git push origin --tags` con 20 etiquetas nuevas, y aceptó sin problema la v3.12.1 enviada sola.
 - **Paquetes anteriores (01–20, con dos cifras y nombres de versión antiguos):**
 
 | Paquete | Versión antigua | Versión canónica |
@@ -170,6 +170,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | 09 | v3.1-pre5 | v3.3.0 |
 | 10 – 20 | v3.1-pre6 – v3.1-pre16 | v3.4.0 – v3.12.0 (tabla 3.1) |
 | 021 | — | v3.12.1 (esta norma) |
+| 022 | — | v3.13.0 |
 
 ---
 

@@ -1,4 +1,4 @@
-# test_validar_i16.py -- v3.12.0: pruebas de la validacion del modo Tierra con I16 (validar_i16.py,
+# test_validar_i16.py -- 3.12.0 (3.13.0: celulas de Hadley, tropopausa y ERA-Interim): pruebas de la validacion del modo Tierra con I16 (validar_i16.py,
 # referencias_tierra.py; DISENO_FASE_6.3.md §6.14).
 #
 # Uso:  python -m pytest test_validar_i16.py      (alrededor de dos minutos: la ultima prueba hace una
@@ -36,6 +36,54 @@ def test_referencias_tablas_y_medias():
     assert abs(V.media_filas(R.GPCP_P_ANUAL) - 2.674) < 0.001
     # la ITCZ de GPCP esta al norte del ecuador (7,5 N en la media anual)
     assert V.LAT[int(np.argmax(R.GPCP_P_ANUAL))] == 7.5
+
+
+def test_celulas_de_hadley_cada_una_en_su_lado():
+    """3.13.0: la celula del sur no puede ser la de Ferrel del norte (mismo signo), ni la del norte la de Ferrel
+    del sur, aunque sean mas intensas (el fallo de diciembre-febrero en la 3.12.0)."""
+    lat_c = np.arange(85.0, -86.0, -5.0)                       # caras de norte a sur
+    nivel = np.linspace(0.0, 1.0, 21)
+    perfil = np.sin(np.pi * nivel)[:, None]
+    def celula(a, centro, ancho):
+        return a * np.exp(-((lat_c - centro) / ancho) ** 2)[None, :] * perfil
+    psi = (celula(14.0, 5.0, 12.0) + celula(-2.0, -12.0, 8.0)         # celulas de Hadley de diciembre-febrero
+           + celula(-6.0, 40.0, 6.0) + celula(5.0, -45.0, 6.0))       # Ferrel: norte (<0) y sur (>0), mas fuertes
+    k5 = int(np.argmin(np.abs(nivel - 0.5)))
+    c = V.celulas_hadley(psi, lat_c, nivel, k5)
+    assert c["norte"][0] > 13 and abs(c["norte"][1] - 5.0) < 0.1
+    assert c["sur"][0] < 0 and -40 < c["sur"][1] < 0               # la del sur, no la Ferrel del norte (+35)
+    # con la busqueda de la 3.12.0 (las dos en 40 S-40 N), la "del sur" habria salido en +35
+    trop = (np.abs(lat_c) < 40)[None, :] & ((nivel > 0.15) & (nivel < 0.95))[:, None]
+    assert lat_c[np.unravel_index(np.nanargmin(np.where(trop, psi, np.nan)), psi.shape)[1]] == 35.0
+    assert 5 < c["norte"][2] < 40 and -45 < c["sur"][2] < -12      # bordes hacia el polo de cada maximo
+
+
+def test_tropopausa_interpolada_y_punto_mas_frio():
+    """Perfil de 6,5 K/km hasta 11 km e isotermo encima, con niveles cada 2 km (10 y 12 km alrededor): la de la
+    OMM en un nivel da 12 km; la interpolada queda entre 11 y 12 km; el punto mas frio es el isotermo."""
+    zz = np.arange(0.0, 30001.0, 2000.0)
+    Tz = 288.15 - 6.5 * np.minimum(zz, 11000.0) / 1000
+    pz = 101325.0 * np.exp(-zz / 7000.0)
+    d = V.perfil_banda(Tz, zz, pz)
+    assert abs(d["tropopausa_km"] - 12.0) < 1e-9
+    assert 11.0 < d["tropopausa_interp_km"] < 12.0
+    assert abs(d["T_frio"] - (216.65 - 273.15)) < 1e-9 and abs(d["T_25km"] - (216.65 - 273.15)) < 1e-9
+
+
+def test_referencias_era_interim_coherentes_con_otras_fuentes():
+    """REF_ERAI frente a fuentes independientes: tropopausa del ecuador (Seidel et al. 2001: ~16,5 km, punto
+    mas frio a unos -81 C), celula de invierno del norte (Dima y Wallace 2003: 14-16 en NCEP; Oort y Yienger
+    1996: 20; unidades 10^10 kg/s), bordes hacia 30 grados y chorros de la troposfera hacia 30-35 grados."""
+    E = R.REF_ERAI
+    t = E["tropopausa"]["10..-10"]
+    assert abs(t["tropopausa_km"] - 16.5) < 0.5 and abs(t["T_frio"] + 81) < 2
+    assert 14 <= E["hadley"]["dic-feb"]["norte"][0] <= 22 and -26 <= E["hadley"]["jun-ago"]["sur"][0] <= -14
+    a = E["hadley"]["anual"]
+    assert a["norte"][0] > 0 > a["sur"][0] and 28 < a["norte"][2] < 36 and -36 < a["sur"][2] < -28
+    for h, signo in (("norte", 1), ("sur", -1)):
+        v, la, niv = E["chorros"]["troposfera_" + h]
+        assert 20 < v < 40 and 25 < signo * la < 45 and 0.1 <= niv <= 0.5
+    assert len(E["u_bandas"][250]) == 36 and R.REF_TRANSPORTE_ECUADOR["atm_PW"] < 0
 
 
 def test_calendario_del_modo_tierra():
@@ -95,6 +143,9 @@ def test_validacion_de_punta_a_punta(tmp_path):
     texto = open(os.path.join(salida, "informe.txt"), encoding="utf-8").read()
     for parte in ("1. AIRE A 2 m", "2. PRECIPITACION", "3. TRANSPORTE", "4. BALANCE DE RADIACION",
                   "5. HIELO MARINO", "6. PERFIL VERTICAL", "7. VIENTOS"):
+        assert parte in texto, parte
+    for parte in ("A traves del ecuador", "Chorro de la troposfera (norte)", "Chorro de la estratosfera (sur)",
+                  "obs. 975 hPa", "interpolada", "dic-feb  norte  M3N"):           # 3.13.0
         assert parte in texto, parte
     assert not os.path.exists(os.path.join(salida, "estado_i16_copia.pkl"))
     # el mismo año extra, sin leer los vientos

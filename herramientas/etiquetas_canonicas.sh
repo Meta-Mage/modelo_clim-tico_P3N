@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# herramientas/etiquetas_canonicas.sh -- M3N 3.12.1 (NOMENCLATURA.md §3.1 y §4.1).
+# herramientas/etiquetas_canonicas.sh -- M3N 3.12.1; 3.13.0: instrucciones (NOMENCLATURA.md §3.1 y §4.1).
 # Crea las etiquetas canonicas (SemVer) como ALIAS anotados del MISMO commit que las etiquetas antiguas.
 # No borra ni mueve ninguna etiqueta. Es idempotente: si la canonica ya existe en el mismo commit, no hace nada;
 # si existe en OTRO commit, para con un error sin tocar nada mas.
-# Uso (en la carpeta de M3N):  bash herramientas/etiquetas_canonicas.sh  &&  git push origin --tags
+# Uso (en la carpeta de M3N):  bash herramientas/etiquetas_canonicas.sh
+# y despues subir las etiquetas UNA A UNA (3.13.0: GitHub rechazo en bloque, sin dar el motivo, un
+# "git push origin --tags" con 20 etiquetas nuevas el 08/10/2026, y acepto la v3.12.1 enviada sola):
+#     for t in $(git tag -l 'v*.*.*'); do git push origin "$t" || break; done
+# La etiqueta v2.0 nunca existio: esa version no tiene alias (lo dice al ejecutarse).
 set -euo pipefail
 PARES="v2.0:v2.0.0 v2.1:v2.1.0 v2.2:v2.2.0 v2.2b:v2.2.1 v2.3:v2.3.0 v3.0-pre1:v3.0.0
 v3.1-pre3:v3.1.0 v3.1-pre4:v3.2.0 v3.1-pre5:v3.3.0 v3.1-pre6:v3.4.0 v3.1-pre7:v3.5.0 v3.1-pre8:v3.6.0

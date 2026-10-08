@@ -1,5 +1,6 @@
-# validar_i16.py -- v3.12.0: VALIDACION del modo Tierra de M3N con el nucleo dinamico (I16) frente a la
-# Tierra real (DISENO_FASE_6.3.md §6.14). Diagnostico: no cambia nada del modelo ni de la simulacion larga.
+# validar_i16.py -- 3.12.0; 3.13.0: referencias de vientos, Hadley y tropopausa, y arreglos (§6.15).
+# VALIDACION del modo Tierra de M3N con el nucleo dinamico (I16) frente a la Tierra real (DISENO_FASE_6.3.md §6.14).
+# Diagnostico: no cambia nada del modelo ni de la simulacion larga.
 #
 # Uso (en la carpeta de M3N, con el venv activado), DESPUES de "python clima_dinamico.py --tierra":
 #     python validar_i16.py
@@ -15,17 +16,19 @@
 #     - precipitacion: global, por bandas, la banda de lluvias ecuatorial (ITCZ) en enero, julio y el año,
 #       frente a GPCP (Huffman et al. 2009; Adler et al. 2018); evaporacion y agua precipitable;
 #     - transporte de calor hacia los polos, total (desde el balance en el tope), del oceano y de la atmosfera
-#       (el resto), y la parte latente, frente a Trenberth y Caron (2001).
+#       (el resto), y la parte latente, frente a Trenberth y Caron (2001); el transporte a traves del ecuador
+#       frente a Donohoe et al. (2013).
 #   PARTE 2 (un año mas, ~15 min en el PC de Carlos) -- desde una COPIA del ultimo punto de control (la
 #     simulacion larga no se toca), con todos los diagnosticos de ese año:
 #     - balance de radiacion en el tope y en la superficie frente a CERES EBAF (Loeb et al. 2018), con cielo
 #       despejado y con nubes, y Wild et al. (2019): M3N NO TIENE NUBES (Fase 5.2), asi que lo comparable es el
 #       cielo despejado; la diferencia con el cielo real es el efecto de las nubes;
 #     - hielo marino (extension maxima y minima) frente a NSIDC;
-#     - perfil vertical por bandas (tropopausa, gradiente 0-6 km);
-#     - VIENTOS del nucleo: corrientes en chorro, vientos en superficie (alisios y del oeste) y celulas de
-#       Hadley (funcion de corriente de masa), anual, diciembre-febrero y junio-agosto. Todavia sin
-#       referencia observada verificada: se dan los valores del modelo.
+#     - perfil vertical por bandas (tropopausa de la OMM en un nivel e interpolada, punto mas frio, T a 25 km,
+#       gradiente 0-6 km) frente a ERA-Interim;
+#     - VIENTOS del nucleo: chorros de la troposfera y de la estratosfera, vientos en la capa baja (alisios y
+#       del oeste) y celulas de Hadley (funcion de corriente de masa), anual, diciembre-febrero y junio-agosto,
+#       frente a ERA-Interim 1979-2016 (3.13.0), medido con las mismas funciones en la misma rejilla.
 # Los valores observados estan en referencias_tierra.py, cada uno con su fuente. Resultado: informe.txt y
 # campos.npz en outputs/validacion_i16/.
 
@@ -129,6 +132,96 @@ def cruce_hacia_el_polo(perfil, lats, i0, paso):
             return float(lats[i] + (lats[i + paso] - lats[i]) * a / (a - b))
         i += paso
     return float("nan")
+
+
+# -------------------------------------------------------- metricas (3.13.0): las mismas para M3N y ERA-Interim
+# Cada funcion recibe campos ya en la rejilla de 5 grados de M3N y una coordenada vertical normalizada
+# ("nivel": sigma en M3N; p / 1000 hPa en ERA-Interim), para que el modelo y la referencia se midan igual
+# (herramientas/referencias_era_interim.py calcula con ellas los valores de referencias_tierra.REF_ERAI).
+NIVEL_HADLEY = (0.15, 0.95)           # interior de la columna donde se busca el maximo de cada celula
+# Cada celula de Hadley se busca en SU lado (3.13.0; la 3.12.0 buscaba las dos en 40 S-40 N y en diciembre-
+# febrero cogio como "celula del sur" la de Ferrel del norte, que tiene su mismo signo): la del norte entre
+# 20 S y 40 N (su maximo cruza el ecuador en el invierno del norte), la del sur entre 40 S y 20 N. Asi la
+# celula de Ferrel del otro hemisferio (por encima de ~25-30 grados) queda siempre fuera.
+VENTANA_HADLEY = {"norte": (-20.0, 40.0), "sur": (-40.0, 20.0)}
+NIVEL_TROPOSFERA = (0.1, 0.5)         # chorro de la troposfera: ~100-500 hPa
+NIVEL_ESTRATOSFERA = 0.0101           # viento de la estratosfera alta: ~10 hPa y por encima
+VENTANAS_VIENTO_BAJO = (("Alisios norte (0-30 N): minimo", "alisios_n", (0, 30), np.argmin),
+                        ("Alisios sur (0-30 S): minimo", "alisios_s", (-30, 0), np.argmin),
+                        ("Oeste norte (30-70 N): maximo", "oeste_n", (30, 70), np.argmax),
+                        ("Oeste sur (30-70 S): maximo", "oeste_s", (-70, -30), np.argmax))
+
+
+def celulas_hadley(psi, lat_c, nivel, k5):
+    """psi (niveles, caras), caras de norte a sur; nivel: coordenada normalizada de cada nivel de psi; k5: el
+    nivel mas cercano a 0,5. Devuelve {"norte": (maximo, lat, borde), "sur": (minimo, lat, borde)}; el borde es
+    el cruce por cero de psi en k5 yendo hacia el polo desde el maximo (como TropD, Adam et al. 2018)."""
+    nivel = np.asarray(nivel)
+    inter = (nivel > NIVEL_HADLEY[0]) & (nivel < NIVEL_HADLEY[1])
+    out = {}
+    for clave, f, paso in (("norte", np.nanargmax, -1), ("sur", np.nanargmin, +1)):   # lat_c de norte a sur
+        a, b = VENTANA_HADLEY[clave]
+        m = (lat_c > a) & (lat_c < b)
+        sub = np.where(inter[:, None] & m[None, :], psi, np.nan)
+        k, j = np.unravel_index(f(sub), sub.shape)
+        out[clave] = (float(psi[k, j]), float(lat_c[j]), cruce_hacia_el_polo(psi[k5], lat_c, j, paso))
+    return out
+
+
+def chorros(u, lat, nivel):
+    """u (capas, filas) media zonal; nivel de cada capa. Maximo del viento del oeste entre 15 y 70 grados de
+    cada hemisferio, en la troposfera (nivel 0,1-0,5) y en la estratosfera alta (nivel <= 0,01).
+    Devuelve {(capa, hemisferio): (m/s, lat, nivel)}."""
+    nivel = np.asarray(nivel)
+    out = {}
+    for capa, sel in (("troposfera", (nivel >= NIVEL_TROPOSFERA[0]) & (nivel <= NIVEL_TROPOSFERA[1])),
+                      ("estratosfera", nivel <= NIVEL_ESTRATOSFERA)):
+        for hemi, m in (("norte", (lat > 15) & (lat < 70)), ("sur", (lat < -15) & (lat > -70))):
+            sub = np.where(sel[:, None] & m[None, :], u, -np.inf)
+            k, i = np.unravel_index(np.argmax(sub), sub.shape)
+            out[(capa, hemi)] = (float(u[k, i]), float(lat[i]), float(nivel[k]))
+    return out
+
+
+def vientos_bajos(us, lat):
+    """us (filas): viento zonal de la capa baja. Devuelve {clave: (m/s, lat)} (alisios y vientos del oeste)."""
+    out = {}
+    for _, clave, (a, b), f in VENTANAS_VIENTO_BAJO:
+        m = (lat > a) & (lat < b)
+        i = np.where(m)[0][f(us[m])]
+        out[clave] = (float(us[i]), float(lat[i]))
+    return out
+
+
+def tropopausa_interpolada(Tz, zz, pz):
+    """Tropopausa de la OMM con el cruce de 2 K/km interpolado entre los centros de las capas (a la manera
+    de Reichler et al. 2003, GRL 30, 2042, aqui en altura): con ~2 km entre niveles cerca de la tropopausa,
+    la de la OMM en un nivel (validar_v30.tropopausa_omm) salta de nivel en nivel. Devuelve (z, T)."""
+    import validar_v30 as V30
+    zt, Tt = V30.tropopausa_omm(Tz, zz, pz)
+    if np.isnan(zt):
+        return zt, Tt
+    i = int(np.where(zz == zt)[0][0])
+    gam = -np.diff(Tz) / np.diff(zz) * 1000
+    if i == 0 or gam[i - 1] <= 2.0:
+        return float(zt), float(Tt)
+    zm = 0.5 * (zz[1:] + zz[:-1])
+    z = zm[i - 1] + (gam[i - 1] - 2.0) / (gam[i - 1] - gam[i]) * (zm[i] - zm[i - 1])
+    return float(z), float(np.interp(z, zz, Tz))
+
+
+def perfil_banda(Tz, zz, pz):
+    """Perfil medio de una banda (de abajo arriba; K, m, Pa): tropopausa de la OMM en un nivel y
+    interpolada, punto mas frio entre 500 y 50 hPa ("cold point") y T a 25 km. Temperaturas en C."""
+    import validar_v30 as V30
+    zt, Tt = V30.tropopausa_omm(Tz, zz, pz)
+    zi, Ti = tropopausa_interpolada(Tz, zz, pz)
+    sel = np.where((pz >= 5e3) & (pz <= 5e4))[0]
+    i = sel[np.argmin(Tz[sel])]
+    T25 = float(np.interp(25000, zz, Tz)) if zz[-1] > 25000 else np.nan
+    return {"tropopausa_km": zt / 1000, "T_tropopausa": Tt - 273.15, "tropopausa_interp_km": zi / 1000,
+            "T_tropopausa_interp": Ti - 273.15, "frio_km": zz[i] / 1000, "frio_hPa": pz[i] / 100,
+            "T_frio": Tz[i] - 273.15, "T_25km": T25 - 273.15}
 
 
 # ------------------------------------------------------------------------------------ preparar
@@ -344,6 +437,10 @@ def parte_1(rc, tipo, L, campos):
     L.append(f"   Parte del oceano a 35 grados     {oc[i35n] / tot[i35n]:5.2f}            {oc[i35s] / tot[i35s]:5.2f}"
              f"            obs. {R.REF_TRANSPORTE['oceano_35N']:.2f} / {R.REF_TRANSPORTE['oceano_35S']:.2f}")
     L.append(f"   Parte latente de la atmosfera a 40   {lat_t[i40n] / atm[i40n]:5.2f}        {lat_t[i40s] / atm[i40s]:5.2f}")
+    i0 = int(np.argmin(np.abs(bordes)))
+    L.append(f"   A traves del ecuador (>0 = hacia el norte): atmosfera {atm[i0]:+5.2f} PW, oceano {oc[i0]:+5.2f} PW."
+             f"   obs. atmosfera {R.REF_TRANSPORTE_ECUADOR['atm_PW']:+.1f} PW, banda de lluvias en "
+             f"{R.REF_TRANSPORTE_ECUADOR['itcz_centroide']:.2f} N (Donohoe et al. 2013)")
     L.append(f"   (total desde el balance en el tope; oceano desde la convergencia de su difusion; atmosfera = total -"
              f" oceano; latente = L_v (P - E). Desequilibrio global quitado antes de integrar: tope {-resto_toa:+.3f},"
              f" oceano {resto_oc:+.3f} W/m2)")
@@ -398,35 +495,46 @@ def parte_2(r, vientos, L, campos):
     for k, nom in (("N_max", "Norte, maximo"), ("N_min", "Norte, minimo"), ("S_max", "Sur, maximo"), ("S_min", "Sur, minimo")):
         L.append(f"   {nom:16s} {h[k]:6.1f}   {R.REF_HIELO[k]:5.1f}")
     L.append("")
-    L.append("6. PERFIL VERTICAL (media anual; celdas con el suelo por debajo de ~500 m)")
-    L.append("   Banda      | tropopausa (OMM) | T tropopausa | T a 25 km | gradiente 0-6 km")
-    for p in V30.perfil_por_bandas(fl, P.P3N_GRAVEDAD):
-        if p is not None:
-            L.append(f"   {p['banda']:10s} |   {p['tropopausa_km']:5.1f} km       |  {p['T_tropopausa']:6.1f} C   | "
-                     f"{p['T_25km']:6.1f} C  |  {p['gradiente_0_6km']:4.2f} K/km")
-    L.append("   (sin referencia observada verificada en el repositorio todavia)")
+    L.append("6. PERFIL VERTICAL (media anual; M3N: celdas con el suelo por debajo de ~500 m; obs.: ERA-Interim 1979-2016)")
+    L.append("   Banda      | tropopausa OMM: en un nivel | interpolada  | T tropop. interp. | mas frio (500-50 hPa) | T a 25 km | gradiente 0-6 km")
+    E = R.REF_ERAI["tropopausa"]
+    for b in V30.perfiles_por_bandas(fl, P.P3N_GRAVEDAD):
+        if b is None:
+            continue
+        banda, Tz, zz, pz = b
+        d = perfil_banda(Tz, zz, pz)
+        g06 = float((Tz[0] - np.interp(6000, zz, Tz)) / ((6000 - zz[0]) / 1000))
+        o = E[banda]
+        tropico = banda in ("30..10", "10..-10", "-10..-30")
+        frio_m = f"{d['T_frio']:6.1f} C a {d['frio_km']:4.1f} km" if tropico else "        --        "
+        frio_o = f"{o['T_frio']:6.1f} C a {o['frio_km']:4.1f} km" if tropico else "        --        "
+        L.append(f"   {banda:10s} M3N  | {d['tropopausa_km']:5.1f} km                 | {d['tropopausa_interp_km']:5.1f} km     |"
+                 f"  {d['T_tropopausa_interp']:6.1f} C         | {frio_m}  | {d['T_25km']:6.1f} C  |  {g06:4.2f} K/km")
+        L.append(f"   {'':10s} obs. | {o['tropopausa_km']:5.1f} km                 | {o['tropopausa_interp_km']:5.1f} km     |"
+                 f"  {o['T_tropopausa_interp']:6.1f} C         | {frio_o}  | {o['T_25km']:6.1f} C  |     --")
+    L.append("   (OMM: primer nivel con gradiente <= 2 K/km que se mantiene 2 km; M3N tiene ~2 km entre niveles cerca de la")
+    L.append("   tropopausa, por eso tambien la interpolada (Reichler et al. 2003). El punto mas frio solo en los tropicos.")
+    L.append("   Comprobacion independiente de ERA-Interim: Seidel et al. 2001, radiosondas, ecuador: ~16,5 km y ~-81 C)")
     L.append("")
     if vientos is None or "anual" not in vientos:
         return
     sig = vientos["sigma"]
     sm = 0.5 * (sig[1:] + sig[:-1])
     lat_c = vientos["lat_caras"]
-    L.append("7. VIENTOS DEL NUCLEO (sin referencia observada verificada todavia: valores del modelo)")
+    L.append("7. VIENTOS DEL NUCLEO (obs.: ERA-Interim 1979-2016 en la rejilla de 5 grados de M3N, medido igual)")
     u = vientos["anual"]["u"]                                         # (N, FILAS) media zonal
-    for nom, m in (("Chorro del norte", (LAT > 15) & (LAT < 70)), ("Chorro del sur", (LAT < -15) & (LAT > -70))):
-        arriba = sm < 0.5
-        sub = np.where(arriba[:, None] & m[None, :], u, -np.inf)
-        k, i = np.unravel_index(np.argmax(sub), sub.shape)
-        L.append(f"   {nom:18s} (media anual, maximo del viento del oeste): {u[k, i]:5.1f} m/s a {LAT[i]:+5.1f},"
-                 f" sigma {sm[k]:.2f} (~{1000 * sm[k]:.0f} hPa)")
-    us = u[-1]
-    for nom, m, f_ in (("Alisios norte (0-30 N): minimo", (LAT > 0) & (LAT < 30), np.argmin),
-                       ("Alisios sur (0-30 S): minimo", (LAT < 0) & (LAT > -30), np.argmin),
-                       ("Oeste norte (30-70 N): maximo", (LAT > 30) & (LAT < 70), np.argmax),
-                       ("Oeste sur (30-70 S): maximo", (LAT < -30) & (LAT > -70), np.argmax)):
-        i = np.where(m)[0][f_(us[m])]
-        L.append(f"   Capa baja, {nom:32s} {us[i]:+5.1f} m/s a {LAT[i]:+5.1f}")
-    L.append("   Celulas de Hadley (funcion de corriente de masa, 10^10 kg/s; >0 = la del norte, <0 = la del sur):")
+    ch, cho = chorros(u, LAT, sm), R.REF_ERAI["chorros"]
+    for (capa, hemi), (val, la, niv) in ch.items():
+        vo, lo, no = cho[f"{capa}_{hemi}"]
+        nom = f"Chorro {'de la troposfera' if capa == 'troposfera' else 'de la estratosfera'} ({hemi})"
+        L.append(f"   {nom:34s} M3N {val:5.1f} m/s a {la:+5.1f}, ~{1000 * niv:3.0f} hPa   "
+                 f"obs. {vo:5.1f} a {lo:+5.1f}, {1000 * no:3.0f} hPa")
+    vb, vbo, vb10 = vientos_bajos(u[-1], LAT), R.REF_ERAI["vientos_bajos_975hPa"], R.REF_ERAI["vientos_bajos_10m"]
+    for nom, clave, _, _ in VENTANAS_VIENTO_BAJO:
+        L.append(f"   Capa baja, {nom:32s} M3N {vb[clave][0]:+5.1f} m/s a {vb[clave][1]:+5.1f}   "
+                 f"obs. 975 hPa {vbo[clave][0]:+5.1f} a {vbo[clave][1]:+5.1f} (10 m: {vb10[clave][0]:+5.1f})")
+    L.append("   Celulas de Hadley (funcion de corriente de masa, 10^10 kg/s; >0 = la del norte, <0 = la del sur;")
+    L.append("   cada una buscada en su lado; borde = cruce por cero a sigma 0,5 / 500 hPa):")
     k5 = int(np.argmin(np.abs(sig - 0.5)))                            # interfaz mas cercana a sigma 0,5
     for clave in ("anual", "dic-feb", "jun-ago"):
         if clave not in vientos:
@@ -434,19 +542,17 @@ def parte_2(r, vientos, L, campos):
         psi = funcion_corriente(vientos[clave]["vps"], sig, vientos["cos_caras"], P.P3N_RADIO, P.P3N_GRAVEDAD) / 1e10
         campos["psi_" + clave] = psi
         campos["u_" + clave] = vientos[clave]["u"]
-        trop = np.abs(lat_c) < 40
-        inter = (sig > 0.15) & (sig < 0.95)
-        sub = np.where(inter[:, None] & trop[None, :], psi, np.nan)
-        kn, jn = np.unravel_index(np.nanargmax(sub), sub.shape)
-        ks, js = np.unravel_index(np.nanargmin(sub), sub.shape)
-        borde_n = cruce_hacia_el_polo(psi[k5], lat_c, jn, -1)        # lat_c va de norte a sur
-        borde_s = cruce_hacia_el_polo(psi[k5], lat_c, js, +1)
-        L.append(f"     {clave:8s} norte {psi[kn, jn]:+6.2f} a {lat_c[jn]:+5.1f}, borde (sigma 0,5) {borde_n:+5.1f} | "
-                 f"sur {psi[ks, js]:+6.2f} a {lat_c[js]:+5.1f}, borde {borde_s:+5.1f}")
-    L.append("   Viento zonal medio anual por bandas (m/s): lat | sigma ~0,25 | ~0,5 | capa baja")
+        c, co = celulas_hadley(psi, lat_c, sig, k5), R.REF_ERAI["hadley"][clave]
+        for cel in ("norte", "sur"):
+            L.append(f"     {clave:8s} {cel:5s}  M3N {c[cel][0]:+6.2f} a {c[cel][1]:+5.1f}, borde {c[cel][2]:+5.1f}"
+                     f"   obs. {co[cel][0]:+6.2f} a {co[cel][1]:+5.1f}, borde {co[cel][2]:+5.1f}")
+    L.append("   Viento zonal medio anual por filas (m/s): lat | sigma ~0,25: M3N  obs. | ~0,5: M3N  obs. | capa baja: M3N  obs.")
     k25, k50 = int(np.argmin(np.abs(sm - 0.25))), int(np.argmin(np.abs(sm - 0.5)))
+    ub = R.REF_ERAI["u_bandas"]
     for i in range(0, FILAS, 2):
-        L.append(f"     {LAT[i]:+5.1f} | {u[k25, i]:+6.1f} | {u[k50, i]:+6.1f} | {u[-1, i]:+6.1f}")
+        L.append(f"     {LAT[i]:+5.1f} | {u[k25, i]:+6.1f} {ub[250][i]:+6.1f} | {u[k50, i]:+6.1f} {ub[500][i]:+6.1f} |"
+                 f" {u[-1, i]:+6.1f} {ub[975][i]:+6.1f}")
+    L.append("   (obs. de la capa baja: ERA-Interim a 975 hPa; por debajo de ~65 S ese nivel queda bajo el suelo antartico)")
     L.append("")
 
 

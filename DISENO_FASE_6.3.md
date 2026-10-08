@@ -838,3 +838,41 @@ Ese resto es el desfase de un paso del calor de rozamiento, que en el equilibrio
 **Decisiones de Carlos que NO están abiertas** (aclaración del 08/10, tras una compactación de la conversación en la que la IA volvió a plantearlas por error):
 - **La estrella no se recalibra hasta tener las nubes** (Fase 5.2; decisión del 05/10, `DISENO_FASE_2.3.md` §13). El exceso de calor del modo Tierra sin nubes es una limitación conocida, no algo que corregir ahora.
 - **La rejilla se queda en 5° por ahora**; se mejorará más adelante (decisión del 06/10, §6.3 y `DISENO_FASE_6.2.md` §10). La zona de borrascas desplazada es una limitación conocida y medida.
+
+### 6.15 v3.13.0 (08/10/2026): resultado de la validación, fallos de la herramienta y referencias de vientos, Hadley y tropopausa
+
+**La validación en el PC de Carlos (08/10, `validar_i16.py` de la 3.12.0).** 106 pruebas en 91 s; el año extra a 40 pasos/s (~15 min). El informe confirma lo que la herramienta tenía que medir y deja el diagnóstico por partes que sigue. Lo que se escribe aquí como causa es **hipótesis compatible con los datos, no demostración**: solo se demostrará cuando el modelo tenga lo que falta (nubes, Fase 5.2). Nada de esto se corrige ajustando parámetros.
+
+**Lo que está bien:**
+- Energía: cierre −4,4·10⁻⁹; error de la dinámica −1,295 W/m², que devuelve el corrector (coherente con −1,31 ± 0,29 de §6.13); neto en el tope −0,14 W/m².
+- Luz absorbida con cielo despejado (Wild et al. 2019): en el aire 72,1 frente a 73; en el suelo 220,6 frente a 214 W/m².
+- Hielo del norte en invierno: 14,8 frente a 15,6 millones de km² (NSIDC).
+- Estructura de la circulación: alisios y vientos del oeste en su sitio en los dos hemisferios; las células de Hadley terminan hacia ±28–30° (ERA-Interim, abajo: ±32°).
+
+**Lo que está mal y su lectura:**
+1. **Calor, mayor en el sur:** global +5,0 K, norte +4,0, sur +6,1; entre 45 y 90° S, +9 a +12 K; el hielo antártico, 3,6 frente a 18,5 millones de km² de máximo. Sin nubes, M3N absorbe 292,8 W/m² de luz frente a 240,9 en la Tierra (CERES), y el sesgo es mayor donde las nubes reales enfrían más (latitudes medias y océano Austral). Contribución probable en el sur: la capa de mezcla fija (~49 m) frente a las capas de invierno mucho más hondas del océano Austral real; el ciclo anual a 47,5° S sale de 7,9 K frente a 3,8.
+2. **La banda de lluvias al sur del ecuador (2,5° S; GPCP 7,5° N).** La atmósfera de M3N lleva +0,35 PW hacia el norte a través del ecuador; en la Tierra lleva 0,1 PW hacia el sur, y la banda de lluvias se desplaza al lado contrario del transporte (Donohoe et al. 2013, *J. Climate* 26, 3597: −2,4 a −3,2° por PW). Es el mismo sesgo que Hwang y Frierson (2013, *PNAS* 110, 4935) ligaron a la luz de más absorbida en el océano Austral por falta de nubes, sumado al que ya estaba en §6.14 (sin circulación del océano entre hemisferios: aquí el océano cruza el ecuador con +0,14 PW).
+3. **Ciclo del agua +25 % (lluvia) y +45 % (vapor):** coherente con +5 K (Clausius-Clapeyron, ~7 %/K, da el del vapor). No es un fallo aparte.
+4. **El Ártico se derrite casi entero en verano** (0,4 frente a 6,0 millones de km²): sin nubes de verano y sin dinámica del hielo.
+5. **La atmósfera transporta poco** (3,3 PW frente a 5,0) y la circulación es floja: Hadley anual 5,9 / −3,5 frente a 8,4 / −11,5 de ERA-Interim; diciembre–febrero 14,3 frente a 20,8; junio–agosto −10,7 frente a −23,9 (10¹⁰ kg/s; valores de la 3.12.0, que para estas tres celdas buscaba bien). Los chorros de la troposfera, más flojos y más cerca de los polos (~21–22 m/s hacia 50–70°, frente a 27–31 m/s hacia 32,5° en ERA-Interim). Hipótesis: a 5° los remolinos de latitudes medias, que llevan gran parte del calor, se resuelven mal. **No reabre la decisión de la rejilla** (§6.14): es un dato para cuando se mejore. El océano del sur, en cambio, lleva demasiado (1,46 PW a 50° S): una difusión no tiene la barrera de la corriente circumpolar antártica.
+6. **La alta atmósfera está mal y la causa no se conoce todavía:** la tropopausa del ecuador a ~12,5 km y −42 °C frente a 16,6 km y −81 °C (ERA-Interim; Seidel et al. 2001 con radiosondas: ~16,5 km y ~−81 °C); en la estratosfera alta, ~75 m/s de viento del oeste en media anual frente a 17 (norte) y 34 (sur) en ERA-Interim. Candidatos: el esquema de radiación por encima de la troposfera (sin ozono que caliente la estratosfera) y la resolución vertical; hay que estudiarlo antes de proponer nada.
+
+**Tres fallos de la herramienta de la 3.12.0 (no del modelo), arreglados en la 3.13.0:**
+1. Las dos células de Hadley se buscaban en 40° S–40° N: en diciembre–febrero, la "del sur" salió en +35°, que era la célula de Ferrel del norte (mismo signo), y su borde, el de la del norte. Ahora cada una se busca en su lado (la del norte entre 20° S y 40° N, la del sur entre 40° S y 20° N), con prueba.
+2. El "chorro" era el máximo por encima de 500 hPa, y salía siempre en el nivel más alto (~4 hPa). Ahora se dan por separado el de la troposfera (100–500 hPa) y el de la estratosfera alta (≤ 10 hPa).
+3. La tropopausa de la OMM sobre los niveles de M3N (~2 km entre ellos cerca de la tropopausa) salta de nivel en nivel: así salió la del ecuador (12,5 km) más baja que la de 10–30° N (14,4 km). La función estaba bien; lo que falta es resolución. Ahora se da también interpolada entre niveles (a la manera de Reichler et al. 2003, *GRL* 30, 2042) y el punto más frío entre 500 y 50 hPa.
+
+**Referencias nuevas** (`referencias_tierra.py`):
+- **ERA-Interim** (Dee et al. 2011, *QJRMS* 137, 553), medias zonales mensuales 1979–2016 tal como las distribuye TropD (Adam et al. 2018, *GMD* 11, 4339) en GitHub (único sitio con datos al que llega la IA, además de PyPI), con sha256 de cada archivo. Se miden **con las mismas funciones que M3N y en su misma rejilla de 5°** (`herramientas/referencias_era_interim.py`): células de Hadley (anual, diciembre–febrero, junio–agosto; máximo y borde), chorros de la troposfera y de la estratosfera, vientos de la capa baja (975 hPa y 10 m), viento zonal por filas a 250, 500 y 975 hPa, y tropopausa por bandas.
+- Comprobaciones independientes (en una prueba): la tropopausa del ecuador frente a Seidel et al. (2001, *JGR* 106, 7857); la célula de invierno del norte frente a Dima y Wallace (2003, *J. Atmos. Sci.* 60, 1522: 14–16 en NCEP) y Oort y Yienger (1996: 20).
+- **Transporte a través del ecuador:** Donohoe et al. (2013): 0,1 PW hacia el sur en media anual; banda de lluvias (centroide) en 1,65° N.
+- Límites de la comparación: ERA-Interim es un reanálisis (modelo más observaciones), no una medida directa; a 975 hPa, al sur de ~65° S, el nivel queda bajo el suelo antártico y el valor es extrapolado; la capa baja de M3N está a ~200 m sobre el suelo en todas partes.
+
+**También en la 3.13.0:**
+- Los 18 avisos "Mean of empty slice" de las pruebas: venían de `nieve_permanente_posible` en simulaciones de menos de 12 días (meses sin días). Mismo resultado (NaN) sin pedir la media de un trozo vacío; comprobado igual que la versión anterior con 41 duraciones distintas.
+- Etiquetas: se suben una a una (NOMENCLATURA §4.1); la tabla de correspondencias tiene ya todos los commits; la `v2.0` nunca se etiquetó.
+
+**Pendiente:**
+- Volver a lanzar `python validar_i16.py`: reutiliza el año extra guardado (no repite la simulación) y da los vientos y la tropopausa frente a ERA-Interim; con ese informe se completa este apartado.
+- Estudiar la alta atmósfera (punto 6).
+- Revisar el umbral de la climatología (§6.14).

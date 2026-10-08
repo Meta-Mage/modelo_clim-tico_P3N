@@ -385,7 +385,10 @@ def nieve_permanente_posible(registro_media_C, es_tierra, dias_mes=None):
     """
     n = registro_media_C.shape[0]
     dias_mes = n / 12 if dias_mes is None else dias_mes
-    medias = np.array([registro_media_C[int(round(k * dias_mes)):int(round((k + 1) * dias_mes))].mean(axis=0) for k in range(12)])
+    # 3.13.0: un "mes" sin dias (simulaciones de prueba de menos de 12 dias) da NaN, como antes, pero sin
+    # pedirle a numpy la media de un trozo vacio (eran los 18 avisos "Mean of empty slice" de las pruebas)
+    trozos = [registro_media_C[int(round(k * dias_mes)):int(round((k + 1) * dias_mes))] for k in range(12)]
+    medias = np.array([t.mean(axis=0) if len(t) else np.full(registro_media_C.shape[1:], np.nan) for t in trozos])
     return es_tierra & (medias.max(axis=0) < 0.0)
 
 

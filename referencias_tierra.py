@@ -96,3 +96,105 @@ REF_WILD = {"sw_suelo": 214, "sw_atm": 73, "dlr": 314}
 REF_TRANSPORTE = {"atm_max_PW": 5.0, "atm_max_lat": 43.0, "oceano_35N": 0.22, "oceano_35S": 0.08}
 # Hielo marino, extension (millones de km2), NSIDC 1981-2010 (DISENO_FASE_3.md §6.1; validar_v30.py)
 REF_HIELO = {"N_max": 15.6, "N_min": 6, "S_max": 18.5, "S_min": 3}
+
+# 3.13.0 -- VIENTOS, CELULAS DE HADLEY Y TROPOPAUSA: ERA-Interim (Dee et al. 2011, Q. J. R. Meteorol. Soc. 137,
+# 553-597), medias zonales mensuales de 1979 a 2016 distribuidas con TropD (Adam et al. 2018, Geosci. Model Dev.
+# 11, 4339; github.com/tropd/pytropd, ValidationData, commit c25ce1118c748f678869b9e69d19456a73fab1f4; huellas
+# sha256 en herramientas/referencias_era_interim.py, que es el programa que calcula estos valores).
+# Se miden con las MISMAS funciones que M3N (validar_i16.celulas_hadley, chorros, vientos_bajos, perfil_banda),
+# despues de pasar ERA-Interim a la rejilla de 5 grados de M3N.
+#   hadley[temporada][celula] = (maximo de psi en 10^10 kg/s, latitud de la cara, borde a 500 hPa)
+#   chorros["capa_hemisferio"] = (m/s, latitud, p / 1000 hPa)
+#   vientos_bajos_975hPa (comparable con la capa baja de M3N, a ~200 m) y vientos_bajos_10m = (m/s, latitud)
+#   u_bandas[hPa] = viento zonal medio anual en cada fila de M3N, de 87,5 N a 87,5 S. A 975 hPa, por debajo
+#       de ~65 S (Antartida) y en parte sobre las montañas, ese nivel queda bajo el suelo y el valor es extrapolado.
+#   tropopausa[banda]: la de la OMM en un nivel y la interpolada, el punto mas frio entre 500 y 50 hPa y T a 25 km
+#       (C). Comprobacion independiente: Seidel et al. (2001, JGR 106, 7857), con radiosondas 1961-1990, dan en el
+#       ecuador el punto mas frio a ~16,9 km y ~96 hPa, a unos -81 C, y la tropopausa de la OMM a ~16,5 km.
+REF_ERAI = {'fuente': 'ERA-Interim (Dee et al. 2011), medias zonales mensuales 1979-2016 de TropD '
+           '(github.com/tropd/pytropd, ValidationData, commit c25ce11), en la rejilla de 5 grados de M3N',
+ 'hadley': {'anual': {'norte': (8.37, 15.0, 32.49), 'sur': (-11.48, -10.0, -32.14)},
+            'dic-feb': {'norte': (20.8, 10.0, 29.99), 'sur': (-5.45, -20.0, -36.27)},
+            'jun-ago': {'norte': (2.53, 25.0, 37.9), 'sur': (-23.91, -5.0, -28.97)}},
+ 'chorros': {'troposfera_norte': (27.08, 32.5, 0.175),
+             'troposfera_sur': (30.76, -32.5, 0.2),
+             'estratosfera_norte': (16.53, 57.5, 0.001),
+             'estratosfera_sur': (33.7, -62.5, 0.005)},
+ 'vientos_bajos_975hPa': {'alisios_n': (-3.76, 17.5),
+                          'alisios_s': (-4.73, -17.5),
+                          'oeste_n': (2.33, 47.5),
+                          'oeste_s': (9.18, -52.5)},
+ 'vientos_bajos_10m': {'alisios_n': (-3.14, 17.5),
+                       'alisios_s': (-3.98, -17.5),
+                       'oeste_n': (1.76, 47.5),
+                       'oeste_s': (7.02, -52.5)},
+ 'u_bandas': {250: [1.84, 3.93, 5.89, 7.64, 9.01, 10.65, 13.22, 16.71, 20.53, 23.5, 24.78, 24.16, 21.31, 16.13,
+                    9.92, 3.75, -1.19, -3.04, -2.16, 0.32, 5.08, 12.64, 21.31, 26.94, 27.4, 26.52, 27.37, 28.71,
+                    28.04, 24.21, 18.16, 12.25, 7.97, 5.23, 2.97, 0.92],
+              500: [1.2, 2.56, 3.68, 4.52, 5.2, 6.07, 7.75, 9.88, 12.14, 13.49, 13.01, 11.51, 9.21, 5.5, 1.06,
+                    -2.24, -3.66, -3.84, -3.44, -2.86, -0.93, 3.04, 7.61, 10.83, 13.03, 15.27, 17.85, 19.79,
+                    19.67, 16.91, 11.89, 6.42, 2.68, 1.8, 1.11, -0.51],
+              975: [0.12, 0.35, 0.15, -0.13, 0.21, 0.5, 1.35, 2.05, 2.33, 2.27, 1.85, 0.81, -1.2, -3.0, -3.76,
+                    -3.58, -2.05, -1.72, -2.54, -3.49, -4.54, -4.73, -3.87, -2.05, 0.67, 3.89, 6.77, 8.74, 9.18,
+                    7.61, 3.91, -0.85, -2.26, -0.89, -0.7, -2.0]},
+ 'tropopausa': {'90..60': {'tropopausa_km': 8.78,
+                           'T_tropopausa': -52.07,
+                           'tropopausa_interp_km': 9.33,
+                           'T_tropopausa_interp': -53.14,
+                           'frio_km': 20.29,
+                           'frio_hPa': 50.0,
+                           'T_frio': -55.24,
+                           'T_25km': -54.61},
+                '60..30': {'tropopausa_km': 11.88,
+                           'T_tropopausa': -54.72,
+                           'tropopausa_interp_km': 11.68,
+                           'T_tropopausa_interp': -54.28,
+                           'frio_km': 16.25,
+                           'frio_hPa': 100.0,
+                           'T_frio': -60.24,
+                           'T_25km': -53.5},
+                '30..10': {'tropopausa_km': 16.55,
+                           'T_tropopausa': -76.6,
+                           'tropopausa_interp_km': 16.36,
+                           'T_tropopausa_interp': -75.97,
+                           'frio_km': 16.55,
+                           'frio_hPa': 100.0,
+                           'T_frio': -76.6,
+                           'T_25km': -54.13},
+                '10..-10': {'tropopausa_km': 16.56,
+                            'T_tropopausa': -80.82,
+                            'tropopausa_interp_km': 16.48,
+                            'T_tropopausa_interp': -80.43,
+                            'frio_km': 16.56,
+                            'frio_hPa': 100.0,
+                            'T_frio': -80.82,
+                            'T_25km': -54.79},
+                '-10..-30': {'tropopausa_km': 16.53,
+                             'T_tropopausa': -76.3,
+                             'tropopausa_interp_km': 16.31,
+                             'T_tropopausa_interp': -75.56,
+                             'frio_km': 16.53,
+                             'frio_hPa': 100.0,
+                             'T_frio': -76.3,
+                             'T_25km': -54.11},
+                '-30..-60': {'tropopausa_km': 11.0,
+                             'T_tropopausa': -54.05,
+                             'tropopausa_interp_km': 11.3,
+                             'T_tropopausa_interp': -54.6,
+                             'frio_km': 16.12,
+                             'frio_hPa': 100.0,
+                             'T_frio': -59.95,
+                             'T_25km': -53.7},
+                '-60..-90': {'tropopausa_km': 9.58,
+                             'T_tropopausa': -58.83,
+                             'tropopausa_interp_km': 9.11,
+                             'T_tropopausa_interp': -57.78,
+                             'frio_km': 19.63,
+                             'frio_hPa': 50.0,
+                             'T_frio': -61.0,
+                             'T_25km': -57.83}}}
+
+# Transporte de energia de la atmosfera a traves del ecuador y la banda de lluvias (Donohoe et al. 2013,
+# J. Climate 26, 3597): media anual observada 0,1 PW hacia el SUR; la banda de lluvias (su centroide) esta en
+# 1,65 N; cuanto mas transporta la atmosfera hacia el norte, mas al sur esta la banda (-2,4 a -3,2 grados por PW).
+REF_TRANSPORTE_ECUADOR = {"atm_PW": -0.1, "itcz_centroide": 1.65}

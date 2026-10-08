@@ -7,6 +7,24 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.13.0] — 2026-10-08
+
+- Fase: 6.3.
+- Clima exportado: no cambia (el modelo es idéntico; solo diagnósticos, referencias y documentación).
+- Pruebas: 116.
+
+### Añadido
+- Referencias de ERA-Interim 1979–2016 (Dee et al. 2011, vía TropD) en `referencias_tierra.py`: células de Hadley, chorros, vientos de la capa baja, viento zonal por filas y tropopausa por bandas, medidas con las mismas funciones que M3N y en su rejilla. Transporte de energía a través del ecuador (Donohoe et al. 2013).
+- `herramientas/referencias_era_interim.py`: el programa que calcula esas referencias, con la huella de cada archivo.
+- `validar_i16.py`: tropopausa interpolada entre niveles y punto más frío; chorro de la estratosfera aparte; transporte a través del ecuador.
+- `DISENO_FASE_6.3.md` §6.15: resultado de la validación en el PC de Carlos y su lectura.
+- 3 pruebas en `test_validar_i16.py`.
+
+### Corregido
+- `validar_i16.py`: cada célula de Hadley se busca en su lado (en diciembre–febrero, la "del sur" era la célula de Ferrel del norte); el chorro de la troposfera ya no es el nivel más alto del modelo.
+- Los 18 avisos "Mean of empty slice" de las pruebas (`nieve_permanente_posible` con menos de 12 días), con el mismo resultado.
+- `NOMENCLATURA.md`: commits de todas las etiquetas; la `v2.0` nunca se etiquetó; la `v2.2` está en c67729d; las etiquetas se suben una a una (también en `herramientas/etiquetas_canonicas.sh`).
+
 ## [3.12.1] — 2026-10-08
 
 - Fase: ninguna (nomenclatura).
@@ -243,7 +261,7 @@ En cada entrada:
 ### Añadido
 - Atmósfera de 2 capas, calor sensible, convección y aire a 2 m (I1–I7) (DISENO_FASE_2.2).
 
-## [2.2.0] — (antes: v2.2; commit a0b5059)
+## [2.2.0] — (antes: v2.2; etiqueta en c67729d: el commit a0b5059 más el arreglo del solsticio)
 
 - Fase: 2.1.
 
@@ -257,7 +275,7 @@ En cada entrada:
 ### Añadido
 - Geografía real del mapa de C3N.
 
-## [2.0.0] — 2026-09-20 (antes: v2.0)
+## [2.0.0] — 2026-09-20 (antes: v2.0; nunca se etiquetó)
 
 - Fase: 0.
 

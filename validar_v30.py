@@ -100,10 +100,11 @@ def tropopausa_omm(Tz, zz, pz):
     return np.nan, np.nan
 
 
-def perfil_por_bandas(fl, gravedad):
-    """Media zonal (por area) del perfil medio anual en cada banda: tropopausa, T a 25 km, gradiente 0-6 km."""
+def perfiles_por_bandas(fl, gravedad):
+    """3.13.0: el perfil medio de cada banda, de abajo arriba: lista de (banda, T (K), z (m), p (Pa)), o None
+    si la banda no tiene celdas con el suelo por debajo de ~500 m. Lo usan perfil_por_bandas y validar_i16.py."""
     T = fl["T_atm"]; p = fl["p_capas"]; ps_c = fl["p_superficie"]
-    filas = []
+    out = []
     for (n, s) in BANDAS:
         m = (LATITUDES_GRADOS < n) & (LATITUDES_GRADOS > s)
         # media de las celdas de la banda con el suelo por debajo de ~500 m (presion en superficie > 940 hPa):
@@ -114,17 +115,27 @@ def perfil_por_bandas(fl, gravedad):
                 if ps_c[i, j] > 9.4e4:
                     Tb.append(T[:, i, j]); pb.append(p[:, i, j]); sb.append(ps_c[i, j]); wb.append(np.cos(np.radians(LATITUDES_GRADOS[i])))
         if not Tb:
-            filas.append(None); continue
+            out.append(None); continue
         wb = np.array(wb)
         Tm = (np.array(Tb) * wb[:, None]).sum(0) / wb.sum()
         pm = (np.array(pb) * wb[:, None]).sum(0) / wb.sum()
         z = alturas(Tm, pm, float((np.array(sb) * wb).sum() / wb.sum()), gravedad)
-        Tz, zz, pz = Tm[::-1], z[::-1], pm[::-1]       # de abajo arriba
+        out.append((f"{n}..{s}", Tm[::-1], z[::-1], pm[::-1]))       # de abajo arriba
+    return out
+
+
+def perfil_por_bandas(fl, gravedad):
+    """Media zonal (por area) del perfil medio anual en cada banda: tropopausa, T a 25 km, gradiente 0-6 km."""
+    filas = []
+    for b in perfiles_por_bandas(fl, gravedad):
+        if b is None:
+            filas.append(None); continue
+        banda, Tz, zz, pz = b
         zt, Tt = tropopausa_omm(Tz, zz, pz)
         T25 = float(np.interp(25000, zz, Tz)) if zz[-1] > 25000 else np.nan
         # v3.1: desde el centro de la capa mas baja (np.interp no extrapola por debajo de el)
         g06 = float((Tz[0] - np.interp(6000, zz, Tz)) / ((6000 - zz[0]) / 1000))
-        filas.append({"banda": f"{n}..{s}", "tropopausa_km": zt / 1000, "T_tropopausa": Tt - 273.15,
+        filas.append({"banda": banda, "tropopausa_km": zt / 1000, "T_tropopausa": Tt - 273.15,
                       "T_25km": T25 - 273.15, "gradiente_0_6km": g06})
     return filas
 
