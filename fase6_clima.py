@@ -282,14 +282,17 @@ def _escribir_json(obj, ruta):
 def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_anos=MAX_ANOS,
                   max_anos_equilibrio=MAX_ANOS_EQUILIBRIO, informar=print, opciones_dos_capas=None,
                   exigir_equilibrio_dos_capas=True, estado_inicial=None, arranque="dos_capas", version=None,
-                  anos=None):
+                  anos=None, opciones_nucleo=None):
     """argumentos: los 8 posicionales de simular_fase2b (orbita, tipo, altitud, emisividad, albedos,
     inercias, profundidad optica, D). interruptores: con I16 encendido. Devuelve un dict como el de
     simular_fase2b con las MEDIAS de los años registrados, mas 'extremos', 'desviacion_entre_anos' y
     'climatologia' (años promediados, errores, criterio, equilibrio, diagnosticos de cada año y, desde la
     3.14.0, 'procedencia': los tramos de procedencia.json). version: la de M3N, para la procedencia.
     anos (3.15.0): años registrados, FIJOS; por defecto ANOS_CLIMATOLOGIA (30). min_anos/max_anos solo se usan
-    si anos es None y se pasa max_anos explicito (pruebas antiguas): entonces anos = max_anos."""
+    si anos es None y se pasa max_anos explicito (pruebas antiguas): entonces anos = max_anos.
+    opciones_nucleo (4.0.0, Fase 6.4, DISENO_FASE_6.4.md §4.2): argumentos con nombre de simular_fase2b para el
+    modelo con nucleo (no para el arranque), p. ej. {"d_oceano": ...} en las pruebas de sensibilidad del oceano.
+    Por defecto ninguno: el mismo calculo que antes."""
     if not interruptores.get("nucleo_dinamico", False):
         raise ValueError("simular_clima es para el modelo con nucleo dinamico (I16)")
     if anos is None:
@@ -314,6 +317,11 @@ def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_ano
     f_previo = f_sim + ".previo"
     f_acum = os.path.join(carpeta, "climatologia.pkl")
     kw = dict(interruptores=interruptores, estado_inicial=estado_ini, archivo_estado=f_sim, guardar_al_terminar=True)
+    if opciones_nucleo:
+        choque = set(opciones_nucleo) & (set(kw) | {"max_anos", "min_anos"})
+        if choque:
+            raise ValueError(f"opciones_nucleo no puede cambiar {sorted(choque)}")
+        kw.update(opciones_nucleo)
 
     def leer(ruta):
         with open(ruta, "rb") as f:

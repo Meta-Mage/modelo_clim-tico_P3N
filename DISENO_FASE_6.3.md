@@ -2,7 +2,9 @@
 
 > **Nomenclatura (08/10/2026, M3N 3.12.1):** este documento se llamaba `DISENO_FASE6_3.md`. Fases y versiones van con la numeración normalizada; la correspondencia con los nombres anteriores está en `NOMENCLATURA.md` y `CHANGELOG.md`.
 
-**Estado actual (08/10/2026, M3N 3.14.0):** modelo acoplado (I16) hecho, estable y con el cierre de energía y de agua; primera climatología del modo Tierra y su validación (§6.14–§6.16). Falta lo que lista el final de §6.16 para cerrar la fase. El título decía "BORRADOR v1": era la versión de los §0–§4 del 05/10.
+**Estado actual (11/10/2026, M3N 3.19.0): FASE CERRADA** (aprobada por Carlos el 11/10/2026; criterio en §6.22 y tabla de cierre en §6.25). Modelo acoplado (I16) estable, con el cierre de energía y de agua, y validado en modo Tierra con la 3.18.1.
+
+*Estado anterior (08/10/2026, M3N 3.14.0):* modelo acoplado (I16) hecho, estable y con el cierre de energía y de agua; primera climatología del modo Tierra y su validación (§6.14–§6.16). Faltaba lo que lista el final de §6.16 para cerrar la fase. El título decía "BORRADOR v1": era la versión de los §0–§4 del 05/10.
 
 **Estado v2 (06–07/10/2026).** Las decisiones del §1 están revisadas con fuentes y **aprobadas por Carlos** (§6). Hechos: el transporte del vapor (§5), el paso 2 del §3 (núcleo con los niveles de M3N: **sin capa esponja**, §6.4) y la capa límite en columna (paso 4, §6.5). La 6.2 está cerrada (`DISENO_FASE_6.2.md`).
 
@@ -1215,7 +1217,7 @@ Ninguno de los dos cambia el clima oficial (el modelo de 2 capas no usa nada de 
 
 ### 6.21 3.18.0 (09/10/2026): implementación de §6.20, verificación y dos hallazgos
 
-**Decisión de Carlos (09/10/2026):** aprueba §6.20.1 y §6.20.2. La pregunta del "1 bar" de P3N (total o seco) sigue abierta: mientras no diga otra cosa, aire seco, como hasta ahora.
+**Decisión de Carlos (09/10/2026):** aprueba §6.20.1 y §6.20.2. La pregunta del "1 bar" de P3N (total o seco) sigue abierta: mientras no diga otra cosa, aire seco, como hasta ahora. *(Decidida el 11/10/2026: aire seco, con la justificación de `DISENO_FASE_6.4.md` §7.4; Carlos la delegó en el criterio técnico.)*
 
 **1. El vapor como razón de mezcla (`VAPOR_RAZON_MEZCLA_I16`), tal como §6.20.1 (i):**
 - `fase31_agua`:
@@ -1334,7 +1336,15 @@ Es lo esperado (§6.19.2): un ~4 % más de evaporación sobre el mar a igual gra
   - el transporte de la atmósfera del norte (máximo a 35° frente a 43° N).
 - Intensidades fuera de 0,5–2: las tres células de Hadley del sur (0,35–0,42), el vórtice estratosférico (2,3–4,6), el hielo antártico de invierno (0,23) y el ártico de verano (0,22), y el oeste de superficie del norte (2,5).
 - Hipótesis ya documentadas para casi todas (nubes, radiación gris, océano sin corrientes, sin ondas de gravedad: §6.15–§6.16).
-- La que tiene la base más floja es **la célula de Hadley del sur**. En media anual se entiende por la banda de lluvias al sur del ecuador: con el calentamiento desplazado al sur, la célula del norte cruza el ecuador y la del sur se debilita (Lindzen y Hou 1988, *J. Atmos. Sci.* 45, 2416 ⚠️, a verificar). La de jun–ago (invierno del sur, con la banda de lluvias en su sitio) es la que habrá que mirar con más cuidado al aplicar el criterio.
+- La que tiene la base más floja es **la célula de Hadley del sur**.
+  - **Fuente** (verificada el 11/10 en su contenido; volumen y páginas, los de la cita habitual):
+    - Lindzen y Hou (1988, *J. Atmos. Sci.* 45, 2416): desplazar el máximo del calentamiento solo 2° del ecuador produce "profundas asimetrías"; la célula del lado de invierno se amplifica mucho y la de verano se vuelve despreciable;
+    - Walker y Schneider (2005, *GRL* 32, doi:10.1029/2004GL022304) ✅ lo confirman con remolinos: la de invierno se refuerza y la de verano se debilita. Pero la circulación **media anual** es casi tan fuerte como la que da el calentamiento medio anual (la amplificación no lineal que predecía la teoría sin remolinos no aparece).
+  - **Lectura para M3N:**
+    - en media anual, la banda de lluvias está a 2,5° S (en la Tierra, a 7,5° N), y la asimetría sale **al revés**: norte +5,7 / sur −4,0 frente a +8,4 / −11,5. Eso cuadra en signo con el calentamiento desplazado al sur;
+    - **no** explica que las dos células sean más débiles (la del norte, 0,69);
+    - ni la de jun–ago, el invierno del sur (0,42), con la banda de lluvias en su sitio (7,5° N) pero con un 27 % menos de lluvia (5,5 frente a 7,5 mm/día) y un contraste entre el ecuador y el polo sur más pequeño (62,9 frente a 72,2 K).
+    - Las dos cosas apuntan a un calentamiento tropical y un gradiente más débiles (sin nubes: §6.15). Es una hipótesis compatible; habrá que mirarla con cuidado al aplicar el criterio.
 
 ### 6.24 3.18.1 (11/10/2026): criterio de cierre aprobado y τ fijo recalibrado
 
@@ -1351,3 +1361,48 @@ Es lo esperado (§6.19.2): un ~4 % más de evaporación sobre el mar a igual gra
 
 **Siguiente:** la simulación limpia del modo Tierra con la 3.18.1, su `validar_i16.py` y la aplicación del criterio de §6.22.
 
+
+### 6.25 Cierre de la Fase 6.3: el criterio de §6.22 aplicado a la 3.18.1 (11/10/2026)
+
+**La simulación:** `clima_dinamico.py --tierra` con la 3.18.1 (PC de Carlos, 11/10, carpeta `tierra_3.18.1`): una sola versión de principio a fin (código ed5bcfab…), equilibrio en **8 años**, 30 de climatología, **9,71 h**. Su `validar_i16.py` (`outputs/validacion_i16_3.18.1`) y la comprobación de A7 (la exportación de esa climatología con `construir_exportacion_dinamica`, sin errores y en un JSON válido sin NaN, y su lectura con `clima.cargar`, `resumen`, `dia` y `celda` de H3N v0.2.2: 15 series diarias de 365 días) los hizo Carlos el mismo día. Tabla calculada con `herramientas/criterio_cierre_6_3.py`, sin cambiar nada del criterio.
+
+**A. Bloqueantes: los siete se cumplen.**
+
+| | Criterio | Resultado |
+|---|---|---|
+| A1 | un solo código | ✅ un tramo, 3.18.1 |
+| A2 | estable, cadena completa | ✅ 30 de 30 años |
+| A3 | equilibrio | ✅ en 8 años (N +0,102 W/m², T2m +0,0099 K/año, hielo −0,0008, agua del suelo −0,0003) |
+| A4 | energía < 1·10⁻⁷ y agua < 1·10⁻¹¹ kg/m² cada año | ✅ máximos 2,3·10⁻⁸ y 5,1·10⁻¹³ |
+| A5 | error de la dinámica controlado | ✅ media −1,04 W/m² (lo devuelve el corrector), tendencia +0,0021 ± 0,0047 /año (p 0,66) |
+| A6 | sin deriva | ✅ aire a 2 m global −0,0006 ± 0,0011 K/año (p 0,59); ninguna banda; precipitación sin deriva |
+| A7 | herramientas completas | ✅ validación con las 7 partes; exportación y lectura en H3N |
+
+**B. Estructura: cumplen 15 de 19.**
+- ✅ Alisios y vientos del oeste en los dos hemisferios; máximo del oeste en superficie a 52,5° N y 57,5° S (obs. 47,5° N y 52,5° S: dentro de ±5°; en la 3.17.0 el del norte salía a 57,5°).
+- ✅ Las seis células de Hadley con su signo; la de invierno más fuerte que la de verano en los dos hemisferios; bordes de 4 de 6 a ±5° (anual: +29,1/−27,5 frente a +32,5/−32,1; invierno: +29,0 y −27,6 frente a +30,0 y −29,0).
+- ✅ Chorro subtropical de invierno con núcleo en los dos hemisferios (+27,5° y −22,5°, a 5° de ERA-Interim).
+- ✅ Transporte hacia los polos en los dos hemisferios; máximo del de la atmósfera del sur a 35° S (~40° S).
+- ✅ Mínimos subtropicales de lluvia (22,5° N y S) y máximos de latitudes medias en los dos hemisferios.
+- ✅ Polos más fríos que el ecuador en todas las estaciones; hielo de invierno en los dos hemisferios; tropopausa más alta en los trópicos (≥ 13,3 km) que en los polos (≤ 10,0 km).
+- ❌ Borde de la célula de verano: dic–feb sur −7,9° (obs. −36,3°); jun–ago norte +28,4° (obs. +37,9°).
+- ❌ Máximo del transporte de la atmósfera del norte a 35° N (obs. 43° N).
+- ❌ Banda de lluvias anual a 2,5° S (obs. 7,5° N).
+
+**Intensidades fuera de 0,5–2:** Hadley anual sur 0,47, dic–feb sur 0,40, jun–ago norte 0,45, jun–ago sur 0,46; estratosfera norte 4,39 y sur 2,04; transporte de la atmósfera del sur 0,46; hielo norte mínimo 0,05, sur máximo 0,16, sur mínimo 0,03; oeste de superficie del norte 2,48. Dentro de 0,5–2, entre otras: Hadley anual norte 0,79, chorros de troposfera 0,52–0,75, transporte de la atmósfera del norte 0,67, precipitación 1,30, agua precipitable 1,47, hielo norte máximo 0,96, alisios 0,74–1,11. Aire a 2 m global +5,16 K (sin nubes).
+
+**Explicación de cada uno** (regla de §6.22: ligada a una limitación declarada, con fuente; hipótesis compatibles con los datos, no demostraciones):
+1. **Bordes de las células de verano.** Cuando el máximo del calentamiento se aparta del ecuador, la célula de verano se vuelve muy débil (Lindzen y Hou 1988, *J. Atmos. Sci.* 45, 2416; Walker y Schneider 2005, *GRL*, doi:10.1029/2004GL022304; §6.23). Aquí lo es: 2,16 y 1,15·10¹⁰ kg/s. En una célula tan débil, el cruce por cero que marca su borde lo deciden detalles pequeños; en ERA-Interim la de dic–feb sur también es débil (5,45). Limitaciones: sin nubes (5.2) y océano sin corrientes (6.5), que fijan dónde está el máximo del calentamiento.
+2. **Transporte de la atmósfera del norte a 35° en lugar de 43°.** El máximo lo marcan los remolinos de latitudes medias. Con la rejilla de 5°, el propio núcleo de M3N pone los chorros de Held y Suarez a ~29° (§6.4), frente a ~45° con resolución alta (Mendonça et al. 2016, THOR): la circulación de los remolinos sale más cerca del ecuador. Limitación: rejilla de 5° (decisión vigente).
+3. **Banda de lluvias al sur** (2,5° S; en jun–ago, en su sitio: 7,5° N). El hemisferio sur sale más caliente que el norte (−0,78 K de norte menos sur, frente a +1,22), la atmósfera cruza el ecuador hacia el norte (+0,35 PW, obs. −0,1) y la lluvia se va al lado contrario (Donohoe et al. 2013; el mismo sesgo de los modelos sin las nubes del océano Austral, Hwang y Frierson 2013, *PNAS* 110, 4935; §6.15). Limitaciones: sin nubes (5.2) y océano sin corrientes (6.5).
+4. **Células de Hadley débiles (0,40–0,47 en el sur y en el verano del norte).** Las células se hacen más intensas cuanto mayor es el contraste de temperatura que las mueve (Held y Hou 1980). Aquí el contraste entre el ecuador y el polo sur es de 62,4 K (obs. 72,2) y la lluvia del invierno del sur, la que libera el calor latente que mueve la célula, es un 22 % menor que la observada (5,82 frente a 7,49 mm/día a 7,5° N). Las dos cosas apuntan a un calentamiento tropical y un gradiente más débiles por la falta de nubes (§6.15, §6.23). Limitación: sin nubes (5.2). Es la explicación con la base más floja de la lista, como ya decía §6.23; se volverá a mirar con la 5.2.
+5. **Estratosfera (4,4 y 2,0).** Limitación declarada: radiación gris y sin ozono (`DISENO_FASE_2.3.md` §12; 5.2) y sin arrastre de ondas de gravedad (6.6; §6.17.6). La estratosfera de verano sigue con el signo cambiado (+65 y +71 m/s frente a −7 y −6).
+6. **Transporte de la atmósfera del sur (0,46).** La referencia de 5,0 PW es la del norte (Trenberth y Caron 2001: "parecido hacia 40° S"). En el sur, el océano de M3N lleva demasiado (1,41 PW a 50° S; parte del océano a 35° S 0,32 frente a 0,08): una difusión no tiene la barrera de la corriente circumpolar antártica, y la atmósfera lleva lo que falta hasta el total (3,50 PW). Limitación: océano sin corrientes (6.5).
+7. **Hielo marino** (ártico de verano 0,05; antártico 0,16 y 0,03). Sin nubes, el verano ártico recibe demasiada luz; el océano Austral sale 9–13 K más caliente que el observado (de 47,5° a 87,5° S), por la falta de nubes y por el calor que lleva hasta allí la difusión del océano; y el hielo no tiene dinámica. Limitaciones: 5.2, 6.5 y sin dinámica del hielo (§6.22 C).
+8. **Viento del oeste en superficie del norte (2,48).** Hipótesis de §6.16: un vórtice estratosférico demasiado fuerte desplaza e intensifica los vientos del oeste de superficie (Polvani y Kushner 2002, *GRL* 29(7), doi:10.1029/2001GL014284). Limitación: sin arrastre de ondas de gravedad (6.6). (La referencia es ERA-Interim a 975 hPa; la capa baja de M3N está a ~200 m.)
+
+**Comparación con la 3.17.0** (los cambios de la 3.18.0 y la 3.18.1: el vapor como razón de mezcla, la masa de aire seco observada y el τ fijo recalibrado): equilibrio en 8 años (antes 9); aire a 2 m 19,13 °C (antes ~18,98: 19,02 − 0,037); precipitación 3,47 mm/día (antes ~3,39: 3,36 + 0,026); agua precipitable 36,6 kg/m² (antes 36,3); el oeste de superficie del norte pasa de 57,5° a 52,5° y entra en ±5°. Las demás lecturas, sin cambios.
+
+**Resultado:** los siete bloqueantes se cumplen, y cada fallo de B y cada intensidad fuera de 0,5–2 tiene una explicación ligada a una limitación declarada, con la fase que la resolverá. Por la regla de §6.22, **la Fase 6.3 se puede cerrar**.
+
+**Decisión de Carlos (11/10/2026, 20:54): "Apruebo el cierre."** La Fase 6.3 queda **cerrada** con la 3.19.0. Empieza la 6.4 (`DISENO_FASE_6.4.md`). Lo que queda abierto de la 6.3 pasa como limitación declarada o como pendiente menor: la humedad relativa de la troposfera libre (§6.22 D), medir los acantilados y el desglose del error de la dinámica, y revisar con la 5.2 la explicación de las células de Hadley débiles (punto 4).

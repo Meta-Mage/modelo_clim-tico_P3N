@@ -7,6 +7,24 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.19.0] — 2026-10-11
+
+- Fase: 6.3 (cierre) y 6.4 (diseño y herramientas).
+- Clima exportado: no cambia (el oficial sigue siendo el modelo de 2 capas; con los valores por defecto, el modelo con I16 es idéntico bit a bit a la 3.18.1).
+- Pruebas: 141.
+
+### Añadido
+- `herramientas/criterio_cierre_6_3.py`: aplica el criterio de cierre de la Fase 6.3 (`DISENO_FASE_6.3.md` §6.22) a un `resumen.txt` y un `informe.txt`: tabla de bloqueantes, estructura e intensidades, y lo que necesita explicación.
+- **Cierre de la Fase 6.3** (`DISENO_FASE_6.3.md` §6.25, aprobado por Carlos el 11/10/2026): el criterio de §6.22 aplicado a la climatología de la 3.18.1 del modo Tierra (PC de Carlos, 9,71 h, equilibrio en 8 años). Los siete bloqueantes se cumplen; 15 de 19 criterios de estructura; cada fallo y cada intensidad fuera de 0,5–2, explicados con fuente y ligados a una limitación declarada.
+- `DISENO_FASE_6.4.md`: el diseño de la Fase 6.4 (P3N con el núcleo dinámico, la 4.0.0), con las decisiones de Carlos del 11/10/2026: inclinación 1,7°, océano con valores provisionales y sensibilidad, composición del aire como la Tierra, "1 bar" de aire seco, relieve más adelante, criterio para la 4.0.0 sin resultados exigidos y vista rápida anotada como idea; y la prueba del arranque de P3N (§4.3).
+- `analizar_p3n.py`: análisis del clima de P3N con I16 sin suponer su forma (todas las células, chorros, bandas de viento y máximos de lluvia; estaciones por la distancia a la estrella; bloqueantes; orientación de Held y Hou; comparación con el clima oficial de 2 capas; sensibilidades) (`DISENO_FASE_6.4.md` §5.1).
+- `clima_dinamico.py --oceano-difusion F --oceano-capa-mezcla F` (con `--anos`): pruebas de sensibilidad del océano en su propia carpeta, sin poder mezclarse con otra configuración ni exportarse como el clima de H3N (`DISENO_FASE_6.4.md` §4.2). `fase6_clima.simular_clima(..., opciones_nucleo=...)`. La exportación da los factores en `climatologia.sensibilidad` y el D_oc usado.
+- `validar_i16.ano_extra` acepta otro calendario de temporadas (por defecto, los meses del modo Tierra, como antes).
+- 10 pruebas: `test_analizar_p3n.py` (8) y `test_sensibilidad_oceano.py` (2).
+
+### Cambiado
+- `NOMENCLATURA.md`: la Fase 6.3, cerrada; la 6.4, en curso; commits de la v3.15.0 a la v3.18.1 (leídos de GitHub); paquete 030.
+
 ## [3.18.1] — 2026-10-11
 
 - Fase: 6.3.

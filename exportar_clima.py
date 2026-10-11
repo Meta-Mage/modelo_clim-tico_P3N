@@ -239,7 +239,8 @@ def construir_exportacion_dinamica(rc, tipo, altitud, nombre_mapa, datos_orbita,
         r["energia"] = {"diferencia_relativa": float(abs(ultimo.get("cierre_relativo", float("nan"))))}
     out = construir_exportacion(r, tipo, altitud, nombre_mapa, datos_orbita, paso_tiempo)
     # con I16 la atmosfera no difunde (la mueve el nucleo); el oceano, si (D de la Fase 2.3, hasta la 6.5)
-    out["parametros"].update({"D_atmosfera": None, "D_oceano": float(F2B.D_OCEANO_V30),
+    factor_d = float((rc.get("sensibilidad") or {}).get("oceano_difusion", 1.0))     # 4.0.0: prueba de sensibilidad
+    out["parametros"].update({"D_atmosfera": None, "D_oceano": float(F2B.D_OCEANO_V30) * factor_d,
                               "D_esquema": "nucleo dinamico (I16); oceano por difusion"})
     a = rc["agua"]
     out["simulacion"].update({
@@ -284,6 +285,8 @@ def construir_exportacion_dinamica(rc, tipo, altitud, nombre_mapa, datos_orbita,
                    "aire2m_global_K_ano": finito(dv.get("global_T", {}).get("pendiente"))} if dv else None,
         "equilibrio": {"anos": int(c["equilibrio"]["anos"]), "convergido": bool(c["equilibrio"]["convergido"])},
         "procedencia": c.get("procedencia", []),
+        # 4.0.0 (DISENO_FASE_6.4.md §4.2): factores de la prueba de sensibilidad del oceano (1 y 1 = el modelo tal cual)
+        "sensibilidad": {k: float(v) for k, v in (rc.get("sensibilidad") or {}).items()} or None,
     }
     out["unidades"] = UNIDADES
     return out
@@ -332,6 +335,9 @@ if __name__ == "__main__":
             sys.exit(f"Falta {f_res}: hay que terminar antes 'python clima_dinamico.py'.")
         with open(f_res, "rb") as f:
             rc = pickle.load(f)
+        if args.activo and any(v != 1.0 for v in (rc.get("sensibilidad") or {}).values()):
+            sys.exit("Esta climatologia es una prueba de sensibilidad del oceano (DISENO_FASE_6.4.md §4.2): no puede ser "
+                     "el clima que lee H3N. Sin --activo se exporta aparte.")
         if rc.get("mapa") is None:
             sys.exit("Esta climatologia no dice con que mapa se hizo (es anterior a la 3.16.0): no se puede "
                      "comprobar que sea la del mapa activo. Vuelve a lanzar clima_dinamico.py (si esta terminada, "

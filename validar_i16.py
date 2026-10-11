@@ -294,9 +294,11 @@ def sha256(ruta):
 
 
 # ------------------------------------------------------------------------------------ parte 2: año extra
-def ano_extra(carpeta, argumentos, I):
+def ano_extra(carpeta, argumentos, I, temporada_del_dia=None, temporadas=("dic-feb", "jun-ago")):
     """Un año mas desde una COPIA del ultimo punto de control, con todos los diagnosticos y los vientos del
-    nucleo. Se guarda en SALIDA/ano_extra.pkl y se reutiliza si el punto de control no ha cambiado."""
+    nucleo. Se guarda en SALIDA/ano_extra.pkl y se reutiliza si el punto de control no ha cambiado.
+    4.0.0 (Fase 6.4): temporada_del_dia(dia) -> nombre o None, y temporadas, para otro calendario (P3N,
+    analizar_p3n.py); por defecto, los meses del modo Tierra (dic-feb y jun-ago), como hasta ahora."""
     import fase2b_atmosfera as F
     import fase6_nucleo as N6
     f_sim = os.path.join(carpeta, "estado_i16.pkl")
@@ -342,8 +344,11 @@ def ano_extra(carpeta, argumentos, I):
         res = original(self, ant, act, forzamiento, **kw)
         ps, T, u, v = res[1]
         dia = (V["n"] // 2) // pasos_dia
-        mes = mes_del_dia(dia)
-        temporada = "dic-feb" if mes in (11, 0, 1) else "jun-ago" if mes in (5, 6, 7) else None
+        if temporada_del_dia is None:
+            mes = mes_del_dia(dia)
+            temporada = "dic-feb" if mes in (11, 0, 1) else "jun-ago" if mes in (5, 6, 7) else None
+        else:
+            temporada = temporada_del_dia(dia)
         ps_cara = 0.5 * (ps[1:] + ps[:-1])
         campos = {"u": u.mean(axis=2), "vps": (v * ps_cara[None]).mean(axis=2), "ps": ps.mean(axis=1)}
         for clave in ("anual",) + ((temporada,) if temporada else ()):
@@ -383,7 +388,7 @@ def ano_extra(carpeta, argumentos, I):
             os.remove(extra)
     r = {k: r[k] for k in ("flujos", "energia", "hielo_espesor")}     # lo que usa la parte 2
     vientos = {"sigma": V["sigma"], "cos_caras": V["cos_caras"], "lat_caras": V["lat_caras"]}
-    for clave in ("anual", "dic-feb", "jun-ago"):
+    for clave in ("anual",) + tuple(temporadas):
         if clave in V:
             d = V[clave]
             vientos[clave] = {k: d[k] / d["n"] for k in ("u", "vps", "ps")}

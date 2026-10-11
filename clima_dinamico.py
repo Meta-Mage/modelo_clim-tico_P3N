@@ -11,6 +11,11 @@
 #     --anos N          3.15.0: climatologia EXPLORATORIA de N años registrados (N >= 12; por defecto 30, la
 #                       normal de la OMM, que es la que vale para el clima oficial). Va a su propia carpeta.
 #     --carpeta RUTA    donde va todo (por defecto outputs/clima_dinamico/<tierra|p3n>_<arranque>)
+#     --oceano-difusion F, --oceano-capa-mezcla F
+#                       4.0.0 (Fase 6.4, DISENO_FASE_6.4.md §4.2): PRUEBAS DE SENSIBILIDAD del oceano, con la
+#                       difusion del oceano (D_oc) o la profundidad de la capa de mezcla multiplicadas por F (0,5 o
+#                       2). Solo con --anos (son climatologias exploratorias, no el clima oficial). Van a su propia
+#                       carpeta, y el modelo de partida del arranque usa la misma capa de mezcla (su difusion, no).
 #
 # - Barra de progreso: fase, año, % del año, velocidad y tiempo restante del año.
 # - Una linea por año en pantalla y en <carpeta>/registro.txt.
@@ -30,7 +35,16 @@ ap.add_argument("--arranque", choices=("dos_capas", "v31"), default="dos_capas")
 ap.add_argument("--dias", type=int, default=None, help="solo para probar: años de N dias")
 ap.add_argument("--anos", type=int, default=None, help="climatologia exploratoria de N años (N >= 12)")
 ap.add_argument("--carpeta", default=None)
+ap.add_argument("--oceano-difusion", type=float, default=1.0, help="sensibilidad: factor de D_oc (con --anos)")
+ap.add_argument("--oceano-capa-mezcla", type=float, default=1.0, help="sensibilidad: factor de la capa de mezcla (con --anos)")
 args = ap.parse_args()
+SENSIBILIDAD = {"oceano_difusion": args.oceano_difusion, "oceano_capa_mezcla": args.oceano_capa_mezcla}
+ES_SENSIBILIDAD = any(v != 1.0 for v in SENSIBILIDAD.values())
+if any(not (v > 0) for v in SENSIBILIDAD.values()):
+    sys.exit("--oceano-difusion y --oceano-capa-mezcla tienen que ser mayores que 0")
+if ES_SENSIBILIDAD and not (args.anos or args.dias):
+    sys.exit("una prueba de sensibilidad del oceano es una climatologia exploratoria: añade --anos 12 "
+             "(DISENO_FASE_6.4.md §4.2)")
 if args.anos is not None and args.anos < 12 and not args.dias:
     sys.exit("--anos: una climatologia exploratoria necesita al menos 12 años (WMO-No. 1203 §5.2.3)")
 if args.tierra:
@@ -51,7 +65,7 @@ from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from cache_simulacion import precalcular_orbita_cacheada
 from rejilla import LATITUDES_GRADOS
 
-VERSION = "3.18.1"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
+VERSION = "3.19.0"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
 
 
 def main():
@@ -72,7 +86,9 @@ def main():
     carpeta = args.carpeta or os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "clima_dinamico",
                                            f"{nombre}_{args.arranque}" + (f"_prueba{args.dias}d" if args.dias else "")
                                            + (f"_exploratoria{args.anos}" if args.anos and args.anos != C.ANOS_CLIMATOLOGIA
-                                              and not args.dias else ""))
+                                              and not args.dias else "")
+                                           + (f"_oceanoD{args.oceano_difusion:g}" if args.oceano_difusion != 1.0 else "")
+                                           + (f"_capa{args.oceano_capa_mezcla:g}" if args.oceano_capa_mezcla != 1.0 else ""))
     os.makedirs(carpeta, exist_ok=True)
     f_reg = os.path.join(carpeta, "registro.txt")
 
@@ -82,7 +98,32 @@ def main():
         with open(f_reg, "a", encoding="utf-8") as f:
             f.write(time.strftime("%Y-%m-%d %H:%M:%S ") + texto + "\n")
 
-    argumentos = (orbita, tipo, alt, P.EMISIVIDAD, ALBEDO_POR_TIPO, INERCIA_POR_TIPO, P.PROFUNDIDAD_OPTICA, 0.55)
+    inercias = INERCIA_POR_TIPO
+    if args.oceano_capa_mezcla != 1.0:
+        # la capacidad de la capa de mezcla es INERCIA_POR_TIPO[AGUA] * raiz(86400 s / pi) (fase2_inercia_multicapa):
+        # multiplicar la inercia del agua por F multiplica por F su profundidad (48,7 m por defecto)
+        from fase1_geografia import AGUA
+        inercias = dict(INERCIA_POR_TIPO)
+        inercias[AGUA] = INERCIA_POR_TIPO[AGUA] * args.oceano_capa_mezcla
+    argumentos = (orbita, tipo, alt, P.EMISIVIDAD, ALBEDO_POR_TIPO, inercias, P.PROFUNDIDAD_OPTICA, 0.55)
+    opciones_nucleo = None
+    if args.oceano_difusion != 1.0:
+        opciones_nucleo = {"d_oceano": F.D_OCEANO_V30 * args.oceano_difusion}
+    # no se puede continuar una simulacion con otro oceano: una carpeta con simulacion y sin sensibilidad.json es
+    # del modelo tal cual (factores 1 y 1)
+    import json
+    f_sens = os.path.join(carpeta, "sensibilidad.json")
+    guardada = None
+    if os.path.exists(f_sens):
+        with open(f_sens, encoding="utf-8") as f:
+            guardada = json.load(f)
+    elif any(os.path.exists(os.path.join(carpeta, n)) for n in ("estado_i16.pkl", "climatologia.pkl", "resultado.pkl")):
+        guardada = {k: 1.0 for k in SENSIBILIDAD}
+    if guardada is not None and guardada != SENSIBILIDAD:
+        sys.exit(f"{carpeta} es de otra configuracion del oceano ({guardada}); usa otra carpeta")
+    if guardada is None and ES_SENSIBILIDAD:
+        with open(f_sens, "w", encoding="utf-8") as f:
+            json.dump(SENSIBILIDAD, f)
     I = dict(F.INTERRUPTORES_FASE2B)
     for k in ("atmosfera_multicapa", "ciclo_agua", "conveccion_humeda", "suelo_termico_agua", "albedo_espectral",
               "nucleo_dinamico"):
@@ -127,7 +168,9 @@ def main():
     F.AL_PASO = al_paso
     F.AL_ACABAR_ANO = al_acabar_ano
     informar(f"=== M3N {VERSION} con nucleo dinamico | {'modo Tierra' if args.tierra else 'P3N, mapa ' + nombre_mapa} | "
-             f"arranque {args.arranque} | {len(orbita)} pasos por año | carpeta {carpeta}")
+             f"arranque {args.arranque} | {len(orbita)} pasos por año | carpeta {carpeta}"
+             + (f" | SENSIBILIDAD del oceano: D_oc x{args.oceano_difusion:g}, capa de mezcla x{args.oceano_capa_mezcla:g}"
+                if ES_SENSIBILIDAD else ""))
     try:
         prueba = {} if not args.dias else dict(          # prueba: pocos años y sin exigir equilibrio
             max_anos_equilibrio=2, anos=2, opciones_dos_capas={"max_anos": 2},
@@ -135,7 +178,7 @@ def main():
         if not args.dias:
             prueba = {"anos": args.anos or C.ANOS_CLIMATOLOGIA}
         r = C.simular_clima(argumentos, I, carpeta, informar=informar, arranque=args.arranque, version=VERSION,
-                            **prueba)
+                            opciones_nucleo=opciones_nucleo, **prueba)
     except KeyboardInterrupt:
         informar("Interrumpido. Para seguir, lanza la MISMA orden: continua desde el ultimo año guardado.")
         sys.exit(1)
@@ -145,6 +188,7 @@ def main():
     from exportar_clima import huella_mapa          # 3.16.0: con que mapa se hizo (lo comprueba la exportacion)
     r["mapa"] = {"nombre": nombre, "huella": huella_mapa(tipo, alt)} if args.tierra else \
         {"nombre": nombre_mapa, "huella": huella_mapa(tipo, alt)}
+    r["sensibilidad"] = dict(SENSIBILIDAD)          # 4.0.0: factores del oceano (1 y 1 = el modelo tal cual)
     with open(os.path.join(carpeta, "resultado.pkl"), "wb") as f:
         pickle.dump(r, f)
     escribir_resumen(r, carpeta, time.time() - t0, len(orbita))
@@ -159,7 +203,9 @@ def escribir_resumen(r, carpeta, segundos, pasos_ano):
     Pz = c["bandas_precipitacion"].mean(axis=0)
     L = [f"RESUMEN de clima_dinamico.py (M3N {VERSION}, nucleo dinamico I16)",
          f"modo: {'Tierra' if args.tierra else 'P3N'} | arranque: {args.arranque} | pasos por año: {pasos_ano}"
-         + (f" | PRUEBA con años de {args.dias} dias" if args.dias else ""),
+         + (f" | PRUEBA con años de {args.dias} dias" if args.dias else "")
+         + (f" | SENSIBILIDAD del oceano: D_oc x{args.oceano_difusion:g}, capa de mezcla x{args.oceano_capa_mezcla:g}"
+            " (no vale como clima oficial)" if ES_SENSIBILIDAD else ""),
          f"tiempo de esta ejecucion: {segundos / 3600:.2f} h",
          "Validacion frente a la Tierra real (solo modo Tierra): python validar_i16.py",
          "",

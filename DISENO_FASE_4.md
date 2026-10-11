@@ -147,10 +147,10 @@ La diferencia, un paso de 15 minutos, es despreciable, pero se documenta.
 | `variabilidad` | `aire2m_media_desviacion_entre_anos` | [días, 36, 72] | °C (desviación típica entre años, n − 1) |
 | `variabilidad` | `precipitacion_desviacion_entre_anos_mm_dia` | [36, 72] | mm/día (de la media anual) |
 | `anual` | `precipitacion_mm_dia`, `evaporacion_mm_dia`, `agua_precipitable_kg_m2`, `nieve_suelo_cm_agua` | [36, 72] | mm/día; kg/m²; cm de agua (= kg/m² / 10, porque la nieve llega a 1000 kg/m² y en kg/m² pasaría del rango de las centésimas) |
-| `climatologia` | años promediados y objetivo, si es exploratoria, error máximo de la media, deriva, equilibrio, procedencia | — | — |
+| `climatologia` | años promediados y objetivo, si es exploratoria, error máximo de la media, deriva, equilibrio, procedencia; desde la 3.19.0, `sensibilidad` (los factores del océano de una prueba de sensibilidad, `DISENO_FASE_6.4.md` §4.2; 1 y 1 = el modelo tal cual) | — | — |
 | `unidades` | la unidad de cada clave de serie | — | — |
 
-Además, en `simulacion` van `nivel_modelo` (núcleo dinámico, 20 capas, ciclo del agua, sin nubes) y en `parametros` los D que se usan de verdad: la atmósfera no difunde (D_atmosfera = null) y el océano sí (D de la Fase 2.3, hasta la 6.5).
+Además, en `simulacion` van `nivel_modelo` (núcleo dinámico, 20 capas, ciclo del agua, sin nubes) y en `parametros` los D que se usan de verdad: la atmósfera no difunde (D_atmosfera = null) y el océano sí (D de la Fase 2.3, hasta la 6.5; en una prueba de sensibilidad, multiplicado por su factor). Desde la 3.19.0, una prueba de sensibilidad del océano no se puede exportar con `--activo`.
 
 **Rango:** todas las series siguen en centésimas en int16 (|x| ≤ 327,67). Un valor fuera de rango **no se recorta**: la exportación para con un error. En un clima real no pasa con estas unidades. En las simulaciones de prueba de un día, que son irreales y muy calientes, sí puede pasar, y la prueba automática escala sus campos de agua.
 
