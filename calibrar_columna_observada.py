@@ -91,9 +91,11 @@ def calibrar_vapor(observada, n=M30.N_CAPAS_ATM):
 
 def main():
     t0, f0 = calibrar_tau_fijo(False)
-    print(f"tau fijo, columna de 1000 hPa (comprobacion; v3.0: 2,452 / 0,240): tau0 = {t0:.4f}, f = {f0:.4f}")
+    print(f"tau fijo, columna de 1000 hPa con el codigo actual: tau0 = {t0:.4f}, f = {f0:.4f}  (los de la v3.0, 2,452 / "
+          f"0,240, no se reproducen: DISENO_FASE_6.3.md §6.21.5)")
     t1, f1 = calibrar_tau_fijo(True)
-    print(f"tau fijo, columna observada ({M30.P_COLUMNA_OBSERVADA / 100:.2f} hPa):  tau0 = {t1:.4f}, f = {f1:.4f}")
+    print(f"tau fijo, columna observada ({M30.P_COLUMNA_OBSERVADA / 100:.2f} hPa):  tau0 = {t1:.4f}, f = {f1:.4f}  "
+          f"(en fase30_multicapa: {M30.TAU0_LW_OBS}, {M30.F_LW_OBS})")
     try:
         a0, b0 = calibrar_vapor(False)
         print(f"vapor (I15), columna de 1000 hPa (comprobacion; v3.1: 0,5656 / 773,1): A = {a0:.4f}, B = {b0:.1f}")

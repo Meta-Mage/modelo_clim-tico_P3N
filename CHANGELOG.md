@@ -7,6 +7,20 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.18.1] — 2026-10-11
+
+- Fase: 6.3.
+- Clima exportado: no cambia (solo cambia el modelo con I16).
+- Pruebas: 131.
+
+### Corregido
+- El τ fijo del infrarrojo, recalibrado con el código actual por el método de la v3.0 en la columna observada: τ₀ = 2,4450, f = 0,2326 (antes 2,452 y 0,240, que con el esquema actual daban OLR 265,9 W/m² en vez de 267). Solo con I16 y `COLUMNA_OBSERVADA_I16` (decisión de Carlos del 11/10/2026; `DISENO_FASE_6.3.md` §6.24).
+
+### Añadido
+- `DISENO_FASE_6.3.md` §6.22: el criterio escrito de cierre de la Fase 6.3 (aprobado por Carlos el 11/10/2026).
+- `DISENO_FASE_6.3.md` §6.23: la climatología de la 3.17.0 (efecto de C_E: +0,8 % de precipitación y −0,04 K; cadena limpia de 9,9 h) y una vista previa del criterio.
+- 1 prueba (el τ recalibrado da los flujos de Wild et al. 2019).
+
 ## [3.18.0] — 2026-10-09
 
 - Fase: 6.3.

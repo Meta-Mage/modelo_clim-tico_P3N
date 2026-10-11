@@ -8,7 +8,7 @@ Desarrollado por Carlos (Meta-Mage) y Ozan. Forma parte del ecosistema técnico 
 - **C3N**: el editor de mapas (app web local), en su propio repositorio.
 - **H3N**: el espacio de trabajo que une los dos, en su propio repositorio.
 
-**Versión actual: `3.18.0`** (octubre de 2026). Versiones con [SemVer](https://semver.org/lang/es/) y fases con numeración jerárquica: la norma está en `NOMENCLATURA.md` y la historia en `CHANGELOG.md`.
+**Versión actual: `3.18.1`** (octubre de 2026). Versiones con [SemVer](https://semver.org/lang/es/) y fases con numeración jerárquica: la norma está en `NOMENCLATURA.md` y la historia en `CHANGELOG.md`.
 
 Lo que se exporta es el **modelo de 2 capas** (fases 0–4; v2.4.3 con la corrección de la capa de mezcla, `DISENO_FASE_2.3.md` §14). Encima hay tres bloques programados, probados y **apagados** hasta validarlos, que no cambian el clima exportado:
 - la atmósfera de 20 capas (Fase 2.3, interruptor I10);
@@ -183,7 +183,7 @@ Numeración y reglas: `NOMENCLATURA.md` §2. Qué versión trae cada cosa: `CHAN
 | 5.1 | Ciclo del agua | 🔧 apagada (I11–I15), espera a la circulación (`DISENO_FASE_5.1.md` §10 bis) | v3.1.0 |
 | 6.1 | Núcleo: una capa sobre la esfera | 🔧 cerrada | v3.1.0 |
 | 6.2 | Núcleo seco de 20 capas | 🔧 cerrada | v3.1.0–v3.3.0 |
-| 6.3 | Núcleo + física de M3N (I16) y validación en modo Tierra | 🟡 en curso | v3.3.0–v3.18.0 |
+| 6.3 | Núcleo + física de M3N (I16) y validación en modo Tierra | 🟡 en curso | v3.3.0–v3.18.1 |
 | 6.4 | P3N con el núcleo (clima oficial provisional, sin nubes: será la 4.0.0; decisión del 09/10/2026) | ⏳ | — |
 | 5.2 | Nubes y radiación; después, recalibrar la estrella | ⏳ | — |
 | 6.6 | Arrastre de ondas de gravedad que conserva el momento (después de la 5.2; sustituye a la capa esponja) | ⏳ | — |

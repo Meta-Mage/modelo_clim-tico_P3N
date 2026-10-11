@@ -71,12 +71,24 @@ def test_masa_de_aire_del_modo_tierra_y_p3n_sin_cambios():
     assert M30.P_NIVEL_MAR == M30.P_REF == M30.P0 == 1.0e5
 
 
-def test_columna_observada_es_la_misma_en_terminos_relativos():
+def test_columna_observada_normaliza_con_su_presion():
     a = M30.Columna(np.zeros((1, 1)), gravedad=G)
     b = M30.Columna(np.zeros((1, 1)), gravedad=G, p_nivel_mar=M30.P_COLUMNA_OBSERVADA, columna_observada=True)
     assert b.p_tau == M30.P_COLUMNA_OBSERVADA and a.p_tau == M30.P_REF
-    assert np.allclose(a.tau, b.tau, rtol=1e-12)                         # mismo espesor optico en cada fraccion
+    assert (a.tau0, a.f_lw) == (M30.TAU0_LW, M30.F_LW) and (b.tau0, b.f_lw) == (M30.TAU0_LW_OBS, M30.F_LW_OBS)
+    x = b.ph / M30.P_COLUMNA_OBSERVADA
+    assert np.allclose(b.tau, M30.TAU0_LW_OBS * (M30.F_LW_OBS * x + (1 - M30.F_LW_OBS) * x ** M30.EXP_VAPOR_LW), rtol=1e-12)
     assert b.ps[0, 0] / b.p_tau == pytest.approx(1.0)
+
+
+def test_tau_fijo_recalibrado_da_los_flujos_de_wild():
+    """3.18.1: con la columna observada y N = 160 (el metodo de la v3.0), DLR 314 y OLR 267 W/m2 (Wild et al. 2019)."""
+    import calibrar_columna_observada as K
+    C = K.columna(True, 160)
+    C.tau0, C.f_lw = M30.TAU0_LW_OBS, M30.F_LW_OBS
+    C.actualizar_ps(C.ps)
+    olr, dlr = K.flujos(C, K.temperatura(C), 289.0)
+    assert olr == pytest.approx(267.0, abs=0.05) and dlr == pytest.approx(314.0, abs=0.05)
 
 
 def test_interruptores_de_la_3_18_y_su_alcance():

@@ -1255,8 +1255,99 @@ Ninguno de los dos cambia el clima oficial (el modelo de 2 capas no usa nada de 
 - Por eso la prueba del punto de control compara ahora 2 "años" en vez de 3. La prueba de `--dias 1` de `test_validar_i16.py` pasa.
 - La estabilidad se juzga en la configuración real (punto 3).
 
-**5. Hallazgo (pendiente de Carlos 🔶): la calibración del τ fijo de la v3.0 no se reproduce con el código actual.**
+**5. Hallazgo: la calibración del τ fijo de la v3.0 no se reproduce con el código actual.** *(Aprobada la recalibración por Carlos el 11/10/2026; hecha en la 3.18.1, §6.24.)*
 - Con τ₀ = 2,452 y f = 0,240 en la columna de calibración (N = 160), el código actual da OLR = 265,9 W/m² (objetivo 267) y DLR = 314,0 (objetivo 314); con N = 20, OLR 265,6 y DLR 314,7.
 - La calibración con el código actual da τ₀ = 2,445 y f = 0,233.
 - Probablemente se hizo con una versión anterior del esquema infrarrojo (la fuente lineal en τ o la interpolación a los seminiveles).
 - El efecto es ~1 W/m² de OLR. No se ha cambiado: recalibrarlo es una decisión aparte. Cambiaría todos los modelos de varias capas (v3.0, v3.1 e I16), aunque no el clima oficial (el de 2 capas no usa este τ). Se propone hacerlo, con otro interruptor, antes de la simulación limpia.
+
+### 6.22 Criterio escrito de cierre de la Fase 6.3 (propuesto y aprobado por Carlos el 11/10/2026)
+
+**Para qué sirve.** La 6.3 tenía que dar un núcleo dinámico acoplado a la física de M3N que (1) funcione y conserve, (2) llegue a un clima estable y (3) produzca una circulación general físicamente coherente con la Tierra en modo Tierra. **No** tenía que reproducir el clima de la Tierra con precisión: faltan, por decisión y en fases propias, las nubes y la radiación por bandas (5.2), las corrientes del océano (6.5), el arrastre de ondas de gravedad (6.6) y una rejilla más fina (decisión vigente: 5°). El criterio separa lo que la 6.3 sí debe cumplir de lo que depende de esas fases.
+
+**Cuándo se aplica.** A la simulación limpia del modo Tierra con la física definitiva de la 6.3 (3.18.0, más la recalibración del τ fijo si Carlos la aprueba, §6.21.5) y a su `validar_i16.py`. **Se fija antes de esa simulación y no se cambia después.**
+- Honestidad: los resultados de la climatología anterior (§6.14–§6.16) ya se conocen. Por eso las tolerancias de posición **no** se eligen mirando esos resultados: son **una celda de la rejilla (5°)**, lo mejor que una rejilla de 5° puede situar algo. Algunas cosas que ya fallaban seguirán fallando, y eso está bien: el criterio no está hecho para que todo "salga".
+
+**A. Criterios bloqueantes** (todos tienen que cumplirse; si uno falla, la 6.3 no se cierra hasta entenderlo y arreglarlo):
+1. **Cadena limpia y trazable:** de principio a fin con una sola versión de M3N (`procedencia.json`: un solo código en todos los tramos).
+2. **Estable:** sin errores ni inestabilidades en toda la cadena; recortes de vapor negativo = 0.
+3. **Equilibrio:** los cuatro criterios de `fase6_equilibrio` cumplidos (convergido).
+4. **Conservación en cada año registrado:** cierre relativo de la energía < 1·10⁻⁷; agua de la atmósfera y del suelo < 1·10⁻¹¹ kg/m² (hoy, ~10⁻⁸ y ~10⁻¹³).
+5. **El error de la dinámica, controlado:** el corrector lo devuelve (|N| medio de la climatología < 0,2 W/m², el umbral del equilibrio) y el error no tiene tendencia significativa en los 30 años (la misma prueba de Santer et al. 2000).
+6. **Sin deriva significativa** del aire a 2 m global, de cada banda y de la precipitación global (Santer et al. 2000 y Benjamini-Hochberg, FDR 0,05; §6.17).
+7. **Las herramientas completas:** `validar_i16.py` y `exportar_clima.py --dinamico` terminan sin errores, y H3N lee la exportación.
+
+**B. Estructura de la circulación** (frente a ERA-Interim, CRU, GPCP y Trenberth y Caron 2001, en la misma rejilla de 5°; posiciones con ±5° de tolerancia):
+1. **Vientos de superficie:** alisios del este entre el ecuador y ~30° y vientos del oeste en latitudes medias, en los dos hemisferios. Máximo del oeste en superficie en su latitud observada ±5°.
+2. **Células de Hadley:** signo correcto en las tres medias (anual, dic–feb, jun–ago); la de invierno más fuerte que la de verano en los dos hemisferios; bordes en su latitud observada ±5°.
+3. **Chorro subtropical:** núcleo de troposfera (definición de Manney et al. 2011, §6.16) en el invierno de cada hemisferio, en su latitud observada ±5°.
+4. **Transporte de calor:** hacia los polos en los dos hemisferios; máximo del de la atmósfera en su latitud observada ±5° (la referencia verificada: Trenberth y Caron 2001, 43° N y "parecido hacia 40° S"; para el total no hay referencia verificada en `referencias_tierra.py`).
+5. **Precipitación:** máximo tropical (la banda de lluvias, media anual) en su latitud observada ±5°; mínimos subtropicales y máximos de latitudes medias presentes en los dos hemisferios.
+6. **Temperatura y hielo:** los polos más fríos que el ecuador en cada estación; hielo marino en el invierno de los dos hemisferios.
+7. **Tropopausa:** más alta en los trópicos que en los polos.
+
+**Intensidades** (Hadley, chorros, transporte, lluvia y vapor globales, temperaturas, extensión del hielo): no son aprobado o suspenso. Se da el cociente M3N / referencia de cada una.
+
+**Regla para B y las intensidades:**
+- Cada criterio de B que falle, y cada intensidad fuera de **0,5–2 veces** la referencia, necesita una **explicación con fuente** que lo ligue a una limitación declarada (punto C), con la fase que lo resolverá.
+- Si alguna no tiene explicación, la 6.3 **no se cierra** hasta investigarla.
+- Se acepta "hipótesis compatible con los datos" (como hasta ahora), pero no "no se sabe".
+
+**C. Limitaciones declaradas** (no son criterio de la 6.3; sus efectos se documentan):
+- sin nubes (5.2; con ellas, más calor y más agua, y la banda de lluvias al sur: §6.15);
+- radiación gris y sin ozono (5.2: tropopausa, estratosfera, estratosfera de verano con el signo cambiado);
+- océano sin corrientes, con difusión y capa de mezcla fija (6.5: transporte entre hemisferios, océano Austral);
+- sin arrastre de ondas de gravedad (6.6: vórtice estratosférico demasiado fuerte y su posible efecto en superficie, Polvani y Kushner 2002);
+- rejilla de 5° (decisión vigente);
+- sin dinámica del hielo marino;
+- la estrella no se recalibra hasta tener nubes (decisión del 05/10).
+
+**D. No se evalúa todavía:** la humedad relativa de la troposfera libre (estaba en la lista de §2, pero `validar_i16.py` no la mide). Se añadirá a la herramienta cuando haga falta; no bloquea.
+
+**E. Cómo se decide:**
+- Una tabla en un apartado nuevo de este documento, con cada criterio de A y B (✅/❌, valor, referencia), las intensidades con su cociente y la explicación de cada fallo.
+- **Carlos aprueba el cierre.** Con la 6.3 cerrada empieza la 6.4. La 4.0.0, provisional, llega después de la 6.4 (decisión del 09/10).
+
+### 6.23 La climatología de la 3.17.0 (PC de Carlos, 09/10/2026): el efecto de C_E y el coste de la cadena limpia
+
+**La simulación:** `clima_dinamico.py --tierra` con la 3.17.0, en una carpeta nueva (`tierra_3.17.0`), de principio a fin con un solo código (procedencia: un tramo). Es la primera **cadena limpia**: equilibrio en **9 años** (la anterior necesitó 30, con 21 años de la fuga de energía de antes del corrector) y 30 de climatología. **9,89 h** en total, dentro de la estimación de §6.16 (9–10 h).
+
+**Integridad:**
+- energía con cierre ≤ 2,6·10⁻⁸ y agua ≤ 5,4·10⁻¹³ kg/m² en los 30 años;
+- error de la dinámica de −0,48 a −1,85 W/m² (media ~ −1,3), que devuelve el corrector;
+- **sin deriva significativa** (aire a 2 m global −0,0003 ± 0,0008 K/año, p 0,74; ninguna banda).
+
+**Efecto de C_E** (frente a la climatología anterior, idéntica en todo lo demás, §6.14–§6.18; diferencias de las medias de 30 años):
+- precipitación global **+0,026 mm/día (+0,8 %)**;
+- agua precipitable +0,2 kg/m² (36,1 → 36,3);
+- aire a 2 m global **−0,037 K** (trópicos −0,038; bandas de −0,10 a +0,18 K, dentro del error de la media de las polares, hasta 0,19 K).
+
+Es lo esperado (§6.19.2): un ~4 % más de evaporación sobre el mar a igual gradiente se queda en +0,8 % en equilibrio, porque el aire se humedece; el enfriamiento ligero es el del calor latente que sale de la superficie. Las dos diferencias globales están en torno a 2 veces su error (estimado con σ entre años de §6.17): pequeñas pero coherentes en signo y tamaño.
+
+**Validación** (`validar_i16.py`): prácticamente igual que la de §6.15–§6.16 (las mismas lecturas y limitaciones). Vista previa de §6.22 sobre esta simulación, **solo orientativa** (el criterio se aplicará a la de la 3.18.0):
+- A: todo cumple.
+- B, lo que cumple: vientos de superficie en su sentido; Hadley con el signo correcto y la de invierno más fuerte; los bordes de 4 de las 6 células; el chorro subtropical de invierno en los dos hemisferios (a 5° de su sitio); los mínimos subtropicales de lluvia; el hielo de invierno en los dos hemisferios; la tropopausa.
+- B, lo que falla y pide explicación:
+  - el máximo del oeste de superficie del norte (57,5° frente a 47,5° N);
+  - los bordes de la célula de verano en dic–feb (sur) y jun–ago (norte), 8–9° más cerca del ecuador;
+  - la banda de lluvias anual (2,5° S frente a 7,5° N);
+  - el transporte de la atmósfera del norte (máximo a 35° frente a 43° N).
+- Intensidades fuera de 0,5–2: las tres células de Hadley del sur (0,35–0,42), el vórtice estratosférico (2,3–4,6), el hielo antártico de invierno (0,23) y el ártico de verano (0,22), y el oeste de superficie del norte (2,5).
+- Hipótesis ya documentadas para casi todas (nubes, radiación gris, océano sin corrientes, sin ondas de gravedad: §6.15–§6.16).
+- La que tiene la base más floja es **la célula de Hadley del sur**. En media anual se entiende por la banda de lluvias al sur del ecuador: con el calentamiento desplazado al sur, la célula del norte cruza el ecuador y la del sur se debilita (Lindzen y Hou 1988, *J. Atmos. Sci.* 45, 2416 ⚠️, a verificar). La de jun–ago (invierno del sur, con la banda de lluvias en su sitio) es la que habrá que mirar con más cuidado al aplicar el criterio.
+
+### 6.24 3.18.1 (11/10/2026): criterio de cierre aprobado y τ fijo recalibrado
+
+**Decisiones de Carlos (11/10/2026):**
+- aprueba el criterio de cierre de §6.22, con el ajuste del transporte (el máximo del de la atmósfera, que es el que tiene referencia verificada);
+- aprueba recalibrar el τ fijo (§6.21.5).
+
+**La recalibración:**
+- **Mismo método que la v3.0** (`DISENO_FASE_2.3.md` §2): US 1976, suelo a 289 K, flujos sin nubes de Wild et al. (2019), DLR 314 y OLR 267 W/m², N = 160 (convergido).
+- **Dos diferencias:** el código actual y la columna observada (§6.21; `calibrar_columna_observada.py`).
+- **Resultado:** **τ₀ = 2,4450, f = 0,2326** (antes 2,452 y 0,240). Da DLR 314,00 y OLR 267,00 con N = 160; con N = 20 (el modelo), OLR 266,7 y DLR 314,7. La diferencia es de discretización, como ya pasaba en la v3.0 (§2: 2,460 / 0,236 con N = 20).
+- **Dónde se aplica:** solo con I16 y `COLUMNA_OBSERVADA_I16` (`TAU0_LW_OBS`, `F_LW_OBS`). Los modelos de varias capas sin núcleo (v3.0 y v3.1, que ya no se usan para el clima) y el clima oficial no cambian.
+- **Prueba nueva:** con los valores nuevos, la columna de calibración da los flujos de Wild (±0,05 W/m²).
+
+**Siguiente:** la simulación limpia del modo Tierra con la 3.18.1, su `validar_i16.py` y la aplicación del criterio de §6.22.
+

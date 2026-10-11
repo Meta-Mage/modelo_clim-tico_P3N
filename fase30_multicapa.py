@@ -54,11 +54,13 @@ ESTIRAMIENTO = 1.6             # capas mas finas cerca del suelo
 # ---- infrarrojo (seccion 2): calibrado 04/10/2026, convergido en N ----
 TAU0_LW = 2.452
 F_LW = 0.240
-# 3.18.0 (§6.20.2): la misma calibracion con la columna media OBSERVADA (p_s = P_COLUMNA_OBSERVADA), que es la
-# misma columna en terminos relativos (calibrar_columna_observada.py): tau0 y f salen IDENTICOS, porque el perfil
-# va en x = p/p_tau. Lo que cambia es la normalizacion: x = p/P_COLUMNA_OBSERVADA (Columna.p_tau).
-TAU0_LW_OBS = TAU0_LW
-F_LW_OBS = F_LW
+# 3.18.0 (§6.20.2): con I16 (COLUMNA_OBSERVADA_I16), la normalizacion es x = p/P_COLUMNA_OBSERVADA (Columna.p_tau).
+# 3.18.1 (DISENO_FASE_6.3.md §6.21.5 y §6.24): tau0 y f RECALIBRADOS con el codigo actual por el mismo metodo de la
+# v3.0 (US 1976, suelo a 289 K, Wild et al. 2019: DLR 314 y OLR 267 W/m2, N = 160, convergido) en la columna
+# observada (calibrar_columna_observada.py). Los de la v3.0 (2,452 / 0,240) no se reproducen con el esquema actual
+# (OLR 265,9 W/m2). Con N = 20 (el modelo), estos dan OLR 266,7 y DLR 314,7 (discretizacion, como en la v3.0).
+TAU0_LW_OBS = 2.4450
+F_LW_OBS = 0.2326
 EXP_VAPOR_LW = 4.0             # (c) forma del vapor, provisional hasta la Fase 5.2
 
 # ---- luz absorbida por la atmosfera (seccion 3) ----
