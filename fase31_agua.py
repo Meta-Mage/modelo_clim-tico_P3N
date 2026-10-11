@@ -27,7 +27,8 @@ except ImportError:
     HAY_NUMBA = False
     prange = range
 
-from fase30_multicapa import R_AIRE, CP_AIRE, KAPPA, P0
+from fase30_multicapa import R_AIRE, CP_AIRE, KAPPA, P_REF
+P0 = P_REF   # 3.18.0: aqui P0 es siempre la REFERENCIA de theta y Exner (1000 hPa), no la masa de aire
 
 # ================================================================
 # CONSTANTES DEL AGUA (a) -- DISENO_FASE_5.md, seccion 5
@@ -86,6 +87,11 @@ S_CUBRE = 10.0           # kg/m2 (c) ⚠️: con S = S_CUBRE la nieve cubre la m
 # DLR 314 y OLR 267 W/m2. Espesor total de la referencia 2,45 (el mismo que el tau fijo de la v3.0).
 A_LW_SECO = 0.5656
 B_LW_VAPOR = 773.1
+# 3.18.0 (DISENO_FASE_6.3.md §6.20.2): la misma calibracion con la columna media observada (983,05 hPa de aire seco,
+# la misma columna en terminos relativos) y el vapor como razon de mezcla (calibrar_columna_observada.py). Con I16 y
+# COLUMNA_OBSERVADA_I16 (fase2b_atmosfera.py)
+A_LW_SECO_OBS = 0.5672
+B_LW_VAPOR_OBS = 759.1
 
 # ================================================================
 # SATURACION (a) -- Ambaum (2020); verificado contra MetPy
@@ -130,6 +136,43 @@ def qs_y_derivada(T, p, hielo=None):
     return qs, dqs
 
 
+def ms_y_derivada(T, p, hielo=None):
+    """3.18.0 (DISENO_FASE_6.3.md §6.20.1): RAZON DE MEZCLA de saturacion (kg de vapor por kg de aire SECO)
+    m_s = eps*e/(p - e), con p la presion TOTAL (p - e es la parcial del aire seco, ley de Dalton), y su
+    derivada respecto a T: dm_s/dT = m_s * p/(p - e) * L(T)/(R_v T^2). Es la que corresponde al vapor del
+    nucleo de masa seca (I16), donde el agua es q*dp_seco/g. hielo: como en qs_y_derivada."""
+    if hielo is True:
+        e = _es_tabla(T, _TABLA_ES_HIELO)
+        Lt = L_S - (C_PI - C_PV) * (T - T0_SAT)
+    else:
+        e = _es_tabla(T, _TABLA_ES)
+        Lt = L_V - (C_PL - C_PV) * (T - T0_SAT)
+    if hielo is not None and hielo is not True:
+        e = np.where(hielo, _es_tabla(T, _TABLA_ES_HIELO), e)
+        Lt = np.where(hielo, L_S - (C_PI - C_PV) * (T - T0_SAT), Lt)
+    tope = e >= 0.5 * p
+    e = np.minimum(e, 0.5 * p)                       # salvaguarda (solo actua por encima de ~80 C; m_s <= eps,
+    den = p - e                                      # el mismo tope que q_s <= 0,38 de la v3.1, en razon de mezcla)
+    ms = EPSILON * e / den
+    # donde actua la salvaguarda, m_s no depende de T: su derivada es 0 (la v3.1 daba la de la curva sin tope)
+    dms = np.where(tope, 0.0, ms * p / den * Lt / (R_V * T * T))
+    return ms, dms
+
+
+def saturacion(T, p, hielo=None, razon=False):
+    """3.18.0: humedad especifica de saturacion (razon=False, la de la v3.1) o razon de mezcla (razon=True, I16)."""
+    return ms_y_derivada(T, p, hielo) if razon else qs_y_derivada(T, p, hielo)
+
+
+def presion_total(ph, pm, dp, q):
+    """3.18.0 (§6.20.1): presion TOTAL con el nucleo de masa seca: la seca mas el peso del vapor de encima (como
+    la ec. 66 de Lauritzen et al. 2018, CAM-SE), con q razon de mezcla: p_vapor(k+1/2) = sum_{j<=k} q_j*dp_j
+    (de arriba abajo). En los centros, la media del peso del vapor de sus dos seminiveles.
+    Devuelve (ph_total (n+1, ...), pm_total (n, ...))."""
+    pw = np.concatenate([np.zeros((1,) + q.shape[1:]), np.cumsum(np.maximum(q, 0.0) * dp, axis=0)], axis=0)
+    return ph + pw, pm + 0.5 * (pw[:-1] + pw[1:])
+
+
 # ================================================================
 # CONVECCION HUMEDA: BETTS-MILLER SIMPLIFICADO (Frierson 2007)
 # ================================================================
@@ -142,7 +185,11 @@ def qs_y_derivada(T, p, hielo=None):
 # Conserva exactamente la entalpia humeda de la columna (cp*T + L_v*q) y el
 # agua (lo que se condensa es la precipitacion).
 
-def _sbm_columnas(T, q, pf, ph, lpf, pk, dlnph, dt, tau, rhbm, g, cp, rd, rv, lv, tmin, sigma_tope):
+# 3.18.0 (DISENO_FASE_6.3.md §6.20.1): con razon=True (I16) q ya es razon de mezcla: sin las conversiones
+# q <-> r de Isca, temperatura virtual T*(1 + r/eps)/(1 + r), presiones TOTALES en pf y ph (termodinamica) y la
+# masa de cada capa (Pq, Pt y la correccion de la temperatura) con los seminiveles SECOS phm, para que el agua y
+# la energia cierren con la masa del nucleo. Con razon=False y phm = ph, exactamente la v3.1.
+def _sbm_columnas(T, q, pf, ph, lpf, pk, dlnph, dt, tau, rhbm, g, cp, rd, rv, lv, tmin, sigma_tope, razon, phm):
     n, m = T.shape
     dT = np.zeros((n, m)); dq = np.zeros((n, m)); prec = np.zeros(m)
     kappa = rd / cp
@@ -157,8 +204,12 @@ def _sbm_columnas(T, q, pf, ph, lpf, pk, dlnph, dt, tau, rhbm, g, cp, rd, rv, lv
         while ktope < ks and pf[ktope, c] < sigma_tope * ph[n, c]:
             ktope += 1
         for k in range(n):
-            rin[k] = q[k, c] / (1.0 - q[k, c])
-            Tv[k] = T[k, c] * (1.0 + q[k, c] * (rv / rd - 1.0))
+            if razon:
+                rin[k] = q[k, c]
+                Tv[k] = T[k, c] * (1.0 + q[k, c] / eps) / (1.0 + q[k, c])
+            else:
+                rin[k] = q[k, c] / (1.0 - q[k, c])
+                Tv[k] = T[k, c] * (1.0 + q[k, c] * (rv / rd - 1.0))
             Tp[k] = T[k, c]; rp[k] = rin[k]
         # ---- CAPE (CAPE_calculation) ----
         nocape = True; cape = 0.0; kLZB = -1; kLFC = -1; skip = False
@@ -211,7 +262,10 @@ def _sbm_columnas(T, q, pf, ph, lpf, pk, dlnph, dt, tau, rhbm, g, cp, rd, rv, lv
                             skip = True
                         else:
                             es = _es_agua_escalar(Tp[kLCL]); rp[kLCL] = rd * es / rv / (pf[kLCL, c] - es)
-                            tvp = Tp[kLCL] * (1.0 + rp[kLCL] / (1.0 + rp[kLCL]) * (rv / rd - 1.0))
+                            if razon:
+                                tvp = Tp[kLCL] * (1.0 + rp[kLCL] / eps) / (1.0 + rp[kLCL])
+                            else:
+                                tvp = Tp[kLCL] * (1.0 + rp[kLCL] / (1.0 + rp[kLCL]) * (rv / rd - 1.0))
                             if not (tvp < Tv[kLCL]):
                                 cape += rd * (tvp - Tv[kLCL]) * dlnph[kLCL, c]
                                 nocape = False; kLFC = kLCL
@@ -233,7 +287,10 @@ def _sbm_columnas(T, q, pf, ph, lpf, pk, dlnph, dt, tau, rhbm, g, cp, rd, rv, lv
                 if Tp[k] < tmin and nocape:
                     break
                 es = _es_agua_escalar(Tp[k]); rp[k] = rd * es / rv / (pf[k, c] - es)
-                tvp = Tp[k] * (1.0 + rp[k] / (1.0 + rp[k]) * (rv / rd - 1.0))
+                if razon:
+                    tvp = Tp[k] * (1.0 + rp[k] / eps) / (1.0 + rp[k])
+                else:
+                    tvp = Tp[k] * (1.0 + rp[k] / (1.0 + rp[k]) * (rv / rd - 1.0))
                 if tvp < Tv[k]:
                     if not nocape:
                         kLZB = k + 1
@@ -253,14 +310,14 @@ def _sbm_columnas(T, q, pf, ph, lpf, pk, dlnph, dt, tau, rhbm, g, cp, rd, rv, lv
             Tref[k] = Tp[k]
             eref = rhbm * pf[k, c] * rp[k] / (rp[k] + rd / rv)
             rr = rd * eref / rv / (pf[k, c] - eref)
-            qref[k] = rr / (1.0 + rr)
+            qref[k] = rr if razon else rr / (1.0 + rr)
         # ---- Pq, Pt ----
         Pq = 0.0; Pt = 0.0
         for k in range(kLZB, n):
             dqp[k] = -(q[k, c] - qref[k]) * dt / tau
-            Pq += dqp[k] * (ph[k, c] - ph[k + 1, c])
+            Pq += dqp[k] * (phm[k, c] - phm[k + 1, c])
             dTp[k] = -(T[k, c] - Tref[k]) * dt / tau
-            Pt += (cp / lv) * dTp[k] * (ph[k + 1, c] - ph[k, c])
+            Pt += (cp / lv) * dTp[k] * (phm[k + 1, c] - phm[k, c])
         Pq /= g; Pt /= g
         if Pq > 0.0 and Pt > 0.0:
             # ---- conveccion profunda ----
@@ -272,27 +329,27 @@ def _sbm_columnas(T, q, pf, ph, lpf, pk, dlnph, dt, tau, rhbm, g, cp, rd, rv, lv
             else:                                      # se corrige la temperatura de referencia (do_change_Tref_deepconv)
                 dk = 0.0
                 for k in range(kLZB, n):
-                    dk -= (dTp[k] + (lv / cp) * dqp[k]) * (ph[k + 1, c] - ph[k, c])
-                dk /= (ph[n, c] - ph[kLZB, c])
+                    dk -= (dTp[k] + (lv / cp) * dqp[k]) * (phm[k + 1, c] - phm[k, c])
+                dk /= (phm[n, c] - phm[kLZB, c])
                 for k in range(kLZB, n):
                     dTp[k] += dk
         elif Pt > 0.0:
             # ---- conveccion somera (do_shallow_convection): no llueve ----
             k = kLZB
             while Pq < 0.0 and k <= n - 1:
-                Pq -= dqp[k] * (ph[k, c] - ph[k + 1, c]) / g
+                Pq -= dqp[k] * (phm[k, c] - phm[k + 1, c]) / g
                 k += 1
             ktop = k - 1
             for kk in range(kLZB, ktop):               # por encima del nivel de precipitacion cero: nada
                 dTp[kk] = 0.0; dqp[kk] = 0.0
-            den = dqp[ktop] * (ph[ktop + 1, c] - ph[ktop, c])
+            den = dqp[ktop] * (phm[ktop + 1, c] - phm[ktop, c])
             if Pq > 0.0 and den != 0.0:
                 cc = Pq * g / den
                 dqp[ktop] *= cc; dTp[ktop] *= cc
                 dk = 0.0
                 for kk in range(ktop, n):
-                    dk += dTp[kk] * (ph[kk, c] - ph[kk + 1, c])
-                dk /= (ph[n, c] - ph[ktop, c])
+                    dk += dTp[kk] * (phm[kk, c] - phm[kk + 1, c])
+                dk /= (phm[n, c] - phm[ktop, c])
                 if ktop != n - 1:
                     for kk in range(ktop, n):
                         dTp[kk] += dk
@@ -385,29 +442,33 @@ def _geometria_conveccion(pf, ph):
     return _CACHE_GEO["geo"]
 
 
-def conveccion_humeda(T, q, pf, ph, dt, gravedad, rh_ref=None, tau=None):
+def conveccion_humeda(T, q, pf, ph, dt, gravedad, rh_ref=None, tau=None, razon=False, ph_masa=None):
     """Betts-Miller simplificado en todas las columnas. T, q: (n, F, C); pf: (n, F, C);
-    ph: (n+1, F, C). Devuelve (T nueva, q nueva, precipitacion kg/m2 en el paso, (F, C))."""
+    ph: (n+1, F, C). Devuelve (T nueva, q nueva, precipitacion kg/m2 en el paso, (F, C)).
+    3.18.0: razon=True (I16) -> q es razon de mezcla, pf y ph son presiones TOTALES y ph_masa los seminiveles
+    SECOS del nucleo (la masa de cada capa); por defecto, la v3.1 (ph_masa = ph)."""
     n = T.shape[0]
     forma = T.shape[1:]
     rh_ref = RH_REF_CONVECCION if rh_ref is None else rh_ref      # se leen al llamar (pruebas de sensibilidad)
     tau = TAU_CONVECCION if tau is None else tau
     geo = _geometria_conveccion(pf, ph)
+    phm = geo[1] if ph_masa is None else np.ascontiguousarray(ph_masa.reshape(n + 1, -1))
     dT, dq, prec = _sbm_columnas(np.ascontiguousarray(T.reshape(n, -1)), np.ascontiguousarray(q.reshape(n, -1)),
                                  *geo, float(dt), float(tau), float(rh_ref), float(gravedad), CP_AIRE, R_AIRE, R_V, L_V,
-                                 T_MIN_LCL, SIGMA_TOPE_CONVECCION)
+                                 T_MIN_LCL, SIGMA_TOPE_CONVECCION, bool(razon), phm)
     return T + dT.reshape(T.shape), q + dq.reshape(q.shape), prec.reshape(forma)
 
 
 # ================================================================
 # CONDENSACION DE GRAN ESCALA (Isca lscale_cond, do_evap = falso ✅)
 # ================================================================
-def condensacion_gran_escala(T, q, pf, dp, gravedad, rh=None):
+def condensacion_gran_escala(T, q, pf, dp, gravedad, rh=None, razon=False):
     """Donde q > rh*q_s(T): se condensa dq = (q - rh*q_s)/(1 + (L/cp)*rh*dq_s/dT) (un paso de Newton,
     como Isca) y el calor latente calienta la capa. Sin reevaporacion. Devuelve (T, q, precipitacion
-    kg/m2 del paso, (F, C)). Conserva cp*T + L*q exactamente."""
+    kg/m2 del paso, (F, C)). Conserva cp*T + L*q exactamente.
+    3.18.0: razon=True (I16) -> q es razon de mezcla y pf la presion TOTAL; dp sigue siendo la masa (seca)."""
     rh = RH_CONDENSACION if rh is None else rh
-    qs, dqs = qs_y_derivada(T, pf)
+    qs, dqs = saturacion(T, pf, razon=razon)
     exceso = q - rh * qs
     cond = np.where(exceso > 0.0, exceso / (1.0 + (L_V / CP_AIRE) * rh * dqs), 0.0)
     T = T + (L_V / CP_AIRE) * cond

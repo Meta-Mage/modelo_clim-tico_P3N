@@ -7,6 +7,24 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.18.0] — 2026-10-09
+
+- Fase: 6.3.
+- Clima exportado: no cambia (el modelo de 2 capas no usa nada de esto; cambia el modelo con I16).
+- Pruebas: 130.
+
+### Cambiado
+- Con I16, el vapor es **razón de mezcla** (kg por kg de aire seco) en toda la física, como el núcleo de masa seca que lo transporta: saturación m_s = ε·e_s/(p − e_s) con la presión **total** (la seca más el peso del vapor de encima, como la ec. 66 de Lauritzen et al. 2018), Betts-Miller sin las conversiones q ↔ r de Isca y con la masa seca de cada capa, condensación y evaporación. La exportación sigue dando la humedad específica (m/(1 + m)) y la relativa como e/e_s. Interruptor `VAPOR_RAZON_MEZCLA_I16` (decisión de Carlos del 09/10/2026; `DISENO_FASE_6.3.md` §6.20.1 y §6.21).
+- Con I16, los espesores ópticos se normalizan con la **columna media observada** de la Tierra (983,05 hPa de aire seco; Trenberth y Smith 2005) en vez de con 1000 hPa, y el **modo Tierra** tiene esa masa de aire seco (la presión al nivel del mar se calcula con el mapa). P3N sigue con 1 bar al nivel del mar. La antigua `P0` se separa en `P_REF` (referencia de θ, 1000 hPa), `P_NIVEL_MAR` (masa) y `P_COLUMNA_OBSERVADA`. A y B del vapor radiativo (I15, prototipo) recalibrados con la columna observada. Interruptor `COLUMNA_OBSERVADA_I16` (§6.20.2 y §6.21).
+- Con los dos interruptores apagados, idéntico bit a bit a la 3.17.0.
+
+### Añadido
+- `calibrar_columna_observada.py`: reproduce las calibraciones del infrarrojo con la columna de 1000 hPa y las repite con la observada.
+- 7 pruebas (`test_vapor_y_masa.py`). La del punto de control con I16 compara 2 "años" (antes 3): el tercero de ese estado irreal está al borde de la inestabilidad (§6.21).
+
+### Corregido
+- `DISENO_FASE_6.3.md` §6.19 y la entrada de la 3.17.0 de este registro daban mal el error de la saturación (+1,15 %): es −1,7 % en los trópicos (§6.20.1).
+
 ## [3.17.0] — 2026-10-09
 
 - Fase: 6.3.
@@ -20,7 +38,7 @@ En cada entrada:
 - La exportación escribía NaN (no válido en JSON) en la deriva de una climatología muy corta; ahora escribe `null` y nunca NaN (`allow_nan=False`).
 
 ### Añadido
-- `DISENO_FASE_6.3.md` §6.19: el vapor en la presión y la P₀ del modo Tierra necesitan un diseño previo (la saturación usa la fórmula de la humedad específica con la presión seca, mientras el balance trata q como razón de mezcla: +1,15 % en q_s con e = 30 hPa; P₀ tiene a la vez el papel de referencia de θ y de masa de aire, y la calibración del infrarrojo depende de ella).
+- `DISENO_FASE_6.3.md` §6.19: el vapor en la presión y la P₀ del modo Tierra necesitan un diseño previo (la saturación usa la fórmula de la humedad específica con la presión seca, mientras el balance trata q como razón de mezcla: ~~+1,15 % en q_s con e = 30 hPa~~ — cifra errónea, corregida en la 3.18.0: −1,7 % en los trópicos; P₀ tiene a la vez el papel de referencia de θ y de masa de aire, y la calibración del infrarrojo depende de ella).
 - 2 pruebas (C_E sobre el agua y la tierra; JSON sin NaN).
 
 ## [3.16.0] — 2026-10-09

@@ -33,7 +33,15 @@ from parametros import CONSTANTE_SB, P3N_GRAVEDAD
 R_AIRE = 287.05
 CP_AIRE = 1004.0
 KAPPA = R_AIRE / CP_AIRE
-P0 = 1.0e5                     # Pa, presion de referencia al nivel del mar (1 bar, decision de Carlos 01/10/2026)
+# 3.18.0 (DISENO_FASE_6.3.md §6.20.2): la antigua P0 tenia varios papeles; ahora son constantes distintas.
+P_REF = 1.0e5                  # Pa, REFERENCIA de theta y Exner (convencion de 1000 hPa). Nunca cambia
+P_NIVEL_MAR = 1.0e5            # Pa, MASA: presion del aire seco al nivel del mar de P3N (1 bar, decision de Carlos
+                               # 01/10/2026). El modo Tierra con I16 la calcula a partir de la masa observada
+P_COLUMNA_OBSERVADA = 98305.0  # Pa, presion media en superficie del aire SECO de la Tierra (Trenberth y Smith 2005,
+                               # J. Climate 18, 864-875: 985,50 hPa en total menos ~2,45 hPa del vapor). Con I16 y
+                               # COLUMNA_OBSERVADA_I16, es la columna con la que se normalizan y calibran los espesores
+                               # opticos (la "columna media de la Tierra" de las calibraciones de Wild et al. 2019)
+P0 = P_REF                     # nombre historico (v3.0-3.17.0): la v3.0 usaba 1000 hPa para todo lo anterior
 T_ALTURA_ESCALA = 255.0        # K, temperatura del aire para la presion en superficie de las montañas
                                # (la misma que usa ALTURA_ESCALA en fase2b_atmosfera.py; provisional)
 
@@ -46,6 +54,11 @@ ESTIRAMIENTO = 1.6             # capas mas finas cerca del suelo
 # ---- infrarrojo (seccion 2): calibrado 04/10/2026, convergido en N ----
 TAU0_LW = 2.452
 F_LW = 0.240
+# 3.18.0 (§6.20.2): la misma calibracion con la columna media OBSERVADA (p_s = P_COLUMNA_OBSERVADA), que es la
+# misma columna en terminos relativos (calibrar_columna_observada.py): tau0 y f salen IDENTICOS, porque el perfil
+# va en x = p/p_tau. Lo que cambia es la normalizacion: x = p/P_COLUMNA_OBSERVADA (Columna.p_tau).
+TAU0_LW_OBS = TAU0_LW
+F_LW_OBS = F_LW
 EXP_VAPOR_LW = 4.0             # (c) forma del vapor, provisional hasta la Fase 5.2
 
 # ---- luz absorbida por la atmosfera (seccion 3) ----
@@ -71,9 +84,18 @@ def sigma_seminiveles(n=N_CAPAS_ATM):
     return s[::-1].copy()
 
 
-def presion_superficie(altitud_metros, gravedad=P3N_GRAVEDAD):
-    """Presion en superficie de cada celda (Pa), en equilibrio hidrostatico."""
-    return P0 * np.exp(-gravedad * np.maximum(altitud_metros, 0.0) / (R_AIRE * T_ALTURA_ESCALA))
+def presion_superficie(altitud_metros, gravedad=P3N_GRAVEDAD, p_nivel_mar=None):
+    """Presion en superficie de cada celda (Pa), en equilibrio hidrostatico. 3.18.0: p_nivel_mar (por defecto,
+    P_NIVEL_MAR) fija la masa de aire."""
+    pnm = P_NIVEL_MAR if p_nivel_mar is None else p_nivel_mar
+    return pnm * np.exp(-gravedad * np.maximum(altitud_metros, 0.0) / (R_AIRE * T_ALTURA_ESCALA))
+
+
+def p_nivel_mar_para_masa(altitud_metros, peso_area, p_media_objetivo, gravedad=P3N_GRAVEDAD):
+    """3.18.0 (DISENO_FASE_6.3.md §6.20.2): presion al nivel del mar con la que la media, ponderada por area, de
+    la presion en superficie es p_media_objetivo. Exacta: la presion en superficie es proporcional a ella."""
+    ps = presion_superficie(altitud_metros, gravedad, P_REF)
+    return P_REF * p_media_objetivo / float((ps * peso_area).sum() / peso_area.sum())
 
 
 def _pav_columnas(th, w):
@@ -179,7 +201,7 @@ class Columna:
     (v3.7.0: con el nucleo dinamico, la presion en superficie cambia en cada paso)."""
 
     def __init__(self, altitud_metros, gravedad=P3N_GRAVEDAD, n=N_CAPAS_ATM, gradiente=GRADIENTE_CRITICO,
-                 presion_capa="media"):
+                 presion_capa="media", p_nivel_mar=None, columna_observada=False):
         # gradiente (K/m): el del ajuste convectivo SECO. v3.0: 6,5 K/km provisional; v3.1 con la
         # conveccion humeda (I13): el adiabatico seco g/cp de cada planeta (fisica, a)
         # presion_capa (v3.7.0, DISENO_FASE_6.3.md §6.2, decision 1.2): "media" = media aritmetica de los
@@ -192,7 +214,13 @@ class Columna:
         self.g = gravedad
         self.forma = altitud_metros.shape
         self.presion_capa = presion_capa
-        self.actualizar_ps(presion_superficie(altitud_metros, gravedad))
+        # 3.18.0 (§6.20.2): columna de referencia de los espesores opticos y su calibracion. Por defecto, la de la
+        # v3.0 (1000 hPa; resultado identico bit a bit); con columna_observada, la media observada de la Tierra
+        if columna_observada:
+            self.p_tau, self.tau0, self.f_lw = P_COLUMNA_OBSERVADA, TAU0_LW_OBS, F_LW_OBS
+        else:
+            self.p_tau, self.tau0, self.f_lw = P_REF, TAU0_LW, F_LW
+        self.actualizar_ps(presion_superficie(altitud_metros, gravedad, p_nivel_mar))
 
     def actualizar_ps(self, ps):
         """Recalcula TODO lo que depende de la presion en superficie ps (F, C). Con el nucleo dinamico
@@ -209,8 +237,8 @@ class Columna:
         self.cap = self.dp / gravedad * CP_AIRE                                  # J/m2/K de cada capa
         self.sigma_media = 0.5 * (sh[1:] + sh[:-1])
         # infrarrojo: espesor optico en los seminiveles (presion ABSOLUTA)
-        x = self.ph / P0
-        self.tau = TAU0_LW * (F_LW * x + (1 - F_LW) * x ** EXP_VAPOR_LW)
+        x = self.ph / self.p_tau
+        self.tau = self.tau0 * (self.f_lw * x + (1 - self.f_lw) * x ** EXP_VAPOR_LW)
         dt = np.maximum(np.diff(self.tau, axis=0), 1e-12)
         self.trans = np.exp(-dt)
         self.g1 = (1 - self.trans * (1 + dt)) / dt
@@ -219,7 +247,7 @@ class Columna:
         lh = np.log(np.maximum(self.ph[1:-1], 1e-6))
         self.peso_interp = (lh - lp[:-1]) / (lp[1:] - lp[:-1])                    # (n-1, F, C)
         # luz absorbida por la atmosfera: reparto vertical (suma 1 en cada celda)
-        w = np.diff((self.ph / P0) ** EXP_VAPOR_SW, axis=0)
+        w = np.diff((self.ph / P_REF) ** EXP_VAPOR_SW, axis=0)
         self.peso_sw = w / w.sum(axis=0, keepdims=True)
         # ajuste convectivo: T_arriba >= T_abajo * (p_arriba/p_abajo)^(R*Gamma/g)
         # PI_k: temperatura de un perfil critico relativa a la capa mas baja (PI = 1 abajo)
@@ -237,10 +265,10 @@ class Columna:
     # ------------------------------------------------------------------
     def actualizar_tau_vapor(self, q, a, b):
         """v3.1 (I15, prototipo): espesor optico infrarrojo de cada capa segun el vapor de la propia
-        capa, d(tau) = (a + b*q) * dp / P0 (forma de Byrne y O'Gorman 2013, la del codigo de Isca),
+        capa, d(tau) = (a + b*q) * dp / p_tau (forma de Byrne y O'Gorman 2013, la del codigo de Isca),
         con a (aire seco: CO2 y demas) y b (vapor) calibrados para M3N (fase31_agua). Recalcula las
         transmisiones de cada capa; el resto del esquema (dos flujos, fuente lineal) no cambia."""
-        dt = np.maximum((a + b * np.maximum(q, 0.0)) * self.dp / P0, 1e-12)
+        dt = np.maximum((a + b * np.maximum(q, 0.0)) * self.dp / self.p_tau, 1e-12)
         self.trans = np.exp(-dt)
         self.g1 = (1 - self.trans * (1 + dt)) / dt
         n = self.n

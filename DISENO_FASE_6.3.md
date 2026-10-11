@@ -1119,12 +1119,7 @@ Revisión completa del repositorio y de la validación del 08/10 (los seis últi
 
 **3. Corrección honesta sobre los otros dos puntos.** En §6.18 los presenté como cambios pequeños y directos. Al ir a programarlos, no lo son: tocan definiciones que comparten la física, el núcleo y el cierre de energía y de agua. Programarlos sin un diseño escrito sería arriesgar la conservación que hoy se verifica año a año (cierre de energía ~1e-8, agua ~1e-13). Por eso **no van en la 3.17.0**; lo que falta decidir:
 
-*3a. El vapor en la presión.* Hallazgo nuevo al revisarlo (medido analíticamente, sin simular):
-- En el balance, M3N trata q como **kg de vapor por kg de aire seco** (la masa de agua es q·dp/g con el dp del núcleo, que es de masa seca).
-- Pero calcula la saturación con la fórmula de la **humedad específica** (por kg de aire húmedo), q_s = ε·e/(p − (1−ε)·e), y con la presión **seca** (`fase31_agua.qs_y_derivada`).
-- Para un núcleo de masa seca, lo coherente es la **razón de mezcla** r_s = ε·e/p_d (con p_d la presión del aire seco; la total es p_d + e, ley de Dalton). La fórmula actual da un valor algo mayor, en un factor 1/(1 − (1−ε)·e/p_d): **+1,15 % con e = 30 hPa** (aire saturado a unos 24 °C), +0,76 % con 20 hPa, +0,38 % con 10 hPa, +0,11 % con 3 hPa (a 1000 hPa de aire seco).
-- Es decir: el error está en la **definición** de q_s, no solo en qué presión se usa, y en los trópicos es **mayor** que el 0,35 % que presenté en §6.18 (aquella cifra era el peso medio del vapor, no el error de la saturación).
-- Las opciones a comparar, con fuentes: (i) pasar q_s a razón de mezcla con la presión seca (coherente con el núcleo; cambia poco código, pero también hay que revisar la derivada, la Betts-Miller y la humedad relativa que se exporta); (ii) contar el vapor en la presión de la física, como CAM-SE (Lauritzen et al. 2018), que exige revisar la ecuación de la energía y la densidad del aire de la capa límite. Hay que elegir con el cierre de energía y de agua por delante.
+*3a. El vapor en la presión.* ⚠️ **Las cifras y la fórmula "coherente" que había aquí estaban mal** (decían que la saturación salía un 1,15 % alta con r_s = ε·e/p_d; confundían la presión seca del núcleo con la presión parcial del aire seco). El análisis correcto, con fuentes, está en §6.20.1: la saturación sale **baja**, hasta un **1,7 %** en los trópicos.
 
 *3b. La P₀ del modo Tierra.* P₀ no es un solo papel en M3N:
 - referencia de la temperatura potencial (θ) en la Betts-Miller, que por convención es 1000 hPa y **no debe cambiar** con la masa del planeta;
@@ -1139,3 +1134,129 @@ Revisión completa del repositorio y de la validación del 08/10 (los seis últi
 - Un apartado de diseño (§6.20) con las opciones de 3a y 3b, sus fuentes y su efecto sobre la conservación, para el visto bueno de Carlos. Después, un paquete con lo aprobado.
 - **Una** simulación limpia del modo Tierra con todos los cambios de física (C_E y lo que se apruebe de 3a y 3b), que también mide el coste real de la cadena, los acantilados y el desglose del error de la dinámica.
 - El criterio escrito de cierre de la 6.3. Después, la 6.4.
+
+### 6.20 Diseño para el visto bueno de Carlos (09/10/2026): el vapor en la saturación y la masa de aire del modo Tierra 🔶
+
+Ninguno de los dos cambia el clima oficial (el modelo de 2 capas no usa nada de esto). Los dos cambian el modelo con I16, el que será oficial en la 4.0.0.
+
+#### 6.20.1 El vapor: q es una razón de mezcla; la física debe tratarla como tal
+
+**Lo que hay hoy (leído en el código):**
+- El núcleo es de **masa seca** (§6.7.2): cada capa tiene una masa de aire seco dp_d/g, el vapor se transporta con esa masa y el agua se cuenta como q·dp_d/g, y así se conserva (cierre ~1e-13). Por tanto, **q es kg de vapor por kg de aire seco: una razón de mezcla** (m).
+- La física viene de Isca, donde la capa es de aire húmedo y q es **humedad específica** (kg de vapor por kg de aire húmedo). Por eso:
+  - `fase31_agua.qs_y_derivada` usa la fórmula de la humedad específica, q_s = ε·e_s/(p − (1−ε)·e_s), con la p seca del núcleo;
+  - la Betts-Miller convierte q en razón de mezcla al entrar (`rin = q/(1 − q)`) y la vuelve a convertir al salir (`qref = rr/(1 + rr)`), y la temperatura virtual usa la fórmula de la humedad específica.
+
+**La referencia: CAM-SE de CESM2** (Lauritzen et al. 2018, *JAMES* 10, 1537–1570, doi:10.1029/2017MS001257 ✅, leído):
+- núcleo de masa seca con **razones de mezcla secas** (su ec. 1: m = ρ_vapor/ρ_seco);
+- la presión **total** es un diagnóstico: la seca más el peso del agua de encima (su ec. 66: p_{k+1/2} = p_tope + g·Σ ΔM_seca·(1 + Σ m));
+- su física sigue trabajando en humedad específica, y la conversión entre las dos (ec. 7 y 8) es la fuente de inconsistencias que el propio artículo reconoce (la física "todavía no es del todo coherente" con el núcleo de masa seca).
+
+**El error de hoy, bien medido** (analítico, a 1000 hPa de aire seco; e_s de saturación; peso del vapor de toda la columna, g·W):
+
+| Columna | e_s | W | q_s de M3N | m_s correcto = ε·e_s/(p − e_s), con p = p_d + g·W | M3N / correcto − 1 |
+|---|---|---|---|---|---|
+| Trópico, 300 K | 35,4 hPa | 50 kg/m² | 22,32 g/kg | 22,71 g/kg | **−1,73 %** |
+| Latitud media, 285 K | 13,9 hPa | 20 kg/m² | 8,69 g/kg | 8,75 g/kg | −0,67 % |
+| Polar, 255 K | 1,3 hPa | 3 kg/m² | 0,809 g/kg | 0,809 g/kg | −0,05 % |
+
+(r_s = ε·e/(p − e) es la razón de mezcla de saturación, con p la presión total y p − e la parcial del aire seco: ley de Dalton.)
+
+**Opciones:**
+- **(i) Recomendada: la física con I16 trabaja en razón de mezcla.** Es lo coherente con el núcleo, mantiene **exacto** el cierre del agua (lo que se condensa es Δm·dp_d/g, sin conversiones) y es lo que hace un modelo de referencia de masa seca, el WRF-ARW 4 (coordenada de masa de aire seco y escalares por masa de aire seco, μ_d·q; Skamarock et al., NCAR/TN-556 ✅ en las diapositivas oficiales de la dinámica; ⚠️ falta confirmar en la nota técnica que los q de su física son razones de mezcla).
+  Cambios:
+  1. saturación: m_s = ε·e_s/(p − e_s), con p = p_d + (peso del vapor de encima, como la ec. 66 de CAM-SE), y su derivada;
+  2. Betts-Miller: quitar las conversiones q ↔ r (el modelo ya da r); temperatura virtual T·(1 + m/ε)/(1 + m); presiones totales;
+  3. evaporación: ρ_d·C_E·U·(m_s − m_a), ya que ρ_vapor = ρ_d·m (hoy ρ se calcula con la p seca, que es ya ρ_d);
+  4. exportación: la "humedad específica" se calcula como q = m/(1 + m); la humedad relativa, como e/e_s (la definición de la OMM, por fracciones molares), con e = p·m/(ε + m).
+  - La entalpía sigue siendo c_p·T + L·m con el c_p del aire seco: es la misma aproximación que usa el corrector de energía de CAM (Lauritzen et al. 2018, unos 0,5 W/m² de diferencia frente a la energía completa). El cierre de energía de M3N no cambia de forma.
+  - El infrarrojo, dτ = (A + B·m)·dp_d/P_ref, ya es coherente con la masa seca: B·m·dp_d es la masa de vapor. Solo hay que expresar igual su calibración (§6.20.2).
+- (ii) Como CAM-SE: convertir a humedad específica y presión total al entrar en la física y deshacerlo al salir. Más código, y el cierre del agua deja de ser exacto sin una corrección añadida (el propio artículo).
+- (iii) No hacer nada: el error es pequeño (≤ 1,7 %), pero es sistemático, está en los trópicos (donde más llueve) y es de definición, no de aproximación.
+
+**Efecto esperado:** con m_s algo mayor, el aire tropical admite algo más de vapor antes de condensar. El modo Tierra ya tiene más agua precipitable que la Tierra (36,1 frente a 24,9 kg/m²), y esto empuja un poco en la misma dirección. **No es un ajuste para arreglar nada**: es corregir una definición.
+
+**Comprobaciones:**
+- apagado (interruptor nuevo), idéntico bit a bit;
+- m_s frente a MetPy (`saturation_mixing_ratio`, que usa ε·e/(p − e));
+- cierre del agua ~1e-13 y de la energía ~1e-8 en la simulación corta;
+- las conversiones de la exportación, ida y vuelta.
+
+#### 6.20.2 La masa de aire del modo Tierra: separar la referencia de la masa
+
+**Lo que hay hoy:** una sola constante, `fase30_multicapa.P0 = 1000 hPa`, con cinco usos:
+
+| Uso | Papel | ¿Depende de cuánto aire hay? |
+|---|---|---|
+| `presion_superficie`: p_s = P0·exp(−g·z/(R·255 K)) | **masa** de aire (presión al nivel del mar) | sí |
+| θ y potencias de Exner, (p/P0)^κ, en la Betts-Miller | **referencia** (convención de 1000 hPa) | no: cualquier constante sirve si es la misma en todas partes |
+| espesor óptico del infrarrojo, x = p/P0 y dτ = (A + B·q)·dp/P0 | **referencia** de la normalización, calibrada con una columna de p_s = P0 | no, pero la calibración sí |
+| `factor_masa = p_s/P0` de la luz | **referencia** | no |
+| `peso_sw`: (p/P0)^n normalizado | se cancela al normalizar | no |
+
+**Propuesta:**
+1. Dos constantes: `P_REF = 1000 hPa` (referencia; nunca cambia) y `P_NIVEL_MAR` (masa), por modo:
+   - **P3N:** 1000 hPa, la decisión de Carlos del 01/10/2026 (1 bar). Para P3N no cambia nada (P_NIVEL_MAR = P_REF: idéntico bit a bit).
+   - **Modo Tierra:** la que da la **masa de aire seco observada**, presión media en superficie de **983,05 hPa** (Trenberth y Smith 2005: 985,50 hPa en total, menos el vapor). No se escribe a mano: el código la calcula con el mapa, P_NIVEL_MAR = P_REF·983,05 / (media ponderada por área de p_s con P_REF). Con el mapa actual, unos 990,5 hPa (hoy la media sale 992,5 hPa: ~1 % de aire de más).
+2. **Recalibrar A y B del infrarrojo una sola vez**, con la columna media **observada** (983,05 hPa de aire seco, en vez de 1000) y el vapor como razón de mezcla (si se aprueba §6.20.1). Los objetivos no cambian (Wild et al. 2019: DLR 314 y OLR 267 W/m²; agua precipitable 24,9 kg/m², Trenberth y Smith). Es corregir la columna de referencia de la calibración, que hoy tiene un 1,7 % de aire de más; no es ajustar a los resultados del modelo. Requiere `pyrtlib`, como cuando se calibró. *(Cómo se hizo al final, en §6.21: la columna observada es la misma columna en términos relativos; el τ fijo sale idéntico y solo cambia su normalización.)*
+
+**Pregunta para Carlos:** el "1 bar" de P3N, ¿es la presión total al nivel del mar o la del aire seco? Hoy es la del aire seco (el núcleo es de masa seca); el vapor añadiría 2–3 hPa. La diferencia es pequeña, pero conviene que esté decidido.
+
+**Comprobaciones:**
+- P3N idéntico bit a bit;
+- en el modo Tierra, presión media de aire seco 983,05 ± 0,01 hPa;
+- la recalibración reproduce los dos flujos de Wild con la columna nueva.
+
+#### 6.20.3 Cómo seguiría
+
+- Con el visto bueno, un paquete (3.18.0) con 6.20.1 y 6.20.2, con interruptores y pruebas, más la corrección de §6.19 y del CHANGELOG de la 3.17.0.
+- Después, la segunda simulación limpia del modo Tierra. La de la 3.17.0 (solo C_E, lanzada el 09/10) servirá para separar el efecto de C_E del de estos dos cambios.
+
+
+### 6.21 3.18.0 (09/10/2026): implementación de §6.20, verificación y dos hallazgos
+
+**Decisión de Carlos (09/10/2026):** aprueba §6.20.1 y §6.20.2. La pregunta del "1 bar" de P3N (total o seco) sigue abierta: mientras no diga otra cosa, aire seco, como hasta ahora.
+
+**1. El vapor como razón de mezcla (`VAPOR_RAZON_MEZCLA_I16`), tal como §6.20.1 (i):**
+- `fase31_agua`:
+  - `ms_y_derivada` (m_s = ε·e_s/(p − e_s) y su derivada; donde actúa la salvaguarda e ≤ p/2, que solo actúa por encima de ~80 °C, la derivada es 0, porque m_s ya no depende de T);
+  - `saturacion` (elige q_s o m_s);
+  - `presion_total` (la seca más el peso del vapor de encima, con los centros a la media de sus dos seminiveles);
+  - la Betts-Miller con `razon` (sin conversiones, temperatura virtual T·(1 + m/ε)/(1 + m), presiones totales para la termodinámica y los seminiveles secos para la masa de cada capa: así el agua y la energía cierran con la masa del núcleo);
+  - la condensación con `razon`.
+- `fase2b_atmosfera`:
+  - la evaporación, la sublimación del hielo marino y el vapor inicial usan m_s con la presión total en superficie (la seca más el vapor de la columna al empezar el paso). El flujo ρ·C_E·U·Δm no cambia de forma, porque ρ es la del aire seco;
+  - el diagnóstico exporta q = m/(1 + m) y HR = e/e_s.
+- Sin I16 (el clima oficial) no se usa nada de esto.
+
+**2. La columna observada y la masa del modo Tierra (`COLUMNA_OBSERVADA_I16`):**
+- `fase30_multicapa`: `P_REF` (1000 hPa: θ, Exner), `P_NIVEL_MAR` (1 bar, P3N), `P_COLUMNA_OBSERVADA` (983,05 hPa) y `p_nivel_mar_para_masa`. La `Columna` lleva su columna de referencia (`p_tau`): con I16, la observada; sin I16, la de siempre.
+- El modo Tierra con I16 calcula su presión al nivel del mar para que la media ponderada por área de la presión en superficie sea 983,05 hPa (`parametros.PRESION_SECA_MEDIA_SUPERFICIE`).
+- **Cómo se recalibró** (`calibrar_columna_observada.py`): la columna observada es **la misma columna en términos relativos** (la US 1976 en p·P_REF/p_s y el vapor con la misma forma y los mismos 24,9 kg/m²); solo cambia su masa absoluta.
+  - Con eso, τ₀ y f del τ fijo salen **idénticos** (el perfil va en x = p/p_tau): solo cambia la normalización.
+  - A y B del vapor radiativo (I15, prototipo, apagado en las simulaciones largas): A = 0,5672 y B = 759,1 (antes 0,5656 y 773,1). La calibración original se reproduce exacta con la columna de 1000 hPa.
+- La luz: τ_sw·p_s/p_tau, así que el τ_sw = 0,18 de Wild queda en la columna media observada.
+
+**3. Verificación:**
+- Con los dos interruptores apagados, la simulación corta del modo Tierra es **idéntica bit a bit a la 3.17.0** (268/268 campos).
+- Encendidos, las pruebas nuevas (`test_vapor_y_masa.py`) comprueban:
+  - m_s y su derivada;
+  - la presión total;
+  - la conservación exacta de la energía (c_p·T + L·m con la masa seca) y del agua en la convección y la condensación;
+  - la masa del modo Tierra (983,05 hPa exactos);
+  - P3N sin cambios;
+  - la columna observada.
+- Simulación corta con `COLUMNA_OBSERVADA_I16` sola: cierre del agua ~1e-15.
+- **Estabilidad en la configuración real** (modo Tierra, órbita completa, arranque de 2 capas en equilibrio, los dos interruptores encendidos, en el entorno de la IA): **estable durante los primeros ~240 días** del primer año con el núcleo (66 % del año; ahí se paró, porque el entorno de la IA va unas cuatro veces más lento que el PC de Carlos). El arranque con el núcleo, los primeros meses desde el estado de 2 capas, es la parte delicada (§6.11-§6.12). Esa simulación usó el código anterior al ajuste de la derivada en la salvaguarda, que solo cambia algo con la superficie por encima de ~80 °C. La simulación completa la hace Carlos.
+
+**4. Hallazgo: las pruebas cortas no sirven para juzgar la estabilidad.**
+- Las simulaciones de prueba (`--dias 2`, y la del punto de control de `test_fase6_i16.py`) parten de estados irreales: en la de `--dias 2`, una presión seca de hasta 1155 hPa, hasta ~490 kg/m² de agua en una columna y la superficie a 335 K. En la de `test_fase6_i16.py`, más de 400 K.
+- Ahí, el cambio del vapor vuelve inestable el modelo (Courant vertical > 1). Pero revertir **cualquiera** de sus partes por separado (la fórmula, la convección o la presión total) lo vuelve estable: ese estado está **al borde** de la inestabilidad, y un cambio pequeño lo empuja a un lado o al otro. Un aumento uniforme del 2 % de la saturación de la superficie no lo rompe; m_s, que crece mucho más que q_s por encima de ~320 K (×1,19 a 335 K), sí.
+- Por eso la prueba del punto de control compara ahora 2 "años" en vez de 3. La prueba de `--dias 1` de `test_validar_i16.py` pasa.
+- La estabilidad se juzga en la configuración real (punto 3).
+
+**5. Hallazgo (pendiente de Carlos 🔶): la calibración del τ fijo de la v3.0 no se reproduce con el código actual.**
+- Con τ₀ = 2,452 y f = 0,240 en la columna de calibración (N = 160), el código actual da OLR = 265,9 W/m² (objetivo 267) y DLR = 314,0 (objetivo 314); con N = 20, OLR 265,6 y DLR 314,7.
+- La calibración con el código actual da τ₀ = 2,445 y f = 0,233.
+- Probablemente se hizo con una versión anterior del esquema infrarrojo (la fuente lineal en τ o la interpolación a los seminiveles).
+- El efecto es ~1 W/m² de OLR. No se ha cambiado: recalibrarlo es una decisión aparte. Cambiaría todos los modelos de varias capas (v3.0, v3.1 e I16), aunque no el clima oficial (el de 2 capas no usa este τ). Se propone hacerlo, con otro interruptor, antes de la simulación limpia.

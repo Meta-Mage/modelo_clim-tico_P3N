@@ -80,11 +80,14 @@ def test_i16_corrector_de_energia(corrida, monkeypatch):
 
 
 def test_i16_punto_de_control_da_lo_mismo(tmp_path):
+    # 3.18.0: 2 "años" seguidos frente a 1 + 1 retomado (antes, 3 frente a 2 + 1). El tercer "año" de este estado
+    # irreal (superficie a mas de 400 K, ver arriba) esta al borde de la inestabilidad: cualquier cambio pequeño de
+    # la fisica lo vuelve inestable o estable (DISENO_FASE_6.3.md §6.21). Lo que se prueba es el punto de control.
     arg, kw = _argumentos()
-    seguida = F.simular_fase2b(*arg, max_anos=3, **kw)
+    seguida = F.simular_fase2b(*arg, max_anos=2, **kw)
     archivo = str(tmp_path / "estado.pkl")
-    F.simular_fase2b(*arg, max_anos=2, archivo_estado=archivo, **kw)
-    retomada = F.simular_fase2b(*arg, max_anos=3, archivo_estado=archivo, **kw)
+    F.simular_fase2b(*arg, max_anos=1, archivo_estado=archivo, **kw)
+    retomada = F.simular_fase2b(*arg, max_anos=2, archivo_estado=archivo, **kw)
     for k in ("reg_media", "suelo_media", "hielo_espesor"):
         assert np.array_equal(seguida[k], retomada[k]), k
     assert np.array_equal(seguida["agua"]["precipitacion"], retomada["agua"]["precipitacion"])

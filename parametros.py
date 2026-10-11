@@ -135,6 +135,10 @@ if MODO_TIERRA:
     P3N_GRAVEDAD = 9.80665
     INCLINACION_AXIAL = 23.44
     INCLINACION_AXIAL_RAD = INCLINACION_AXIAL * PI / 180
+    # 3.18.0 (DISENO_FASE_6.3.md §6.20.2): masa de aire SECO de la Tierra como presion media en superficie, de
+    # Trenberth y Smith (2005, J. Climate 18, 864-875): 985,50 hPa en total menos ~2,45 hPa del vapor. Con I16, el
+    # modo Tierra fija con ella la presion al nivel del mar (fase30_multicapa.p_nivel_mar_para_masa)
+    PRESION_SECA_MEDIA_SUPERFICIE = 98305.0
 
 
 # PRUEBA

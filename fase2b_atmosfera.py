@@ -34,6 +34,9 @@ from scipy.sparse.linalg import splu
 
 from parametros import CONSTANTE_SB, ROTACION_PERIODO, P3N_GRAVEDAD, DURACION_HORA, FACTOR_ROTACION_D, S3N_TEMPERATURA
 from parametros import P3N_RADIO, OMEGA_SIDERAL
+import parametros as _PARAMETROS
+# 3.18.0 (§6.20.2): solo en el modo Tierra (masa de aire seco observada); en P3N, None
+PRESION_SECA_MEDIA_TIERRA = getattr(_PARAMETROS, "PRESION_SECA_MEDIA_SUPERFICIE", None)
 from temperatura import PASO_TIEMPO as PASO_TIEMPO_POR_DEFECTO
 from rejilla import FILAS, COLUMNAS, LATITUDES_GRADOS, LONGITUDES_GRADOS
 from fase1_geografia import TIERRA, AGUA, correccion_altitud, GRADIENTE_TERMICO
@@ -133,6 +136,10 @@ TAU_HIPERDIFUSION_DIAS = 0.5     # I16: amortiguamiento de la onda mas corta (cr
 CORRECTOR_ENERGIA_I16 = True     # v3.11.0: corrector global de energia de la dinamica (decision 1.8, §6.13)
 EVAPORACION_Z0Q_I16 = True       # 3.17.0: con I16, evaporacion sobre el agua con la z0q del ECMWF (C_E > C_H;
                                  # decision de Carlos del 09/10/2026, DISENO_FASE_6.3.md §6.19); False = C_E = C_H
+VAPOR_RAZON_MEZCLA_I16 = True    # 3.18.0: con I16, el vapor es RAZON DE MEZCLA en la fisica (saturacion, Betts-Miller,
+                                 # evaporacion) con la presion TOTAL; decision de Carlos del 09/10/2026, §6.20.1
+COLUMNA_OBSERVADA_I16 = True     # 3.18.0: con I16, el infrarrojo calibrado con la columna media observada (983,05 hPa
+                                 # de aire seco) y, en el modo Tierra, esa masa de aire seco; decision del 09/10, §6.20.2
 KARMAN = 0.4
 Z_REF = 10.0                     # m, altura de referencia del aire
 Z0M = {TIERRA: 0.01, AGUA: 2e-4}       # suelo desnudo (Carlos 02/10); oceano ~Charnock a 5 m/s
@@ -501,6 +508,8 @@ def simular_fase2b(
                                           "altitud_en_fisica")):
         raise ValueError("atmosfera_multicapa (I10) necesita I1-I7 encendidos (sustituye a sus versiones de dos capas)")
     agua_on = I.get("ciclo_agua", False)
+    # 3.18.0 (§6.20.1): con I16, el vapor es razon de mezcla en toda la fisica (VAPOR_RAZON_MEZCLA_I16)
+    razon = bool(I.get("nucleo_dinamico", False) and agua_on and VAPOR_RAZON_MEZCLA_I16)
     if any(I.get(k, False) for k in ("ciclo_agua", "conveccion_humeda", "suelo_termico_agua", "vapor_radiativo")) and not (multi and agua_on):
         raise ValueError("I11-I13 e I15 necesitan atmosfera_multicapa (I10) y ciclo_agua (I11)")
     if I.get("albedo_espectral", False) and not multi:
@@ -524,12 +533,20 @@ def simular_fase2b(
         import fase31_agua as AG
         # v3.1: con la conveccion humeda (I12), el ajuste seco va al adiabatico SECO g/cp (fisica, a);
         # sin ella, al gradiente provisional de 6,5 K/km de la v3.0
+        # 3.18.0 (§6.20.2): en el modo Tierra con I16, la presion al nivel del mar que da la masa de aire seco
+        # observada; en P3N (o sin I16, o con el interruptor apagado), la de siempre (P_NIVEL_MAR, 1 bar)
+        p_nivel_mar = None
+        if I.get("nucleo_dinamico", False) and COLUMNA_OBSERVADA_I16 and PRESION_SECA_MEDIA_TIERRA is not None:
+            peso_area = np.cos(np.radians(LATITUDES_GRADOS)).reshape(-1, 1) * np.ones((1, COLUMNAS))
+            p_nivel_mar = M30.p_nivel_mar_para_masa(altitud_metros, peso_area, PRESION_SECA_MEDIA_TIERRA, P3N_GRAVEDAD)
         COL = M30.Columna(altitud_metros, gravedad=P3N_GRAVEDAD, n=n_capas_atm or M30.N_CAPAS_ATM,
                           gradiente=(P3N_GRAVEDAD / CP_AIRE) if I.get("conveccion_humeda", False) else M30.GRADIENTE_CRITICO,
-                          presion_capa="sb81" if I.get("nucleo_dinamico", False) else "media")   # I16: decision 1.2
+                          presion_capa="sb81" if I.get("nucleo_dinamico", False) else "media",   # I16: decision 1.2
+                          p_nivel_mar=p_nivel_mar,
+                          columna_observada=bool(I.get("nucleo_dinamico", False) and COLUMNA_OBSERVADA_I16))
         ALB_ESTRELLA = AG.albedos_estrella(S3N_TEMPERATURA if I.get("albedo_espectral", False) else AG.T_SOL)
         luz = preparar_luz(albedo_grid, tau, I["luz_absorbida"], ~es_tierra, I["albedo_oceano_solar"],
-                           factor_masa=COL.ps / M30.P0,
+                           factor_masa=COL.ps / COL.p_tau,      # 3.18.0: tau_sw es el de la columna de referencia
                            albedo_hielo=ALBEDO_HIELO * ALB_ESTRELLA["factor_hielo"] if I.get("albedo_espectral", False) else None)
     else:
         luz = preparar_luz(albedo_grid, tau, I["luz_absorbida"], ~es_tierra, I["albedo_oceano_solar"])
@@ -629,7 +646,7 @@ def simular_fase2b(
     if agua_on:
         # vapor inicial: 60 % de la saturacion en la troposfera (sigma > 0,3), casi seco por encima; el
         # suelo, con el cubo a la mitad; sin nieve. El equilibrio se alcanza solo en pocas semanas.
-        qs0, _ = AG.qs_y_derivada(T_cl, COL.pm)
+        qs0, _ = AG.saturacion(T_cl, COL.pm, razon=razon)       # sin vapor todavia: presion total = seca
         AGUA_EST = {"q": np.where(COL.sigma_media[:, None, None] > 0.3, 0.6 * qs0, np.minimum(0.6 * qs0, 3e-6)),
                 "W": np.where(es_tierra, 0.5 * AG.W_CAMPO, 0.0), "S": np.zeros((FILAS, COLUMNAS)),
                 "T_sup": T_col[..., 0].copy(), "contador_vapor": 0,
@@ -733,7 +750,7 @@ def simular_fase2b(
         """I16: p_s del paso y viento de la superficie para la luz. Sin I16, nada (la luz es la de siempre)."""
         if DIN is None:
             return {}
-        return {"factor_masa_paso": COL.ps / M30.P0, "viento": DIN["v_a"]}
+        return {"factor_masa_paso": COL.ps / COL.p_tau, "viento": DIN["v_a"]}
 
     def nieve_actual():
         """(fraccion cubierta, albedo) de la nieve en tierra, para la luz (v3.1)."""
@@ -981,7 +998,12 @@ def simular_fase2b(
             z_a = CL.alturas(T_atm, COL.ph, COL.pm, R_AIRE, P3N_GRAVEDAD)[0][-1]
             flujo_h_hielo = np.zeros((FILAS, COLUMNAS))
         if I.get("vapor_radiativo", False):
-            COL.actualizar_tau_vapor(q, AG.A_LW_SECO, AG.B_LW_VAPOR)
+            if DIN is not None and COLUMNA_OBSERVADA_I16:   # 3.18.0 (§6.20.2): calibrado con la columna observada
+                COL.actualizar_tau_vapor(q, AG.A_LW_SECO_OBS, AG.B_LW_VAPOR_OBS)
+            else:
+                COL.actualizar_tau_vapor(q, AG.A_LW_SECO, AG.B_LW_VAPOR)
+        # 3.18.0 (§6.20.1): presion TOTAL en superficie (la seca del nucleo + el peso del vapor), para la saturacion
+        ps_sat = COL.ps + (np.maximum(q, 0.0) * COL.dp).sum(axis=0) if razon else COL.ps
         Ts = T_col[..., 0]
         F0 = sigma * Ts ** 4
         T_aire = COL.aire_superficie(T_atm)
@@ -1012,14 +1034,14 @@ def simular_fase2b(
                     g_qh = rho_h * cf["c_h"] * v_a
                 q_a = q[-1]
                 for _ in range(4):
-                    qsi, dqsi = AG.qs_y_derivada(T, COL.ps, hielo=True)
+                    qsi, dqsi = AG.saturacion(T, ps_sat, hielo=True, razon=razon)
                     f = (s_abs + dlr - sigma * T ** 4 - g_h * (T - th) + kh * (T_CONGELACION - T)
                          - AG.L_S * g_qh * (qsi - q_a))
                     T = T - f / (-4 * sigma * T ** 3 - g_h - kh - AG.L_S * g_qh * dqsi)
                 T = np.minimum(T, 273.15)
                 T = np.where(hay_hielo, T, T_CONGELACION)
                 HIELO["Ts"] = T
-                qsi, _ = AG.qs_y_derivada(T, COL.ps, hielo=True)
+                qsi, _ = AG.saturacion(T, ps_sat, hielo=True, razon=razon)
                 E_hielo = np.where(hay_hielo, g_qh * (qsi - q_a), 0.0)   # sublimacion (< 0: escarcha)
                 flujo_h_hielo = np.where(hay_hielo, g_h * (T - th), 0.0)
                 F0 = np.where(hay_hielo, sigma * T ** 4, F0)
@@ -1117,8 +1139,10 @@ def simular_fase2b(
         # baja (DISENO_FASE_5.md 3.3), explicita en la temperatura de la superficie.
         Ts = T_col[..., 0]
         g_q = np.where(sin_hielo, rho * c_e * viento_s, 0.0)
-        qs_l, _ = AG.qs_y_derivada(Ts, COL.ps)
-        qs_i, _ = AG.qs_y_derivada(Ts, COL.ps, hielo=True)
+        # 3.18.0 (§6.20.1): con razon, razon de mezcla de saturacion con la presion TOTAL; el flujo rho*C_E*U*dq
+        # sigue igual, porque rho es la densidad del aire seco (p_s del nucleo) y rho_vapor = rho_seco * m
+        qs_l, _ = AG.saturacion(Ts, ps_sat, razon=razon)
+        qs_i, _ = AG.saturacion(Ts, ps_sat, hielo=True, razon=razon)
         f_n = np.where(es_tierra, AG.fraccion_cubierta_nieve(S), 0.0)
         beta = np.where(es_tierra, AG.beta_cubo(W), 1.0)
         a_l = g_q * (1 - f_n) * beta                              # suelo / oceano (vapor sobre agua)
@@ -1155,9 +1179,17 @@ def simular_fase2b(
         # ---- conveccion humeda, condensacion de gran escala y ajuste seco ----
         P = np.zeros((FILAS, COLUMNAS))
         if I.get("conveccion_humeda", False):
-            T_atm, q, Pc = AG.conveccion_humeda(T_atm, q, COL.pm, COL.ph, dt, P3N_GRAVEDAD)
+            if razon:   # 3.18.0 (§6.20.1): termodinamica con presiones TOTALES; masa de cada capa, la seca del nucleo
+                ph_t, pm_t = AG.presion_total(COL.ph, COL.pm, COL.dp, q)
+                T_atm, q, Pc = AG.conveccion_humeda(T_atm, q, pm_t, ph_t, dt, P3N_GRAVEDAD, razon=True, ph_masa=COL.ph)
+            else:
+                T_atm, q, Pc = AG.conveccion_humeda(T_atm, q, COL.pm, COL.ph, dt, P3N_GRAVEDAD)
             P = P + Pc
-        T_atm, q, Pl = AG.condensacion_gran_escala(T_atm, q, COL.pm, COL.dp, P3N_GRAVEDAD)
+        if razon:
+            T_atm, q, Pl = AG.condensacion_gran_escala(T_atm, q, AG.presion_total(COL.ph, COL.pm, COL.dp, q)[1], COL.dp,
+                                                       P3N_GRAVEDAD, razon=True)
+        else:
+            T_atm, q, Pl = AG.condensacion_gran_escala(T_atm, q, COL.pm, COL.dp, P3N_GRAVEDAD)
         P = P + Pl
         T_atm, q = COL.ajuste_convectivo_vapor(T_atm, q)
 
@@ -1534,6 +1566,11 @@ def simular_fase2b(
         """(u, v, |v|, q en g/kg, HR en %) de la capa mas baja en este paso (I16 con agua)."""
         uc_, vc_ = viento_en_centros(DIN["ant"][2][-1], DIN["ant"][3][-1])
         qb = AGUA_EST["q"][-1]
+        if razon:   # 3.18.0 (§6.20.1): q es razon de mezcla; se exporta la humedad especifica m/(1+m) y HR = e/e_s
+            pm_b = AG.presion_total(COL.ph, COL.pm, COL.dp, AGUA_EST["q"])[1][-1]
+            ms_b, _ = AG.ms_y_derivada(T_cl[-1], pm_b)
+            return (uc_, vc_, DIN["v_a"], 1000.0 * qb / (1.0 + qb),
+                    100.0 * (qb / (AG.EPSILON + qb)) / (ms_b / (AG.EPSILON + ms_b)))
         qs_b, _ = AG.qs_y_derivada(T_cl[-1], COL.pm[-1])
         return uc_, vc_, DIN["v_a"], 1000.0 * qb, 100.0 * qb / qs_b
 
