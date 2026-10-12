@@ -7,6 +7,24 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.20.0] — 2026-10-12
+
+- Fase: 6.4 (resultados de la simulación de P3N e investigación de los vientos del oeste) y 6.3 (lo que la validación no miraba).
+- Clima exportado: no cambia (el modelo no cambia: con los valores por defecto, idéntico bit a bit a la 3.19.0).
+- Pruebas: 144.
+
+### Añadido
+- `held_suarez.py --planeta p3n`: la prueba de Held y Suarez con el radio, la gravedad y la rotación de P3N y el mismo forzamiento (`DISENO_FASE_6.4.md` §8.4); `held_suarez.constantes_planeta`. La salida dice el planeta y su geometría. `analizar_held_suarez.py` dice el planeta de cada simulación y compara P3N con la Tierra de la misma configuración. Por defecto, todo como antes.
+- `herramientas/control_tierra_p3n.py`: aplica al modo Tierra las mismas funciones que `analizar_p3n.py` aplica a P3N (todas las células, la función de corriente a σ 0,8 hacia los polos, las bandas de viento de la capa baja y el viento ecuatorial a σ ~0,25).
+- `DISENO_FASE_6.4.md` §8: la simulación definitiva de P3N (PC de Carlos, 11–12/10/2026: 7,85 h, equilibrio en 15 años, 30 de climatología): los bloqueantes A1–A6 se cumplen; el clima de P3N; lo que no era lo esperado; el control con el modo Tierra; y la investigación de los vientos del oeste desplazados al polo (decisión de Carlos del 12/10/2026), con cómo se leerá fijado antes.
+- `DISENO_FASE_6.3.md` §6.26: sin célula polar y con viento del oeste en la alta troposfera ecuatorial también en el modo Tierra (no lo medía `validar_i16.py`); limitaciones declaradas, sin reabrir el cierre.
+- 3 pruebas (`test_held_suarez_planeta.py`).
+
+### Cambiado
+- `DISENO_FASE_6.4.md`: el estado, la prueba de arranque (hecha), el "1 bar" y el relieve (decididos el 11/10, §7), el criterio §4.7 (aprobado) y el plan del §5, al día.
+- `README.md`: la Fase 6.3, cerrada; la 6.4, en curso; las limitaciones de la circulación del núcleo; las herramientas nuevas.
+- `NOMENCLATURA.md`: commit de la v3.19.0 (`2788ad5`, leído de GitHub) y paquete 031.
+
 ## [3.19.0] — 2026-10-11
 
 - Fase: 6.3 (cierre) y 6.4 (diseño y herramientas).

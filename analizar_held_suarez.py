@@ -1,6 +1,8 @@
 # analizar_held_suarez.py -- informe de la prueba de Held y Suarez (DISENO_FASE_6.2.md §10).
 #
 # Uso: python analizar_held_suarez.py      (lee outputs/held_suarez/hs_tau*_medias.npz)
+# 3.20.0: dice el planeta de cada simulacion (--planeta p3n de held_suarez.py; las anteriores son de la Tierra) y,
+# si hay una de P3N y la de la Tierra con la misma configuracion, compara las latitudes de las dos.
 # Imprime, para cada simulacion y cada hemisferio: el chorro en altura (velocidad, latitud, sigma), el
 # viento del oeste en superficie, el maximo del transporte de calor y de momento por remolinos, y la
 # incertidumbre (diferencia entre la primera y la segunda mitad del promedio). Guarda una figura por
@@ -41,6 +43,8 @@ def main():
         res = f"{180 / int(d['filas']):g} grados, " if "filas" in d.files else "5 grados, "
         if "niveles" in d.files:                                                   # v3.4.0
             res += f"niveles {str(d['niveles'])}, "
+        planeta = str(d["planeta"]) if "planeta" in d.files else "tierra"          # 3.20.0
+        res += f"planeta {planeta}, "
         if int(d["n_medias"]) == 0 or np.ndim(d["u"]) != 2:                       # v3.4.0: corrida corta
             print(f"\n=== {os.path.basename(f)}: {res}{int(d['dias'])} dias simulados: sin dias promediados "
                   f"(la media empieza el dia 200); no hay informe ===")
@@ -66,8 +70,25 @@ def main():
             print(f"   viento del oeste en superficie: max {us:4.1f} m/s en {abs(ls):5.1f} | "
                   f"calor por remolinos (sigma 0,85): max en {abs(lvt):5.1f} | "
                   f"momento por remolinos hacia el polo (sigma 0,25): max {uv:5.1f} m2/s2 en {abs(luv):5.1f}")
-        print(" Referencia (HS94): chorros hacia ~45 grados y ~250 hPa (verificado en Mendonca et al. 2016, THOR); "
-              "la velocidad, ~30 m/s, sigue pendiente de cita textual.")
+        if planeta == "tierra":
+            print(" Referencia (HS94): chorros hacia ~45 grados y ~250 hPa (verificado en Mendonca et al. 2016, THOR); "
+                  "la velocidad, ~30 m/s, sigue pendiente de cita textual.")
+        else:
+            gemela = f.replace("_" + planeta + "_medias.npz", "_medias.npz")
+            if os.path.exists(gemela):
+                t = np.load(gemela)
+                if int(t["n_medias"]) > 0 and np.ndim(t["u"]) == 2:
+                    kt = int(np.argmax(t["sigma"]))
+                    print(f" Frente a la Tierra con la misma configuracion ({os.path.basename(gemela)}), latitud en grados:")
+                    for h in ("N", "S"):
+                        lc_t, lc_p = chorro(t["u"], t["lat"], t["sigma"], h)[1], chorro(d["u"], lat, sig, h)[1]
+                        st, sp = t["lat"] > 0 if h == "N" else t["lat"] < 0, lat > 0 if h == "N" else lat < 0
+                        ls_t = abs(max_parabola(t["u"][kt, st], t["lat"][st])[1])
+                        ls_p = abs(max_parabola(d["u"][ks, sp], lat[sp])[1])
+                        print(f"   {h}: chorro Tierra {lc_t:5.1f} | {planeta} {lc_p:5.1f}   "
+                              f"oeste en superficie Tierra {ls_t:5.1f} | {planeta} {ls_p:5.1f}")
+            else:
+                print(f" (no esta {os.path.basename(gemela)}: lanza tambien la de la Tierra con la misma configuracion)")
         alto = sig < 0.02                                                          # v3.4.0: vigilancia del techo
         if alto.any() and d["u1"].ndim == 2 and d["u2"].ndim == 2:
             ua1 = float(np.abs(d["u1"][alto]).max()); ua2 = float(np.abs(d["u2"][alto]).max())

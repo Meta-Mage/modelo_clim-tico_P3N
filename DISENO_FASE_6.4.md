@@ -1,6 +1,6 @@
 # DISENO_FASE_6.4.md — Fase 6.4: P3N con el núcleo dinámico (clima oficial 4.0.0)
 
-**Estado:** en curso (11/10/2026; la 6.3 se cerró ese día, `DISENO_FASE_6.3.md` §6.25). Lo decidido está en el §1 (antes de la 6.4) y en el §7 (decisiones del 11/10); lo demás está pendiente.
+**Estado:** en curso. La 6.3 se cerró el 11/10/2026 (`DISENO_FASE_6.3.md` §6.25). Lo decidido está en el §1 (antes de la 6.4) y en el §7 (decisiones del 11/10). **La simulación definitiva de P3N está hecha y analizada (12/10/2026, §8)**; queda investigar el desplazamiento al polo de los vientos del oeste (§8.4), las sensibilidades del océano (§4.2), la exportación a H3N y la aprobación de la 4.0.0.
 **Convención:** ✅ = verificado en la fuente citada; ⚠️ = por verificar; 🔶 = propuesta de la IA pendiente de Carlos; (c) = valor calibrado en la Tierra.
 
 ## 0. Qué es la Fase 6.4 y qué entrega
@@ -111,7 +111,7 @@
 ### 4.3 El arranque de P3N
 
 - **Lo que hay:** la cadena arranca del equilibrio del modelo de 2 capas (§6.10.2 de la 6.3). En el mapa de pruebas antiguo (continente rectangular de 600 m) ese equilibrio tenía el ecuador a ~45 °C, ~14 K más que la v3.1. No se pudo comprobar si I16 arranca bien desde ahí; existe la alternativa `--arranque v31`.
-- **Prueba en el entorno de la IA (11/10/2026, en curso):** P3N con pizarra1, la 3.18.1 y la configuración real (órbita completa, arranque de 2 capas, `clima_dinamico.py` sin `--dias`). Resultado (en curso):
+- **Prueba en el entorno de la IA (11/10/2026):** P3N con pizarra1, la 3.18.1 y la configuración real (órbita completa, arranque de 2 capas, `clima_dinamico.py` sin `--dias`). Resultado:
   - **Modelo de partida:** equilibrio en **23 años** (cambio máximo de una celda 0,0116 K < 0,015), como el clima oficial de pizarra1 del 05/10 (23 años). Del año 9 al 18 el cambio máximo se quedó entre 0,9 y 4,7 K en celdas de mar a 67,5° N y 67,5° S, es decir, en el **borde del hielo marino** (comprobado con `DEPURAR`: la celda del cambio máximo y los saltos del hielo grueso de los años 6, 11 y 17). Del año 19 al 23 bajó solo a 0,19, 0,037, 0,024, 0,018 y 0,012 K. No es un fallo: es el tiempo que tarda en asentarse la extensión del hielo.
   - **Núcleo con P3N, por primera vez:** arranca sin inestabilidades y sigue estable durante el 72 % del primer año (~236 días de P3N). Ahí se paró a propósito, para no gastar más: el clima de verdad lo da la simulación en el PC de Carlos.
   - **Pruebas cortas (`--dias 1` y `--dias 3`):** con P3N se rompen en las primeras horas del núcleo (Courant vertical de los trazadores 1,3 en una columna a 7,5° S, por un ascenso de ~3·10¹⁴ kg por subpaso en la troposfera media). Con la Tierra, `--dias 1` pasa (`--dias 3` también se rompe). Esas pruebas parten de un estado irreal: un modelo de partida de 2 "años" sin equilibrar, calentado con la luz de un solo día repetido (el día 0 de P3N está junto al periastro, 1524 W/m²). Ya estaba documentado en la 6.3 que esos estados están al borde de la inestabilidad (§6.21). La prueba que vale es la de la configuración real. Consecuencia práctica: **las pruebas automáticas de P3N con I16 no pueden usar `--dias 1`**; usarán el modo Tierra, como hasta ahora, o un estado de P3N ya equilibrado.
@@ -126,14 +126,15 @@
 
 - Pregunta abierta desde la 3.18.0 (§6.21). Hoy es de aire **seco**; el vapor añadiría 2–3 hPa al nivel del mar.
 - Cambia muy poco el clima. Conviene decidirlo antes de la 4.0.0 para que el número oficial signifique lo que se quiere.
+- **Decidido (11/10/2026): aire seco (§7.4).**
 
 ### 4.6 El mapa: pizarra1 no tiene relieve
 
 - En el puente que lee M3N (`mapa_activo_m3n.json`, del 04/10), **todas las celdas están a 0 m**. pizarra1 es un mapa de trabajo de tierra y mar sin montañas.
 - Consecuencias: (1) la 4.0.0 sería el clima de un P3N **llano**: sin lluvia orográfica ni sombras de lluvia, y con los desiertos donde los pongan la circulación y la forma de los continentes; (2) la estabilidad del núcleo sobre relieve (los problemas antárticos de la 6.3) no se pone a prueba en P3N.
-- **Pregunta para Carlos:** ¿es intencionado (pizarra1 sigue siendo el mapa de trabajo y la 4.0.0 será la de un planeta llano) o falta pintar el relieve en C3N antes de la 6.4?
+- **Decidido (11/10/2026):** falta pintar el relieve en C3N; la 6.4 se hace con pizarra1 llano (§7.5).
 
-### 4.7 Cómo se juzga P3N sin observaciones (criterio para la 4.0.0) 🔶
+### 4.7 Cómo se juzga P3N sin observaciones (criterio para la 4.0.0; aprobado por Carlos el 11/10/2026)
 
 *(Rehecho el 11/10 tras la objeción de Carlos: la primera versión exigía tres células por hemisferio y la banda de lluvias cerca del ecuador. Era un error de planteamiento: eso son **resultados** que dependen de la rotación, el tamaño del planeta y la inclinación, y no se pueden exigir. En simulaciones idealizadas, con más rotación las células de Hadley se encogen, aparecen más chorros y células de Ferrel, y crece el contraste de temperatura entre el ecuador y los polos (Kaspi y Showman 2015, *Astrophys. J.* 804, 60 ✅). P3N gira 1,21 veces más rápido que la Tierra pero es más pequeño, y la teoría de Held y Hou da para él células algo más anchas, no más estrechas (§3): lo previsible es una estructura parecida a la terrestre, pero es una previsión, no un requisito.)*
 
@@ -174,11 +175,11 @@ P3N no tiene observaciones. Lo que se puede exigir es que **el modelo funcione i
 ## 5. Plan de trabajo propuesto 🔶
 
 1. Decisiones de Carlos (§6), con Ozan para la inclinación.
-2. Prueba de arranque de P3N (§4.3; en curso en el entorno de la IA).
+2. Prueba de arranque de P3N (§4.3). **Hecha (11/10/2026).**
 3. Una herramienta de análisis de P3N: `validar_i16.py` sin las referencias terrestres, más lo que pide §4.7 (células, vientos, banda de lluvias, transporte, hielo, desiertos), y la comparación con la 2.4.3 y la v3.1. Con pruebas.
    - **Hecho (11/10/2026): `analizar_p3n.py`** (§5.1), con 8 pruebas (`test_analizar_p3n.py`). La comparación con la v3.1 sin núcleo no está: la v3.1 no se exporta y habría que simularla aparte (~1 h en el PC); se decide al llegar a ese punto.
 4. Los cambios que pidan las decisiones (inclinación, "1 bar", relieve), cada uno con su versión.
-5. La simulación definitiva de P3N (PC de Carlos, ~6,5 h), y las sensibilidades del océano si se aprueban.
+5. La simulación definitiva de P3N (PC de Carlos, ~6,5 h), y las sensibilidades del océano si se aprueban. **La simulación, hecha y analizada (12/10/2026, §8)**; las sensibilidades, aprobadas (§7.2) y pendientes.
 6. Aplicar el criterio del §4.7 → Carlos aprueba → paquete de la **4.0.0** y versión de H3N.
 
 ### 5.1 La herramienta de análisis: `analizar_p3n.py` (11/10/2026)
@@ -201,6 +202,8 @@ Uso, después de `python clima_dinamico.py` con el mapa activo: `python analizar
 
 ## 6. Decisiones de Carlos
 
+*(Todas tomadas el 11/10/2026: ver §7. La lista queda como registro de lo que se preguntó.)*
+
 1. **Inclinación del eje** (§4.1): el valor (con Ozan) y si se espera a tenerlo o se hace la 6.4 con 1,7°.
 2. **Océano** (§4.2): (A) valores provisionales declarados más sensibilidad (recomendada), (B) recalibrar D_oc en modo Tierra o (C) otra. ¿Con sensibilidad de la capa de mezcla también?
 3. **Composición de la atmósfera** (§4.4): ¿se declara como supuesto (Tierra) hasta la Fase 9?
@@ -218,3 +221,67 @@ Uso, después de `python clima_dinamico.py` con el mapa activo: `python analizar
 5. **Relieve:** falta pintarlo en C3N. La 6.4 se hace con pizarra1 llano. Cuando se pinte: una prueba corta del núcleo con el relieve nuevo y una simulación nueva del clima (una noche); no hace falta versión nueva de M3N (cambia el mapa, no el modelo).
 6. **Criterio para la 4.0.0:** rehecho (§4.7) sin resultados exigidos (la estructura depende de la rotación y el tamaño; Kaspi y Showman 2015). **Aprobado por Carlos (11/10/2026).**
 7. **Vista rápida en H3N** (§4.8): a Carlos le parece bien la idea, pero **queda anotada como idea, no prioritaria y fuera del alcance de la 6.4**: antes hay que pensar bien cómo funcionaría e integrarla en H3N. La 4.0.0 no depende de ella (el selector de fuente de la v0.2.2 sigue funcionando).
+
+## 8. La simulación definitiva de P3N (12/10/2026)
+
+### 8.1 Qué se simuló y cuánto costó (PC de Carlos)
+
+- `python clima_dinamico.py --carpeta outputs/clima_dinamico/p3n_3.19.0` con la 3.19.0 (código `8154dd9b484f222cba1e671b`), mapa pizarra1 (huella `851bc12fc081346f`), arranque de 2 capas. Empezó el 11/10 a las 21:30.
+- **Coste: 7,85 h** (estimado: ~6,5 h). La diferencia es el equilibrio: **15 años** en lugar de los ~10 supuestos. Dentro del techo de una noche (06/10). Velocidad del año extra del análisis: 36 pasos/s.
+- Análisis: `python analizar_p3n.py --carpeta outputs/clima_dinamico/p3n_3.19.0 --referencia-tierra outputs/validacion_i16_3.18.1` (12/10, 05:37).
+
+### 8.2 Criterio §4.7, parte A: los bloqueantes
+
+| | Criterio | Resultado |
+|---|---|---|
+| A1 | un solo código | ✅ un tramo, 3.19.0 |
+| A2 | estable, cadena completa | ✅ 30 de 30 años |
+| A3 | equilibrio | ✅ en 15 años (N +0,132 W/m², T2m +0,0032 K/año, hielo −0,00016, agua del suelo +0,0037) |
+| A4 | energía < 1·10⁻⁷ y agua < 1·10⁻¹¹ kg/m² cada año | ✅ máximos 4,5·10⁻⁸ y 3,2·10⁻¹³ |
+| A5 | error de la dinámica controlado | ✅ media −0,047 W/m² (lo devuelve el corrector), sin tendencia (p 0,81) |
+| A6 | sin deriva | ✅ −0,0002 ± 0,0011 K/año (p 0,87); ninguna banda; precipitación sin deriva (p 0,36) |
+| A7 | análisis y exportación | análisis ✅; exportación y lectura en H3N, pendientes |
+
+**El error de la dinámica es ~20 veces menor que en el modo Tierra** (−0,047 frente a −1,04 W/m²). Hipótesis: pizarra1 no tiene relieve, y en el modo Tierra buena parte de ese error viene de la fuerza de presión sobre las montañas (los problemas antárticos de §6.11–§6.12 de la 6.3). Si es así, crecerá al pintar el relieve (§7.5).
+
+### 8.3 Parte B: el clima de P3N (medido; la lectura, marcada como tal)
+
+**Lo que se entiende:**
+- **Balance:** luz que llega 349,2 W/m², igual a S₀/4·(1 − e²)^−½ = 349,25 ✅; albedo 0,144 (sin nubes); neto en el tope −0,04 W/m². Precipitación = evaporación = 3,483 mm/día (modo Tierra 3,47).
+- **Temperatura:** aire a 2 m 21,57 °C (norte 21,06, sur 22,08); +7,1 K sobre el clima oficial de 2 capas (14,45 °C). Era lo esperado (§3): sin nubes y con la estrella calibrada para el modelo de 2 capas; no se corrige hasta la 5.2 (decisión del 05/10). El ecuador queda igual que en el modelo de 2 capas y los polos, 23–38 K más templados: el transporte por el viento, lo que la Fase 6 tenía que aportar (como en el modo Tierra, §6.15 de la 6.3).
+- **Agua precipitable 44,0 kg/m²**: la del modo Tierra (36,6) escalada con Clausius-Clapeyron (~7 %/K) por ~2,5 K más da ~43. Coherente.
+- **Estaciones:** periastro el día 309 (1533,3 W/m²), apoastro el día 146 (1275,5). La temporada del periastro es 1,32 K más cálida que la del apoastro, en los dos hemisferios a la vez, como preveía el §3.
+- **Banda de lluvias en el ecuador** (7,25 mm/día a 2,5° N; 7,28 a 2,5° S en la temporada del periastro y 7,70 a 2,5° N en la del apoastro); mínimos subtropicales a ±22,5° y máximos de latitudes medias a ±42,5°.
+- **Coherencia de Donohoe et al. (2013):** la atmósfera cruza el ecuador hacia el sur (−0,22 PW) y la lluvia queda ligeramente al norte.
+- **Transporte hacia los polos:** máximo total 2,81 PW a 40° N y 2,72 a 40° S (atmósfera 2,43 y 2,23; latente 1,47 y 1,39). La Tierra lleva ~5,5 PW; escalado por el área (0,734² = 0,54), ~3,0 PW: el mismo orden.
+- **Células de Hadley:** +4,71 y −4,59·10¹⁰ kg/s, con bordes a +27,8° y −27,7°. La orientación de Held y Hou (modo Tierra × 1,082) daba +31,4° y −29,8°: 2–4° más estrechas, en el sentido de lo que hace más rotación (Kaspi y Showman 2015). No es un requisito (§4.7).
+- **Hielo marino:** norte 4,23 / 3,28 y sur 3,72 / 2,07 millones de km² (máximo / mínimo), con poco ciclo anual (1,7°).
+- **Tropopausa:** ~15,8 km en los trópicos y ~10,5–11 km en los polos; la tropical, demasiado caliente (−46,5 °C): radiación gris (limitación 5).
+
+**Lo que no era lo esperado (§3 preveía tres células por hemisferio, como en la Tierra):**
+1. **Dos células por hemisferio, sin célula polar:** la indirecta (tipo Ferrel) va de ~28° hasta el polo (−1,12 a 60° N; +0,92 a 55° S).
+2. **Viento del oeste en superficie de ~31° al polo, con el máximo a 82,5° N (10,4 m/s) y 72,5° S (9,5 m/s).**
+3. **Vórtice estratosférico de 91,2 y 85,0 m/s** a 62,5°, 3,7 hPa (modo Tierra 77 y 74; ERA-Interim 16,5 y 33,7).
+4. **Viento del oeste en la alta troposfera ecuatorial** (+12,8 a +15,6 m/s a σ ~0,25).
+5. **Tierra más cálida que el mar** (23,85 frente a 20,07 °C). Depende de dónde está la tierra en pizarra1; pendiente de mirarlo con el mapa.
+
+**El control con el modo Tierra** (`herramientas/control_tierra_p3n.py`; detalle en `DISENO_FASE_6.3.md` §6.26) aplicó las mismas funciones a la climatología del modo Tierra de la 3.18.1:
+- **1 es del código:** el modo Tierra tampoco forma célula polar.
+- **4 es del código, más intenso en P3N:** el modo Tierra ya tiene +2 a +5 m/s (ERA-Interim, −3 a +0,3). La explicación por la célula de Hadley que cruza el ecuador queda descartada (en jun–ago del modo Tierra esa célula es fuerte y el sesgo es mayor).
+- **2 es propio de P3N en su magnitud:** el máximo del oeste en superficie está a 52,5° N y 57,5° S en el modo Tierra (ERA-Interim 47,5° N y 52,5° S) y a 82,5° N y 72,5° S en P3N. Con el núcleo seco y los niveles de M3N (Held y Suarez con la geometría de la Tierra, 3.4.0) estaba a ~34°. Es la diferencia grande que el criterio §4.7 B obliga a explicar o investigar antes de la 4.0.0.
+- **3:** limitación declarada (sin arrastre de ondas de gravedad, 6.6; radiación gris, 5.2), más intensa en P3N. Con 1,7° de inclinación no hay noche polar ni invierno: el vórtice es de todo el año en los dos hemisferios (lectura, no demostración).
+
+### 8.4 Investigación del punto 2 (decisión de Carlos, 12/10/2026, 06:17: "A")
+
+**Pregunta:** ¿qué parte del desplazamiento al polo de los vientos del oeste es geometría de P3N (radio, gravedad, rotación) y qué parte es la física (vórtice estratosférico, radiación)?
+
+**Experimento (3.20.0):** Held y Suarez (núcleo seco, sin la física de M3N) con los niveles de M3N y la geometría de P3N, frente a la misma prueba con la geometría de la Tierra **con el mismo código**:
+- `python held_suarez.py --niveles m3n --planeta p3n` y `python held_suarez.py --niveles m3n` (~25 min cada una en el PC; se pueden lanzar a la vez, cada una usa un hilo), después `python analizar_held_suarez.py`, que compara las latitudes de las dos.
+- El forzamiento de HS94 es el mismo en las dos (mismas temperaturas de equilibrio, mismo contraste de 60 K entre el ecuador y el polo y mismos tiempos de relajación en segundos); solo cambian a, Ω y g. Sin ciclo diario, la duración del día no interviene.
+- La corrida de la Tierra se repite con el código actual, para que las dos usen exactamente el mismo (la de la 3.4.0 se hizo con una versión anterior); la antigua se aparta a otra carpeta antes.
+- Probado (entorno de la IA): 40 días de P3N estables (chorro de 42–45 m/s a 32,5° S, presión en superficie 969–1019 hPa); 3 pruebas automáticas (`test_held_suarez_planeta.py`).
+
+**Cómo se leerá (fijado antes de ver el resultado) 🔶:** la latitud del máximo del oeste en superficie, P3N menos Tierra, con la misma configuración:
+- **< 5°** (una celda de la rejilla, el límite de lo que se puede distinguir): la geometría de P3N no lo explica; la causa está en la física (sospechoso principal, el vórtice: Polvani y Kushner 2002) y queda ligada a la 6.6 y la 5.2 como limitación declarada.
+- **≥ 5° pero mucho menos que los 25–30° que se separan P3N y la Tierra con el modelo completo:** parte geometría y parte física; se escriben las dos con su peso.
+- **Comparable a esos 25–30°:** es sobre todo geometría del planeta, un resultado de P3N y no un fallo, más el sesgo hacia el polo que el código ya tiene en el modo Tierra (~+5°).

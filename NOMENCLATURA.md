@@ -136,7 +136,8 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | — | v3.17.0 | 73e1196 | 6.3 |
 | — | v3.18.0 | fa062af | 6.3 |
 | — | v3.18.1 | a314970 | 6.3 |
-| — | v3.19.0 | — | 6.3 y 6.4 |
+| — | v3.19.0 | 2788ad5 | 6.3 y 6.4 |
+| — | v3.20.0 | — | 6.3 y 6.4 |
 
 "—" en Commit significa que el hash no consta en los documentos. Se obtiene con `git rev-list -n1 <etiqueta>`.
 
@@ -189,6 +190,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | 028 | — | v3.18.0 |
 | 029 | — | v3.18.1 |
 | 030 | — | v3.19.0 |
+| 031 | — | v3.20.0 |
 
 ---
 

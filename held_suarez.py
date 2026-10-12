@@ -7,11 +7,19 @@
 #     python held_suarez.py --filas 72      # rejilla de 2,5 grados (144 x 72): ~8 veces mas lenta por dia
 #     python held_suarez.py --niveles m3n   # v3.4.0: los 20 niveles REALES de M3N (capa de arriba 0-7,35 hPa),
 #                                           # paso 2 de la Fase 6.3 (decide si hace falta la capa esponja)
+#     python held_suarez.py --niveles m3n --planeta p3n
+#                                           # 3.20.0 (Fase 6.4, DISENO_FASE_6.4.md §8.4): el MISMO forzamiento con
+#                                           # el radio, la gravedad y la rotacion de P3N (solo la geometria cambia)
 #
 # Configuracion (DISENO_FASE_6.2.md §5 y §10): Tierra (Williamson/HS94: a = 6,37122e6 m, Omega = 7,292e-5,
 # g = 9,80616, R = 287, cp = 1004), rejilla de M3N (72 x 36, 5 grados), 20 capas sigma IGUALES (la
 # especificacion de la prueba; con --niveles m3n, las de fase30_multicapa.sigma_seminiveles), dt = 450 s,
 # semiimplicito + RAW, hiperdifusion nabla^4 implicita.
+# 3.20.0 -- con --planeta p3n: a, Omega y g de P3N (parametros.py: P3N_RADIO, OMEGA_SIDERAL, P3N_GRAVEDAD). El
+# forzamiento de HS94 NO cambia (mismos T de equilibrio, mismo contraste ecuador-polo de 60 K y mismos tiempos de
+# relajacion en segundos: el "dia" de HS94 son 86 400 s, tambien en P3N). Asi la UNICA diferencia con la corrida de
+# la Tierra es la geometria del planeta, que es lo que se quiere aislar. R y cp, los de HS94 (los de P3N son los
+# de la Tierra: DISENO_FASE_6.4.md §7.3). Sin ciclo diario: la duracion del dia de P3N no interviene.
 #
 # - Muestra el PROGRESO en pantalla (barra, dias, velocidad, tiempo restante) y una linea cada 20 dias.
 # - Guarda un PUNTO DE CONTROL cada 20 dias en outputs/held_suarez/: si se corta (Ctrl+C, apagon...),
@@ -33,6 +41,19 @@ from fase6_nucleo import NucleoSeco
 from fase6_forzamientos import HeldSuarez, sigma_capas
 from fase6_aguas_someras import A_TIERRA, OMEGA_TIERRA, G_TIERRA
 
+
+def constantes_planeta(nombre):
+    """(radio m, Omega rad/s, g m/s2) del planeta de la prueba. 'tierra': las de Williamson et al. (1992), como
+    siempre; 'p3n' (3.20.0): las de parametros.py en modo P3N."""
+    if nombre == "tierra":
+        return A_TIERRA, OMEGA_TIERRA, G_TIERRA
+    if nombre == "p3n":
+        if os.environ.get("M3N_MODO", "").strip().lower() == "tierra":
+            sys.exit("--planeta p3n con M3N_MODO=tierra en el entorno: quitalo (parametros.py daria la Tierra)")
+        import parametros as P
+        return P.P3N_RADIO, P.OMEGA_SIDERAL, P.P3N_GRAVEDAD
+    raise ValueError(f"planeta desconocido: {nombre}")
+
 DT_5GRADOS = 450.0         # s; se escala con la resolucion (dt = 450 * 36 / filas)
 DIA_INICIO_MEDIA = 200
 CADA_LINEA = 20            # dias entre lineas del registro y puntos de control
@@ -45,13 +66,15 @@ def main():
     ap.add_argument("--filas", type=int, default=36, help="filas de la rejilla: 36 = 5 grados (la de M3N), 72 = 2,5 grados")
     ap.add_argument("--niveles", choices=("iguales", "m3n"), default="iguales",
                     help="iguales = 20 capas sigma iguales (la especificacion de HS94); m3n = los 20 niveles de M3N")
+    ap.add_argument("--planeta", choices=("tierra", "p3n"), default="tierra",
+                    help="3.20.0: geometria del planeta (radio, rotacion, gravedad); el forzamiento es siempre el de HS94")
     a = ap.parse_args()
     DT = DT_5GRADOS * 36 / a.filas
 
     carpeta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outputs", "held_suarez")
     os.makedirs(carpeta, exist_ok=True)
     nombre = (f"hs_tau{a.tau:g}" + ("" if a.filas == 36 else f"_f{a.filas}")
-              + ("" if a.niveles == "iguales" else "_m3n"))
+              + ("" if a.niveles == "iguales" else "_m3n") + ("" if a.planeta == "tierra" else "_" + a.planeta))
     f_estado = os.path.join(carpeta, nombre + "_estado.npz")
     f_medias = os.path.join(carpeta, nombre + "_medias.npz")
     f_log = os.path.join(carpeta, nombre + ".log")
@@ -61,7 +84,8 @@ def main():
         sigma_semi = np.asarray(sigma_seminiveles(), dtype=float)
     else:
         sigma_semi = np.linspace(0, 1, 21)
-    m = NucleoSeco(A_TIERRA, OMEGA_TIERRA, G_TIERRA, 287.0, 1004.0, sigma_semi, filas=a.filas)
+    radio, omega, gravedad = constantes_planeta(a.planeta)
+    m = NucleoSeco(radio, omega, gravedad, 287.0, 1004.0, sigma_semi, filas=a.filas)
     hs = HeldSuarez(m)
     N, Rj = m.N, m.Rj
     sig = sigma_capas(m)
@@ -88,7 +112,8 @@ def main():
         n_med = 0; n1 = 0
         reanudar = None
         n0 = 1
-    print(f"Held y Suarez | {180 / a.filas:g} grados | niveles {a.niveles} (centro de la capa de arriba {sig.min() * 1000:.2f} hPa) | "
+    print(f"Held y Suarez | planeta {a.planeta} (a = {radio / 1e3:.1f} km, Omega = {omega:.4e} rad/s, g = {gravedad:.3f} m/s2) | "
+          f"{180 / a.filas:g} grados | niveles {a.niveles} (centro de la capa de arriba {sig.min() * 1000:.2f} hPa) | "
           f"tau = {a.tau:g} dias | {a.dias} dias = {total} pasos de {DT:.0f} s | media desde el dia {DIA_INICIO_MEDIA}")
     alto = sig < 0.02          # capas por encima de ~20 hPa (solo existen con --niveles m3n): vigilancia del techo
 
@@ -160,7 +185,8 @@ def main():
     n2 = estado["n_med"] - estado["n1"]
     med["u2"] = (np.asarray(acum["u"]) - np.asarray(acum["u1"])) / max(n2, 1)
     np.savez(f_medias, **med, n_medias=estado["n_med"],
-             sigma=sig, lat=np.degrees(Rj.phi_c), tau=a.tau, dias=a.dias, filas=a.filas, niveles=a.niveles)
+             sigma=sig, lat=np.degrees(Rj.phi_c), tau=a.tau, dias=a.dias, filas=a.filas, niveles=a.niveles,
+             planeta=a.planeta, radio=radio, omega=omega, gravedad=gravedad)
     print(f"\nTerminado en {(time.time() - t0) / 60:.0f} min. Medias de {estado['n_med']} dias en {f_medias}")
     print("Siguiente paso: python analizar_held_suarez.py")
 

@@ -1406,3 +1406,21 @@ Es lo esperado (§6.19.2): un ~4 % más de evaporación sobre el mar a igual gra
 **Resultado:** los siete bloqueantes se cumplen, y cada fallo de B y cada intensidad fuera de 0,5–2 tiene una explicación ligada a una limitación declarada, con la fase que la resolverá. Por la regla de §6.22, **la Fase 6.3 se puede cerrar**.
 
 **Decisión de Carlos (11/10/2026, 20:54): "Apruebo el cierre."** La Fase 6.3 queda **cerrada** con la 3.19.0. Empieza la 6.4 (`DISENO_FASE_6.4.md`). Lo que queda abierto de la 6.3 pasa como limitación declarada o como pendiente menor: la humedad relativa de la troposfera libre (§6.22 D), medir los acantilados y el desglose del error de la dinámica, y revisar con la 5.2 la explicación de las células de Hadley débiles (punto 4).
+
+### 6.26 Después del cierre (12/10/2026): lo que la validación no miraba, visto con el control de la Fase 6.4
+
+Al analizar P3N con I16 (`DISENO_FASE_6.4.md` §8) aparecieron rasgos que `validar_i16.py` no mide: busca **dos** células de Hadley en ventanas fijas y los vientos de la capa baja en cuatro ventanas, y no busca una célula polar ni mira el viento de la alta troposfera ecuatorial por separado. `herramientas/control_tierra_p3n.py` (3.20.0) aplicó a la climatología del modo Tierra de la 3.18.1 (`outputs/validacion_i16_3.18.1/campos.npz`, PC de Carlos) **las mismas funciones** que `analizar_p3n.py` usa con P3N (todas las células como tramos de signo a σ 0,5, más la función de corriente a σ 0,8 hacia los polos, y todas las bandas de viento de la capa baja). Resultado (PC de Carlos, 12/10/2026, 06:07):
+
+| | Modo Tierra 3.18.1 | Referencia |
+|---|---|---|
+| Células, media anual | **4**: Hadley +6,65 / −5,44 y una célula indirecta por hemisferio que llega hasta 85° (−1,62 de 85° N a 29,1° N; +2,18 de 27,5° S a 85° S) | la célula polar no está en las referencias del repositorio (REF_ERAI solo tiene las de Hadley) ⚠️ |
+| Célula polar a σ 0,8 | no: la función de corriente no cambia de signo desde 50° hasta 85° en ningún hemisferio ni temporada (salvo dos tramos débiles a 80–85° N en jun–ago) | — |
+| Viento zonal anual en la capa baja, 65–87,5° | norte: casi 0 (+1,4 a 87,5° N; −0,1 a 82,5° N); sur: del oeste hasta el polo | ERA-Interim a 975 hPa: norte de −0,1 a +0,5; sur de −0,7 a −2,3 de 67,5° a 87,5° S (por debajo de ~65° S, valores extrapolados bajo el suelo antártico; `referencias_tierra.py`) |
+| Viento zonal anual a σ ~0,25, de 7,5° N a 7,5° S | **del oeste**, de +2,0 a +5,3 m/s (en jun–ago, de +4,5 a +12,2) | ERA-Interim a 250 hPa: de −3,0 a +0,3 (del este en 2,5° N y S) |
+
+**Lectura (hipótesis, no demostraciones):**
+1. **Sin célula polar en el modo Tierra.** Es del código, no de P3N: el modelo completo con la geometría de la Tierra tampoco la forma. Candidatos, sin medir: la rejilla de 5° (la célula polar ocuparía 5–6 filas), el filtro polar de las tendencias por encima de 60° (solo amortigua las ondas zonales cortas, no la media zonal, pero sí los remolinos que la mantienen) y la falta de arrastre de ondas de gravedad (6.6). Que la célula polar real sea débil y su valor no esté verificado en una fuente del repositorio queda ⚠️.
+2. **Los vientos del este polares**: en la media anual de ERA-Interim son casi nulos en el Ártico y débiles (y en parte extrapolados) en la Antártida. El sesgo de M3N es pequeño: del oeste hasta el polo sur, donde lo observado es del este débil.
+3. **Alta troposfera ecuatorial del oeste**: sesgo de ~+5 m/s en la media anual. Se descarta como explicación la falta de la célula de Hadley que cruza el ecuador (en jun–ago esa célula es fuerte, −11,03·10¹⁰ kg/s, y el sesgo es mayor, no menor). Causa abierta.
+
+**Consecuencia para el cierre de la 6.3:** ninguna. El criterio se fijó antes (§6.22) y no incluía estas magnitudes; el cierre no se reabre. Pasan a ser **limitaciones declaradas** (README, Limitaciones conocidas) y a la lista de pendientes: comprobar con fuente la célula polar observada y medir qué la impide en M3N (rejilla, filtro polar o ondas de gravedad) cuando toque la 6.6 o se mejore la rejilla.
