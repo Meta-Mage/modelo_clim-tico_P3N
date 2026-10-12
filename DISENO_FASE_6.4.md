@@ -285,3 +285,24 @@ Uso, después de `python clima_dinamico.py` con el mapa activo: `python analizar
 - **< 5°** (una celda de la rejilla, el límite de lo que se puede distinguir): la geometría de P3N no lo explica; la causa está en la física (sospechoso principal, el vórtice: Polvani y Kushner 2002) y queda ligada a la 6.6 y la 5.2 como limitación declarada.
 - **≥ 5° pero mucho menos que los 25–30° que se separan P3N y la Tierra con el modelo completo:** parte geometría y parte física; se escriben las dos con su peso.
 - **Comparable a esos 25–30°:** es sobre todo geometría del planeta, un resultado de P3N y no un fallo, más el sesgo hacia el polo que el código ya tiene en el modo Tierra (~+5°).
+
+**Resultado (PC de Carlos, 12/10/2026, 07:07; 1200 días cada una, media de 1000; `analizar_held_suarez.py`):**
+
+| Máximo del oeste en superficie | Tierra (código de la 3.20.0) | P3N | P3N − Tierra |
+|---|---|---|---|
+| Norte | 34,0° | 34,5° | +0,5° |
+| Sur | 34,1° | 36,2° | +2,1° |
+| Chorro (norte / sur) | 29,3° / 29,2° | 30,4° / 31,7° | +1,1° / +2,5° |
+
+- **Lectura con el criterio fijado antes: < 5°.** La geometría de P3N (radio, gravedad y rotación) **no explica** el desplazamiento al polo de los vientos del oeste del modelo completo (de ~35° a 72,5–82,5°). La causa está en la física. Sospechoso principal: el vórtice estratosférico sin arrastre de ondas de gravedad (Polvani y Kushner 2002), más fuerte en P3N que en el modo Tierra (91 frente a 77 m/s) y de todo el año, sin estaciones. Queda como **limitación declarada**, ligada a la 6.6 y a la 5.2. No está demostrado que sea el vórtice; sí que no es la geometría.
+- **Reproducibilidad:** la corrida de la Tierra con el código de hoy da exactamente lo mismo que la de la 3.4.0 (chorro 36,6 m/s a 29,3°; oeste de superficie 4,0 m/s a 34,0°).
+- La diferencia entre el norte y el sur de P3N (30,4° y 31,7°), con un forzamiento simétrico, es ruido de muestreo: las dos mitades del promedio se separan ~1°.
+- En seco, las capas altas (< 20 hPa) de P3N llegan a 16,6 m/s frente a 9,9 en la Tierra, y crecen un 14 % entre las dos mitades: también en seco, la estratosfera de P3N tiende a acelerarse más.
+- Con esto, el punto 2 del §8.3 queda **investigado** como pide el §4.7 B.
+
+### 8.5 La climatología oficial se rehace con las medias zonales por nivel (decisión de Carlos, 12/10/2026, 07:40: camino "a")
+
+- **Por qué:** la vista Circulación de H3N (el corte latitud × altura con las células, los chorros y la temperatura; `AUDITORIA_H3N_EXPLORAR.md` de H3N, P2.1) necesita esas medias, y la climatología del 11–12/10 no las guardó.
+- **Cómo (3.21.0):** `fase6_zonal.py` las acumula por día del año en los 30 años registrados, solo leyendo el núcleo (idéntico bit a bit, `test_fase6_zonal.py`). `clima_dinamico.py --continuar-desde outputs/clima_dinamico/p3n_3.19.0` hace una climatología **nueva** de 30 años desde el estado final de aquella, que está en equilibrio y sin deriva, sin repetir el arranque ni los 15 años de equilibrio. El origen queda en `origen.json`, en el resumen y en la exportación.
+- **Coste:** ~5 h (30 años de P3N a ~37 pasos/s), después de las sensibilidades.
+- **Consecuencia:** el clima oficial de la 4.0.0 será el de esta climatología nueva, otros 30 años del mismo estado de equilibrio. Las cifras de §8.2–§8.3 cambiarán dentro del ruido entre muestras de 30 años: el error de la media es ≤ 0,25 K por banda (§8.1). El análisis se repetirá sobre ella.

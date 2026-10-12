@@ -7,6 +7,24 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.21.0] — 2026-10-12
+
+- Fase: 6.4 (corte vertical de la climatología y climatología continuada) y 5.2 (diseño y primer prototipo).
+- Clima exportado: no cambia (el modelo no cambia: con los valores por defecto, idéntico bit a bit; la exportación con el núcleo añade la clave `zonal`).
+- Pruebas: 153.
+
+### Añadido
+- `fase6_zonal.py`: en los años registrados de la climatología con el núcleo, las medias zonales por nivel y por día del año (viento zonal, v·p_s, temperatura y presión en superficie), solo leyendo el núcleo. Van en `resultado.pkl` (`zonal`) y el resumen dice si están.
+- `exportar_clima.py --dinamico`: la clave nueva `zonal` de `m3n-clima` v1 (función de corriente de masa en 10¹⁰ kg/s, viento zonal, temperatura y presión en superficie por día, latitud y nivel σ), para la vista Circulación de H3N; y `climatologia.continuada_desde`.
+- `clima_dinamico.py --continuar-desde CARPETA`: una climatología nueva desde el estado final de otra terminada (en equilibrio, sin deriva, misma configuración), sin repetir el arranque ni el equilibrio; `origen.json`, resumen y exportación lo dicen (`DISENO_FASE_6.4.md` §8.5).
+- `DISENO_FASE_5.2.md`: investigación de la Fase 5.2 (qué arregla, opciones con fuentes, decisiones de Carlos: la radiación por bandas propia desde las líneas de HITRAN y MT_CKD como dato, aprobadas el 12/10/2026; decisiones técnicas T1–T5).
+- `fase52_lineas.py` (prototipo, sin conectar): cálculo línea a línea propio (intensidad con la temperatura, anchuras de presión y Doppler, perfil de Voigt, coeficiente de absorción).
+- `DISENO_FASE_6.4.md` §8.4: el resultado de Held y Suarez con la geometría de P3N (la geometría no explica el desplazamiento al polo de los vientos del oeste); §8.5: la climatología oficial se rehace con las medias zonales.
+- 9 pruebas: `test_fase6_zonal.py` (4: la misma función de corriente que `validar_i16.py`, el modelo idéntico bit a bit con y sin medias zonales, la continuación y la exportación) y `test_fase52_lineas.py` (5).
+
+### Cambiado
+- `README.md` y `NOMENCLATURA.md`: la Fase 5.2, en diseño; commit de la v3.20.0 (`b410f68`); paquete 032.
+
 ## [3.20.0] — 2026-10-12
 
 - Fase: 6.4 (resultados de la simulación de P3N e investigación de los vientos del oeste) y 6.3 (lo que la validación no miraba).

@@ -53,7 +53,7 @@ Es el esquema estándar de gestión de proyectos (WBS, *work breakdown structure
 | 4 | Exportación del clima (`m3n-clima`) y registro horario | ✅ | v2.4.0, v2.4.1 | `DISENO_FASE_4.md` | Fase 4 |
 | 5 | Agua y nubes (plan general) | — | — | `DISENO_FASE_5.md` | Fase 5 |
 | 5.1 | Ciclo del agua (vapor, lluvia, nieve, suelo, convección húmeda) | 🔧 (I11–I14; I15 prototipo) | v3.1.0 | `DISENO_FASE_5.1.md` | Fase 5a, "v3.1" |
-| 5.2 | Nubes y radiación (con el vapor radiativo); después, recalibrar la estrella | ⏳ | — | — | Fase 5b (y la radiación por bandas de la antigua Fase 8) |
+| 5.2 | Nubes y radiación (con el vapor radiativo); después, recalibrar la estrella | 🟡 diseño | v3.21.0 – | `DISENO_FASE_5.2.md` | Fase 5b (y la radiación por bandas de la antigua Fase 8) |
 | 6 | Circulación (plan general del motor de vientos propio) | — | — | `DISENO_FASE_6.md` | Fase 6 |
 | 6.1 | Una capa de fluido sobre la esfera (aguas someras) | 🔧 cerrada | v3.1.0 | `DISENO_FASE_6.1.md` | 6.1 |
 | 6.2 | Núcleo dinámico seco de 20 capas | 🔧 cerrada | v3.1.0 – v3.3.0 | `DISENO_FASE_6.2.md` | 6.2 |
@@ -137,7 +137,8 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | — | v3.18.0 | fa062af | 6.3 |
 | — | v3.18.1 | a314970 | 6.3 |
 | — | v3.19.0 | 2788ad5 | 6.3 y 6.4 |
-| — | v3.20.0 | — | 6.3 y 6.4 |
+| — | v3.20.0 | b410f68 | 6.3 y 6.4 |
+| — | v3.21.0 | — | 6.4 y 5.2 |
 
 "—" en Commit significa que el hash no consta en los documentos. Se obtiene con `git rev-list -n1 <etiqueta>`.
 
@@ -191,6 +192,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | 029 | — | v3.18.1 |
 | 030 | — | v3.19.0 |
 | 031 | — | v3.20.0 |
+| 032 | — | v3.21.0 |
 
 ---
 

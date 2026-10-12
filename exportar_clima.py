@@ -288,8 +288,43 @@ def construir_exportacion_dinamica(rc, tipo, altitud, nombre_mapa, datos_orbita,
         # 4.0.0 (DISENO_FASE_6.4.md §4.2): factores de la prueba de sensibilidad del oceano (1 y 1 = el modelo tal cual)
         "sensibilidad": {k: float(v) for k, v in (rc.get("sensibilidad") or {}).items()} or None,
     }
+    # 3.21.0: corte vertical (medias zonales por nivel y por dia) para la vista Circulacion de H3N, si la
+    # climatologia lo tiene (clima_dinamico.py 3.21.0 o posterior)
+    z = rc.get("zonal")
+    if z is not None:
+        out["zonal"] = exportar_zonal(z, num_dias=out["tiempo"]["dias"])
+    if rc.get("origen"):
+        out["climatologia"]["continuada_desde"] = {k: rc["origen"][k] for k in
+                                                   ("carpeta", "ano_simulado", "anos_equilibrio_origen",
+                                                    "anos_climatologia_origen", "sha256_estado")}
     out["unidades"] = UNIDADES
     return out
+
+
+def exportar_zonal(z, num_dias):
+    """3.21.0: el corte latitud x altura de la climatologia (fase6_zonal): por dia del año, funcion de corriente de
+    masa (10^10 kg/s, en las caras entre filas y las interfaces sigma), viento zonal (m/s) y temperatura (C) en las
+    capas, y presion en superficie (kPa) por fila. Medias de los N años registrados."""
+    from fase6_zonal import funcion_corriente
+    vps = np.asarray(z["vps"])[:num_dias]
+    sig = np.asarray(z["sigma_semi"], dtype=float)
+    psi = funcion_corriente(np.moveaxis(vps, 0, -1), sig, np.asarray(z["cos_caras"])[:, None], z["radio"],
+                            z["gravedad"])                                  # (interfaces, caras, dias)
+    psi = np.moveaxis(psi, -1, 0) / 1e10
+    return {
+        "nota": "medias zonales por nivel del nucleo dinamico, por dia del año (media de los años registrados)",
+        "anos": int(z["anos"]),
+        "sigma_interfaces": [float(x) for x in sig],
+        "sigma_capas": [float(x) for x in 0.5 * (sig[1:] + sig[:-1])],
+        "lat_filas": [float(x) for x in z["lat"]],
+        "lat_caras": [float(x) for x in z["lat_caras"]],
+        "funcion_corriente_1e10_kg_s": serie(psi),
+        "viento_zonal_m_s": serie(np.asarray(z["u"])[:num_dias]),
+        "temperatura_C": serie(np.asarray(z["T"])[:num_dias] - 273.15),
+        "presion_superficie_kPa": serie(np.asarray(z["ps"])[:num_dias] / 1000.0),
+        "signo": "funcion de corriente > 0: el aire sube por el lado sur de la celula y baja por el norte "
+                 "(como la celula de Hadley del norte); integrada desde el tope",
+    }
 
 
 def sin_nan(x):

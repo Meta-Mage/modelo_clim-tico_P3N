@@ -24,6 +24,8 @@
 # 3.15.0: ese criterio ya NO decide cuantos años se registran (en las bandas polares exigiria del orden de 80
 # años; §6.16-§6.17): el error de cada banda se calcula y se informa, y los umbrales quedan como referencia.
 # Ademas, comprobacion de DERIVA a posteriori de los años registrados (deriva_climatologia, abajo).
+# 3.21.0: en los años registrados se acumulan tambien las MEDIAS ZONALES POR NIVEL del nucleo (fase6_zonal.py: u,
+# v p_s, T y p_s por dia del año), para el corte latitud x altura de H3N. Solo se leen: el modelo no cambia.
 
 import hashlib
 import json
@@ -167,6 +169,20 @@ class Acumulador:
         self.ref = {}              # el primer año: las sumas de cuadrados van respecto a el (sin cancelacion)
         self.bandas_T, self.bandas_P = [], []
         self.por_ano = []           # diagnosticos pequeños de cada año (energia, agua)
+        self.zonal = None           # 3.21.0: sumas por dia de las medias zonales del nucleo (fase6_zonal)
+        self.n_zonal = 0            # años que las tienen (si no son todos, no se usan)
+
+    def anadir_zonal(self, sumas_geo):
+        """3.21.0: suma las medias zonales de un año registrado (fase6_zonal.MediasZonales.sumas())."""
+        s, geo = sumas_geo
+        if s is None:
+            return
+        if getattr(self, "zonal", None) is None:
+            self.zonal = {"sumas": {k: v.copy() for k, v in s.items()}, "geo": geo}
+        else:
+            for k, v in s.items():
+                self.zonal["sumas"][k] = self.zonal["sumas"][k] + v
+        self.n_zonal = getattr(self, "n_zonal", 0) + 1
 
     def anadir(self, r):
         self.n += 1
@@ -358,7 +374,17 @@ def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_ano
             max_anos_llamada = max_anos_equilibrio                # seguir buscando el equilibrio
         if equilibrio is None:
             informar("2/3 Modelo con nucleo dinamico hasta el equilibrio (+ 1.er año registrado)...")
-        r = F.simular_fase2b(*argumentos, max_anos=max_anos_llamada, **kw)
+        from fase6_zonal import MediasZonales                  # 3.21.0: solo lee el nucleo en el año registrado
+        from temperatura import PASO_TIEMPO
+        import parametros as P
+        zonal = MediasZonales(round(P.ROTACION_PERIODO / PASO_TIEMPO))
+        if os.environ.get("M3N_ZONAL", "1") != "0":    # M3N_ZONAL=0: sin medias zonales (solo para las pruebas)
+            zonal.instalar()
+        try:
+            r = F.simular_fase2b(*argumentos, max_anos=max_anos_llamada, **kw)
+        finally:
+            if zonal._orig_avanzar is not None:
+                zonal.quitar()
         ck = leer(f_sim)
         if equilibrio is None:
             # el estado del comienzo del año registrado (en el .previo) dice si se llego al equilibrio
@@ -370,6 +396,8 @@ def simular_clima(argumentos, interruptores, carpeta, min_anos=MIN_ANOS, max_ano
                 informar(f"    AVISO: sin equilibrio tras {antes['ano']} años; la climatologia sera la de un estado sin equilibrar")
         ano_esperado = ck["ano"]
         acum.anadir(r)
+        acum.anadir_zonal(zonal.sumas())
+        del zonal
         del r
         cumple, info = criterio_climatologia(acum.bandas_T, acum.bandas_P, min_anos)
         _guardar({"acum": acum, "equilibrio": equilibrio, "ano_sim": ano_esperado}, f_acum)
@@ -394,6 +422,13 @@ def combinar(acum, equilibrio, info, cumple, procedencia=None, anos=None):
     for k, _ in DIARIOS_I16:                        # 3.15.0 (None si los años no los tenian)
         r[k] = m.get(k)
     r["extremos"] = {k: v for k, v in acum.ext.items()}
+    # 3.21.0: medias zonales por nivel y por dia (solo si las tienen TODOS los años registrados)
+    z = getattr(acum, "zonal", None)
+    if z is not None and getattr(acum, "n_zonal", 0) == n:
+        from fase6_zonal import combinar as combinar_zonal
+        r["zonal"] = {**combinar_zonal([(z["sumas"], z["geo"])]), "anos": n}
+    else:
+        r["zonal"] = None
     # varianza entre años (n-1), con las desviaciones respecto al primer año: sum(d^2) - (sum d)^2 / n
     var = lambda k: np.maximum(acum.suma2[k] - acum.suma2[k + "_d"] ** 2 / n, 0.0) / max(n - 1, 1)
     r["desviacion_entre_anos"] = {"reg_media": np.sqrt(var("reg_media")),

@@ -17,6 +17,13 @@
 #                       2). Solo con --anos (son climatologias exploratorias, no el clima oficial). Van a su propia
 #                       carpeta, y el modelo de partida del arranque usa la misma capa de mezcla (su difusion, no).
 #
+#     --continuar-desde CARPETA
+#                       3.21.0: una climatologia NUEVA que empieza en el estado final de otra ya terminada (en
+#                       equilibrio y sin deriva) del mismo mapa y la misma configuracion, sin repetir el arranque ni
+#                       el equilibrio. Se copian su punto de control y su arranque; queda escrito en origen.json, en
+#                       el resumen y en la exportacion. Para rehacer la climatologia con diagnosticos nuevos (las
+#                       medias zonales por nivel de la 3.21.0) sin repetir los años de equilibrio.
+#
 # - Barra de progreso: fase, año, % del año, velocidad y tiempo restante del año.
 # - Una linea por año en pantalla y en <carpeta>/registro.txt.
 # - PUNTO DE CONTROL: si se corta (Ctrl+C, apagon...), la MISMA orden continua donde iba (el resultado es el
@@ -37,6 +44,7 @@ ap.add_argument("--anos", type=int, default=None, help="climatologia exploratori
 ap.add_argument("--carpeta", default=None)
 ap.add_argument("--oceano-difusion", type=float, default=1.0, help="sensibilidad: factor de D_oc (con --anos)")
 ap.add_argument("--oceano-capa-mezcla", type=float, default=1.0, help="sensibilidad: factor de la capa de mezcla (con --anos)")
+ap.add_argument("--continuar-desde", default=None, help="3.21.0: carpeta de una climatologia terminada de la que partir")
 args = ap.parse_args()
 SENSIBILIDAD = {"oceano_difusion": args.oceano_difusion, "oceano_capa_mezcla": args.oceano_capa_mezcla}
 ES_SENSIBILIDAD = any(v != 1.0 for v in SENSIBILIDAD.values())
@@ -65,7 +73,7 @@ from fase1_geografia import ALBEDO_POR_TIPO, INERCIA_POR_TIPO
 from cache_simulacion import precalcular_orbita_cacheada
 from rejilla import LATITUDES_GRADOS
 
-VERSION = "3.20.0"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
+VERSION = "3.21.0"   # version de M3N (SemVer, NOMENCLATURA.md): la de README.md y la primera de CHANGELOG.md
 
 
 def main():
@@ -124,6 +132,8 @@ def main():
     if guardada is None and ES_SENSIBILIDAD:
         with open(f_sens, "w", encoding="utf-8") as f:
             json.dump(SENSIBILIDAD, f)
+    origen = preparar_continuacion(args.continuar_desde, carpeta, informar) if args.continuar_desde else \
+        leer_origen(carpeta)
     I = dict(F.INTERRUPTORES_FASE2B)
     for k in ("atmosfera_multicapa", "ciclo_agua", "conveccion_humeda", "suelo_termico_agua", "albedo_espectral",
               "nucleo_dinamico"):
@@ -189,10 +199,72 @@ def main():
     r["mapa"] = {"nombre": nombre, "huella": huella_mapa(tipo, alt)} if args.tierra else \
         {"nombre": nombre_mapa, "huella": huella_mapa(tipo, alt)}
     r["sensibilidad"] = dict(SENSIBILIDAD)          # 4.0.0: factores del oceano (1 y 1 = el modelo tal cual)
+    r["origen"] = origen                            # 3.21.0: climatologia continuada desde otra (o None)
     with open(os.path.join(carpeta, "resultado.pkl"), "wb") as f:
         pickle.dump(r, f)
     escribir_resumen(r, carpeta, time.time() - t0, len(orbita))
     informar(f"Terminado. Resumen en {os.path.join(carpeta, 'resumen.txt')}")
+
+
+def leer_origen(carpeta):
+    """3.21.0: el origen.json de una climatologia continuada desde otra (o None)."""
+    import json
+    f = os.path.join(carpeta, "origen.json")
+    if not os.path.exists(f):
+        return None
+    with open(f, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def preparar_continuacion(origen, carpeta, informar):
+    """3.21.0: prepara <carpeta> para una climatologia nueva que parte del estado final de <origen>. Solo la primera
+    vez (si la carpeta ya tiene su simulacion, se continua esa y se comprueba que el origen es el mismo)."""
+    import hashlib
+    import json
+    import shutil
+    origen = os.path.abspath(origen)
+    if os.path.abspath(carpeta) == origen:
+        sys.exit("--continuar-desde tiene que ser OTRA carpeta")
+    ya = leer_origen(carpeta)
+    if ya is not None:
+        if ya["carpeta"] != origen:
+            sys.exit(f"{carpeta} ya continua desde {ya['carpeta']}, no desde {origen}")
+        return ya
+    if any(os.path.exists(os.path.join(carpeta, n)) for n in ("estado_i16.pkl", "climatologia.pkl", "resultado.pkl")):
+        sys.exit(f"{carpeta} ya tiene una simulacion propia: usa una carpeta nueva para --continuar-desde")
+    for n in ("estado_i16.pkl", "climatologia.pkl", "arranque_dos_capas.pkl", "resultado.pkl"):
+        if not os.path.exists(os.path.join(origen, n)):
+            sys.exit(f"{origen} no tiene {n}: no es una climatologia terminada")
+    with open(os.path.join(origen, "climatologia.pkl"), "rb") as fh:
+        cl = pickle.load(fh)
+    with open(os.path.join(origen, "estado_i16.pkl"), "rb") as fh:
+        ck = pickle.load(fh)
+    if not ck["registrado"] or ck["ano"] != cl["ano_sim"]:
+        sys.exit(f"el punto de control de {origen} no es el del final de su climatologia (¿esta a medias?)")
+    if not cl["equilibrio"]["convergido"] and not args.dias:          # con --dias (solo pruebas) no se exige
+        sys.exit(f"{origen} no llego al equilibrio: no sirve de partida")
+    with open(os.path.join(origen, "resultado.pkl"), "rb") as fh:
+        ro = pickle.load(fh)
+    if (ro.get("sensibilidad") or {"oceano_difusion": 1.0, "oceano_capa_mezcla": 1.0}) != SENSIBILIDAD:
+        sys.exit(f"{origen} es de otra configuracion del oceano")
+    d = ro.get("climatologia", {}).get("deriva") or {}
+    if d.get("hay_deriva"):
+        sys.exit(f"{origen} tiene deriva: no es un estado de equilibrio")
+    os.makedirs(carpeta, exist_ok=True)
+    for n in ("arranque_dos_capas.pkl", "estado_i16.pkl"):
+        shutil.copyfile(os.path.join(origen, n), os.path.join(carpeta, n))
+    # el comienzo del año siguiente: fase6_clima lo lee como el "estado previo" (el del final de la otra climatologia)
+    shutil.copyfile(os.path.join(origen, "estado_i16.pkl"), os.path.join(carpeta, "estado_i16.pkl.previo"))
+    with open(os.path.join(origen, "estado_i16.pkl"), "rb") as fh:
+        huella = hashlib.sha256(fh.read()).hexdigest()
+    info = {"carpeta": origen, "ano_simulado": int(ck["ano"]), "anos_equilibrio_origen": int(cl["equilibrio"]["anos"]),
+            "anos_climatologia_origen": int(cl["acum"].n), "sha256_estado": huella,
+            "procedencia_origen": ro.get("climatologia", {}).get("procedencia", [])}
+    with open(os.path.join(carpeta, "origen.json"), "w", encoding="utf-8") as fh:
+        json.dump(info, fh, indent=1, ensure_ascii=False)
+    informar(f"Climatologia NUEVA desde el estado final de {origen} (año simulado {info['ano_simulado']}: "
+             f"{info['anos_equilibrio_origen']} de equilibrio y {info['anos_climatologia_origen']} de climatologia)")
+    return info
 
 
 def escribir_resumen(r, carpeta, segundos, pasos_ano):
@@ -210,6 +282,11 @@ def escribir_resumen(r, carpeta, segundos, pasos_ano):
          "Validacion frente a la Tierra real (solo modo Tierra): python validar_i16.py",
          "",
          f"EQUILIBRIO: convergido {eq['convergido']} tras {eq['anos']} años"]
+    og = r.get("origen")
+    if og:                                          # 3.21.0
+        L[-1] = (f"EQUILIBRIO: el de {og['carpeta']} ({og['anos_equilibrio_origen']} años de equilibrio y "
+                 f"{og['anos_climatologia_origen']} de climatologia antes de esta; año simulado de partida "
+                 f"{og['ano_simulado']}). Esta climatologia continua desde su estado final.")
     for k, (val, umbral, cumple) in eq["valores"].items():
         L.append(f"  {k:11s} {val:+.5f} (umbral {umbral}) {'ok' if cumple else 'NO'}")
     s = eq["serie"]
@@ -249,8 +326,13 @@ def escribir_resumen(r, carpeta, segundos, pasos_ano):
     for t in tramos:
         L.append(f"  desde el año simulado {t['ano_sim']:3d} ({t['anos_registrados']:2d} registrados): M3N {t['version']}, "
                  f"codigo {t['codigo']} ({t['fecha']})")
-    if tramos and tramos[0]["ano_sim"] > 0:
+    if og:
+        L.append(f"  los {og['ano_simulado']} años anteriores son de {og['carpeta']} (su procedencia: "
+                 + ", ".join(f"M3N {t['version']} {t['codigo']}" for t in og.get("procedencia_origen", [])) + ")")
+    elif tramos and tramos[0]["ano_sim"] > 0:
         L.append(f"  AVISO: los {tramos[0]['ano_sim']} primeros años se hicieron antes de la 3.14.0 (codigo no registrado)")
+    z = r.get("zonal")
+    L.append("  medias zonales por nivel (corte vertical de H3N): " + (f"si, {z['anos']} años" if z else "no"))
     if len({t["codigo"] for t in tramos}) > 1:
         L.append("  AVISO: la simulacion mezcla versiones del codigo")
     L += ["", "BANDAS (latitud, aire 2 m C, precipitacion mm/dia):"]
