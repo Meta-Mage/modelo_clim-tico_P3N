@@ -67,8 +67,18 @@ def seccion_a(t, res):
                explicable=False)
     # A3: equilibrio
     conv = re.search(r"EQUILIBRIO: convergido (\w+) tras (\d+)", res)
-    t.criterio("A3", "equilibrio", conv.group(1) == "True", f"convergido {conv.group(1)} tras {conv.group(2)} años",
-               explicable=False)
+    # 3.22.1: una climatologia continuada (clima_dinamico.py --continuar-desde) hereda el equilibrio de la de partida;
+    # clima_dinamico.py solo deja continuar desde una climatologia que convergio y no tiene deriva
+    heredado = re.search(r"EQUILIBRIO: el de (.+?) \((\d+) años de equilibrio", res)
+    if conv:
+        t.criterio("A3", "equilibrio", conv.group(1) == "True", f"convergido {conv.group(1)} tras {conv.group(2)} años",
+                   explicable=False)
+    elif heredado:
+        t.criterio("A3", "equilibrio", True, f"heredado: continua desde el estado final de {heredado.group(1)} "
+                   f"({heredado.group(2)} años de equilibrio; solo se puede continuar desde un equilibrio sin deriva)",
+                   explicable=False)
+    else:
+        raise ValueError("el resumen no dice nada del equilibrio")
     # A4: cierres por año
     filas = re.findall(rf"^\s*\d+: cierre energia ({NUM}) \| error dinamica ({NUM}) W/m2 \| resto ({NUM}) \| agua atm ({NUM}) tierra ({NUM})",
                        res, re.M)
@@ -78,11 +88,16 @@ def seccion_a(t, res):
                e_max < COTA_ENERGIA and a_max < COTA_AGUA, f"max energia {e_max:.2e}, max agua {a_max:.2e} ({len(v)} años)",
                explicable=False)
     # A5: N del equilibrio y del año extra, y el error de la dinamica sin tendencia (Santer et al. 2000)
-    n_eq = num(rf"^\s*N\s+({NUM}) \(umbral", res)
     b, sb, p, _ = tendencia_santer(v[:, 1])
-    t.criterio("A5", "error de la dinamica controlado", abs(n_eq) < UMBRAL_N and p >= 0.05,
-               f"N del equilibrio {n_eq:+.3f} W/m2; error medio {v[:, 1].mean():.3f} W/m2, tendencia {b:+.4f} ± {sb:.4f} "
-               f"/año (p {p:.3f})", explicable=False)
+    if heredado:                    # el N del equilibrio es el de la de partida (no el de esta)
+        t.criterio("A5", "error de la dinamica controlado", p >= 0.05,
+                   f"N del equilibrio: el de la de partida; error medio {v[:, 1].mean():.3f} W/m2, tendencia {b:+.4f} ± "
+                   f"{sb:.4f} /año (p {p:.3f})", explicable=False)
+    else:
+        n_eq = num(rf"^\s*N\s+({NUM}) \(umbral", res)
+        t.criterio("A5", "error de la dinamica controlado", abs(n_eq) < UMBRAL_N and p >= 0.05,
+                   f"N del equilibrio {n_eq:+.3f} W/m2; error medio {v[:, 1].mean():.3f} W/m2, tendencia {b:+.4f} ± "
+                   f"{sb:.4f} /año (p {p:.3f})", explicable=False)
     # A6: sin deriva
     sin = "sin deriva significativa" in res
     t.criterio("A6", "sin deriva significativa (Santer + BH)", sin,

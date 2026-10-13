@@ -7,6 +7,37 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.23.0] — 2026-10-13
+
+- Fase: 5.2 (radiación por bandas y nubes).
+- Clima exportado: no cambia (el modelo no cambia: todo lo nuevo está sin conectar).
+- Pruebas: 305 (75 nuevas; se saltan, como en la 3.22.0, las que necesitan miepython, PythonicDISORT, hitran-api o el archivo de MT_CKD si no están).
+- MENOR (NOMENCLATURA §3): módulos, datos y herramientas nuevos.
+
+### Añadido
+- `fase52_indices.py` y `datos/indices_refraccion_agua_hielo.npz` (0,8 MB, dominio público): índices de refracción del agua líquida con la temperatura (Rowe et al. 2020, de 240 a 273 K, y Hale y Querry 1973 como nodo de 298 K) y del hielo (Warren y Brandt 2008); decisión técnica T17 (`DISENO_FASE_5.2.md` §7). `herramientas/preparar_indices_refraccion.py` rehace el archivo, byte a byte, desde la base de refractiveindex.info con el commit y las huellas fijados.
+- `fase52_optica_nubes.py`: propiedades ópticas de las gotas de las nubes por banda (β, ω, g) con el Mie propio y los índices de T17; promedio de banda pesado con la fuente (T18).
+- `fase52_infrarrojo.py`: el infrarrojo por bandas: emisión de Planck por bandas (las colas, a la primera y la última: T20), el dos flujos de M3N para un conjunto de términos (T5; difusividad 1,66: T19), el agrupamiento fijo de números de onda y el promedio de la transmisión de ecCKD (T9), el solapamiento aleatorio con reordenación (para comparar) y `TablasInfrarrojo`, que calcula los flujos de una columna con las tablas.
+- `fase52_referencia.py`: columnas de prueba de P3N («ref», «tropical» y «polar») y el cálculo línea a línea de una columna.
+- `fase52_mapa.py`: las tablas k con mapa espectral fijo (decisión T9): el mapa de cada banda, el k de cada gas en cada grupo y las fracciones de Planck.
+- `herramientas/medir_solapamiento.py`: mide, banda a banda y en las tres columnas, el error de cada forma de tratar el solapamiento de gases frente al línea a línea, y con `--interpolar` el de interpolar en la rejilla de las tablas; `--hilos` reparte las bandas.
+- `fase52_rayleigh.py`: la dispersión de Rayleigh gas a gas (N₂, O₂, Ar, CO₂) con índices de refracción medidos y factores de King (T22); comprobada frente a Bodhaine et al. 1999 y Peck y Reeder 1972.
+- `herramientas/descargar_luz.py` y `fase52_luz.py`: descarga en el PC y lectores de los datos de la luz: espectro de la estrella (PHOENIX), ozono en el ultravioleta y el visible (Serdyuchenko et al. 2014) y absorción inducida por colisiones (HITRAN2024).
+- `fase52_ozono.py`: el ozono prescrito de P3N (propuesta, pendiente de Carlos): forma de la Tierra y columna de ~180 DU.
+- `fase52_nubes_solape.py`: solapamiento exponencial-aleatorio de las nubes entre capas (Hogan e Illingworth 2000; longitud de decorrelación de Shonk et al. 2010) y subcolumnas McICA (Pincus et al. 2003) con el algoritmo del generador de ecRad (T23).
+- `datos/optica_gotas_infrarrojo.npz` y `herramientas/generar_optica_gotas.py`: la óptica de las gotas en las 16 bandas del infrarrojo (radio efectivo de 2 a 40 µm, de 240 a 298 K); `fase52_optica_nubes.TablaGotas` la interpola.
+- `fase52_optica_nubes.radio_efectivo_um`: el radio efectivo de las gotas (Martin et al. 1994 con las constantes del IFS y la corrección de Wood 2000; T24).
+- `DISENO_FASE_5.2.md` §7: el diseño de las nubes, con las propuestas que decide Carlos.
+- Pruebas nuevas: `test_fase52_indices.py`, `test_fase52_infrarrojo.py`, `test_medir_solapamiento.py`, `test_generar_tablas_k.py`, `test_fase52_rayleigh.py`, `test_fase52_luz.py`, `test_fase52_ozono.py`, `test_fase52_nubes_solape.py`.
+
+### Corregido
+- `analizar_p3n.py` y `herramientas/criterio_cierre_6_3.py` con una climatología continuada (`--continuar-desde`): los bloqueantes daban «resumen incompleto» porque no hay fase de equilibrio propia, y la cabecera decía «equilibrio tras 45 años: False». Ahora A3 y A5 se leen como heredados de la climatología de partida (solo se puede continuar desde un equilibrio sin deriva) y la cabecera dice de dónde continúa. Visto en el análisis de la 3.21.0 (PC de Carlos, 13/10/2026).
+
+### Cambiado
+- `herramientas/generar_tablas_k.py`: las tablas del infrarrojo se hacen con el mapa espectral fijo (T9), en dos fases (mapas de las bandas y casillas). La rejilla de la tabla cambia: temperaturas cada 15 K (13; antes 7, cada 30 K: medido, el error de interpolar baja de 0,28 a 0,05–0,13 W/m² en la banda del continuo) y la fracción del vapor en 7 valores logarítmicos de 10⁻⁶ a 6·10⁻² (T21; antes 0, 0,01 y 0,04). Solo las 16 bandas del infrarrojo: las de la luz esperan al espectro de S3N. Las tablas de la 3.22.0 no se llegaron a calcular.
+- `DISENO_FASE_5.2.md` §7: T9 (medida y decisión), T15 revisada, T17 a T21.
+- `FICHA_COMPOSICION_P3N.md`: el rango del metano (Loulergue et al. 2008) queda comprobado en el artículo y en sus datos; el valor sorteado no cambia.
+
 ## [3.22.0] — 2026-10-12
 
 - Fase: 6.4 (análisis de P3N) y 5.2 (tablas k y dos flujos de la luz).

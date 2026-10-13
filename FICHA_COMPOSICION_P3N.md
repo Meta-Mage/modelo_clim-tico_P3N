@@ -147,7 +147,7 @@ Hoy M3N supone que el aire de P3N es "como el de la Tierra", sin cifras concreta
 |---|---|---|
 | CO₂ | **172–300 ppm** | Lüthi et al. 2008, *Nature* 453, 379 ✅ (resumen: «extends the pre-industrial range… to 172–300 p.p.m.v.») |
 | N₂O | **~200–270 ppb** | Schilt et al. 2010 ✅ (últimos 140 000 años: ~200 en las glaciaciones, ~270 a comienzos del Holoceno) |
-| CH₄ | **~350–800 ppb** | Loulergue et al. 2008, *Nature* 453, 383 ⚠️ (las cifras exactas, por comprobar en el artículo) |
+| CH₄ | **~350–800 ppb** | Loulergue et al. 2008, *Nature* 453, 383, doi:10.1038/nature06950 ✅ (resumen: «entre ~350 y ~800 ppbv» en los últimos 650 000 años; comprobado además en sus datos, NOAA WDS Paleo 2008-054, `edc-ch4-2008.txt`: de 342 a 798 ppbv entre 0 y 746 600 años; los últimos ~53 000 años del archivo no se pudieron leer) |
 
 **Una mejora que propongo, 🔶 para decidir.** En la Tierra, los tres gases suben y bajan **juntos**: en las glaciaciones están todos bajos y en los interglaciares, todos altos, porque responden al mismo estado del clima y de la biosfera. Sortearlos por separado podría dar combinaciones que nunca se han dado, como el CO₂ de una glaciación con el metano de un interglaciar.
 
@@ -203,7 +203,7 @@ Programa: `herramientas/sorteo_composicion.py` de M3N (cualquiera lo repite y da
 |---|---|---|
 | Posición glaciación (0) – interglaciar (1) | **s = 0,027** | preindustrial ≈ 0,8–0,9 |
 | CO₂ | **174,7 ppm** | 280 ppm preindustrial |
-| CH₄ | **358 ppb** (⚠️ cambiará algo si los límites de Loulergue et al. difieren de 350–800; s no cambia) | ~700 ppb preindustrial |
+| CH₄ | **358 ppb** (límites de Loulergue et al. comprobados el 13/10: no cambia) | ~700 ppb preindustrial |
 | N₂O | **201,9 ppb** | ~270 ppb preindustrial |
 | O₂ | **18,88 %** | 20,95 % |
 

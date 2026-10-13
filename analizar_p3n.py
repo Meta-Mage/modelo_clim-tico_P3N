@@ -274,8 +274,14 @@ def parte_1(rc, tipo, cal, L, campos):
     from validar_i16 import transporte
     clim = rc["climatologia"]
     es_tierra = np.asarray(tipo) == TIERRA
-    L.append(f"B. CLIMATOLOGIA DE P3N: {clim['anos_promediados']} años (equilibrio tras {clim['equilibrio']['anos']} "
-             f"años: {clim['equilibrio']['convergido']})")
+    og = rc.get("origen")
+    if og:          # 3.22.1: continuada desde otra (clima_dinamico.py --continuar-desde): su equilibrio es el de la otra
+        L.append(f"B. CLIMATOLOGIA DE P3N: {clim['anos_promediados']} años, continuada desde el estado final de "
+                 f"{og['carpeta']} ({og['anos_equilibrio_origen']} años de equilibrio y {og['anos_climatologia_origen']} "
+                 "de climatologia)")
+    else:
+        L.append(f"B. CLIMATOLOGIA DE P3N: {clim['anos_promediados']} años (equilibrio tras {clim['equilibrio']['anos']} "
+                 f"años: {clim['equilibrio']['convergido']})")
     L.append(f"   Año orbital: periastro el dia {cal['d_peri']} (luz en el tope {cal['toa_peri']:.1f} W/m2), apoastro el"
              f" dia {cal['d_apo']} ({cal['toa_apo']:.1f} W/m2). Temporadas: un cuarto de año centrado en cada uno.")
     L.append("")

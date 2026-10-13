@@ -196,6 +196,7 @@ Formato **MAYOR.MENOR.ARREGLO** ([semver.org](https://semver.org/lang/es/)), ada
 | 033 | — | H3N v0.2.3 |
 | 034 | — | H3N v0.2.4 |
 | 035 | — | v3.22.0 (la primera versión de este paquete se llamó 3.21.1 por error: no se aplicó) |
+| 036 | — | v3.23.0 |
 
 ---
 

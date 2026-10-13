@@ -266,9 +266,123 @@ Carlos delega las decisiones técnicas que no son de worldbuilding ni de princip
   - el límite de Rayleigh;
   - la paradoja de la extinción (Q_ext → 2);
   - una nube de r_e = 10 µm: en el visible da Q_ext ≈ 2,09, ω ≈ 1 y g ≈ 0,865, lo típico de las nubes de agua; a 3 µm el agua absorbe (ω ≈ 0,52).
-- **Faltan los índices de refracción del agua y del hielo** (fuentes por elegir: Hale y Querry 1973, Segelstein 1981 y Warren y Brandt 2008 ⚠️).
+- ~~Faltan los índices de refracción del agua y del hielo~~: hechos el 13/10 (T17, abajo).
+
+**Índices de refracción del agua y del hielo (3.23.0):** `fase52_indices.py` y el archivo `datos/indices_refraccion_agua_hielo.npz` (0,8 MB, en el repositorio).
+- **De dónde salen:** la base de datos de refractiveindex.info (Polyanskiy 2024, *Sci. Data* 11, 94 ⚠️), de **dominio público** (CC0), en GitHub, con el commit fijado (`c5c2f18`) y la huella sha256 de cada archivo. `herramientas/preparar_indices_refraccion.py` rehace el `.npz` y da el mismo archivo, byte a byte.
+- **Decisión técnica T17 (provisional):**
+  - **Agua líquida:** Rowe, Fergoda y Neshyba 2020 (*J. Geophys. Res. Atmos.* 125, e2020JD032624 ✅: resumen leído el 13/10; índices a 240, 253, 263 y 273 K de 1 a 15 000 cm⁻¹, k de la literatura entre 238 y 298 K y n por Kramers-Kronig). Como nodo de 298 K, Hale y Querry 1973 (*Appl. Opt.* 12, 555 ⚠️), el dato clásico a 25 °C. La temperatura se interpola entre 240 y 298 K.
+  - **Por qué con temperatura:** las nubes de agua subfundida son comunes y en el infrarrojo el índice cambia mucho. Medido en los datos: k a 12 µm vale 0,31 a 240 K y 0,20 a 298 K. Rowe et al. muestran que ignorarlo sesga los flujos de esas nubes (hacia arriba entre 250 y 580 cm⁻¹ y hacia abajo entre 710 y 940 cm⁻¹).
+  - **Por qué Hale y Querry y no Segelstein 1981 a 298 K:** comparado con los datos de Rowe et al., Hale y Querry sigue su tendencia con la temperatura (por ejemplo, n a 10 µm: 1,202 a 253 K, 1,209 a 273 K y 1,218 a 298 K); Segelstein queda fuera de ella (1,193).
+  - **Por debajo de 0,667 µm**, donde el agua casi no absorbe, solo Hale y Querry. **Por encima de 200 µm**, solo Rowe et al. (y por encima de 273 K, el valor de 273 K): ahí el salto llega a 0,13 en n, pero por debajo de 50 cm⁻¹ está menos del 0,1 % de la emisión térmica (medido).
+  - **Hielo:** Warren y Brandt 2008 (*J. Geophys. Res.* 113, D14220), a 266 K, sin temperatura (limitación declarada ⚠️). Comprobado frente a la tabla impresa de los autores en 9 longitudes de onda: idéntico.
+  - Interpolación lineal en log λ para n y log k, y lineal en la temperatura.
+
+**Óptica de las gotas por banda (3.23.0):** `fase52_optica_nubes.py`, con Mie propio y T17.
+- Para una población de gotas (gamma de Hansen y Travis), da por banda el coeficiente de extinción másico β (m²/kg; el espesor óptico de una nube es β por su agua líquida), el albedo de dispersión simple ω y el factor de asimetría g.
+- **Decisión técnica T18 (provisional):** promedio "fino" en la banda (Edwards y Slingo 1996 ⚠️), pesado con la fuente: la luz de la estrella en la onda corta y Planck a la temperatura de la nube en el infrarrojo. Es exacto para capas finas; el error con nubes gruesas se medirá en la validación (§4).
+- **Probado** (18 pruebas, `test_fase52_indices.py`): el archivo de datos; el hielo igual que la tabla de Warren y Brandt; el agua igual que sus datos en los nodos; la interpolación en temperatura; los saltos de las costuras, medidos; en el visible, β ≈ 157 m²/kg con r_e = 10 µm (Q_ext ≈ 2,09, la fórmula de Stephens); las fórmulas del promedio; y que el efecto de la temperatura va en el sentido que describen Rowe et al.
+- **Pendiente:** el radio efectivo de las gotas (depende de los aerosoles, ficha §6.4) y el hielo de las nubes (no esférico).
 
 **Coste estimado en el PC (orientativo):** del orden de **una noche** (~6–9 h con 11 hilos), dominada por el vapor. `--prueba` lo mide primero con 4 bandas y 3 alturas. Antes hay que volver a lanzar `descargar_hitran.py` para que escriba `isotopologos.json`; no repite la descarga.
+
+**El infrarrojo por bandas y el solapamiento de los gases (3.23.0, 13/10/2026):** `fase52_infrarrojo.py`, `fase52_referencia.py`, `fase52_mapa.py`, `herramientas/medir_solapamiento.py` y el generador nuevo.
+
+- **Decisión técnica T19 (provisional): factor de difusividad 1,66** (Elsasser 1942 ⚠️): el flujo difuso de una capa de espesor óptico vertical τ se transmite como e^(−1,66 τ). Es lo habitual en el infrarrojo (RRTMG, ecRad ⚠️). Su error frente al cálculo con varias direcciones se medirá en la validación (§4).
+- **Decisión técnica T20 (provisional):** la emisión que cae fuera de las bandas (por debajo de 10 cm⁻¹ y por encima de 3250 cm⁻¹) se suma a la primera y a la última banda, para que las bandas sumen exactamente σT⁴ y la energía cierre. Medido: fuera queda menos del 0,05 % de σT⁴ entre 150 y 330 K.
+- **El dos flujos** es el mismo de M3N (T5): fuente de Planck lineal en τ. Probado: igual que las recurrencias de `fase30_multicapa`; exacto en una atmósfera isoterma; partir cada capa en 7 no cambia nada (10⁻¹²).
+
+**Decisión técnica T9: el solapamiento de los gases, medido.** Cuando varios gases absorben en la misma banda, hay que decidir cómo se combinan sus tablas. Se midieron las opciones de la literatura frente al cálculo línea a línea (`herramientas/medir_solapamiento.py`):
+- **Datos de la medida:** líneas reales de HITRAN2016 de H₂O, CO₂ y N₂O (las que trae el repositorio público PyRADS, Koll y Cronin; solo los isotopólogos principales, de 0 a 5000 cm⁻¹; solo para medir, no se distribuyen) y MT_CKD 4.3; en el PC de Carlos se repetirá con HITRAN2020 completo (con O₃ y CH₄).
+- **Columnas:** tres columnas de prueba con los niveles de M3N y la composición sorteada de P3N (`fase52_referencia.py`): «ref» (suelo a 288 K, 21 kg/m² de agua precipitable), «tropical» (300 K) y «polar» (255 K, casi seca). Los agrupamientos fijos se hacen siempre con «ref»: las otras dos miden si sirven fuera de ella.
+- **Métodos comparados**, todos con 16 puntos g (T6):
+  - **PM:** la mezcla ordenada capa a capa (k correlacionado «premezclado»); con **+fr**, con la fracción de Planck de cada punto g;
+  - **RORR:** cada gas con su tabla y solapamiento aleatorio con reordenación y reagrupamiento (Lacis y Oinas 1991 ⚠️; formulación de Amundsen et al. 2017, *A&A* 598, A97 ✅);
+  - **SUMA:** cada gas con su tabla, sumadas como si estuvieran correlacionadas (lo ingenuo);
+  - **MAPA:** cada número de onda se asigna una vez a un grupo según lo hondo que llega su luz en la columna «ref» (el nivel donde τ desde arriba llega a 1), y cada gas se promedia en cada grupo conservando su transmisión difusa media pesada con Planck: es el método de ecCKD (Hogan y Matricardi 2022, *JAMES* 14, e2022MS003033 ✅t; promedio «transmission» leído en su código, Apache 2.0 ✅). La fracción de Planck de cada grupo es exacta.
+- **Resultado** (bandas 0 a 7 y 13, las que tienen solapamiento en estos datos; suma de los errores absolutos de cada banda, W/m²; peor error de calentamiento de una banda, K/día):
+
+| Método | «ref»: al espacio · al suelo | «tropical» | «polar» | peor calentamiento |
+|---|---|---|---|---|
+| SUMA | 4,78 · 3,83 | 5,04 · 1,67 | 2,50 · 6,58 | 0,18 |
+| RORR | 1,90 · 1,47 | 2,08 · 1,19 | 1,13 · 1,71 | 0,18 |
+| PM | 1,68 · 0,84 | 1,75 · 0,58 | 1,09 · 1,01 | 0,18 |
+| PM+fr | 0,81 · 0,30 | 0,93 · 0,15 | 0,27 · 0,61 | 0,03 |
+| **MAPA** | **0,35 · 0,21** | **0,33 · 0,32** | 0,61 · 1,10 | **0,04** |
+
+- **Lectura:**
+  - Sumar las tablas sin más se equivoca hasta 5 W/m²: el solapamiento hay que tratarlo.
+  - La fracción de Planck de cada punto g importa tanto como el solapamiento: sin ella, en la banda ancha de 10–350 cm⁻¹ el flujo al espacio se equivoca en −0,75 W/m² (con ella, −0,04 con MAPA).
+  - MAPA y PM+fr son los mejores, del orden de una décima de W/m² por banda. MAPA es mejor en «ref» y «tropical»; en la columna «polar», muy seca, su error crece: el peor caso es la banda de 500–630 cm⁻¹, +0,54 W/m² al suelo, frente a −0,33 de PM+fr (con 32 grupos, +0,48: el número de grupos no lo arregla; es el agrupamiento hecho con una columna húmeda).
+- **Decisión T9 (provisional): MAPA.** Con errores del mismo orden que la mejor alternativa:
+  - **sirve para cualquier composición**, porque los gases se suman: el CO₂ se puede cambiar por worldbuilding sin rehacer las tablas (con PM habría que rehacerlas: una noche de cálculo cada vez) y el ozono puede variar de un sitio a otro;
+  - **cuesta lo mismo que un solo gas** en el modelo (RORR obliga a ordenar en cada capa y en cada llamada: Amundsen et al. lo descartan para modelos 3D por lento);
+  - la fracción de Planck de cada grupo es exacta y depende solo de la temperatura.
+- **Decisión técnica T21 (provisional): el vapor, con su cantidad.** Para el vapor, que cambia mucho de un sitio a otro, la cantidad con la que se promedia en cada grupo es la de su propia fracción molar en esa casilla de la tabla. Por eso la dimensión del vapor pasa a ser logarítmica: 1·10⁻⁶, 10⁻⁵, 10⁻⁴, 10⁻³, 4·10⁻³, 1,5·10⁻² y 6·10⁻². Medido: promediar el vapor con la cantidad de la columna «ref» empeora la polar (en la banda de 500–630 cm⁻¹, de +0,54 a −1,08 W/m² al suelo); con su propia cantidad queda como MAPA.
+- **T15 revisada: temperaturas cada 15 K** (150–330 K, 13 en lugar de 7), interpolando ln k linealmente en T. Medido con `medir_solapamiento.py --interpolar` en la banda de 820–980 cm⁻¹ (la del continuo del vapor, la más sensible a la temperatura), error al suelo por interpolar en la rejilla:
+
+| Rejilla e interpolación | «ref» | «tropical» | «polar» |
+|---|---|---|---|
+| cada 30 K, lineal en k | 0,62 | 0,82 | 0,02 |
+| cada 30 K, ln k lineal en T | 0,28 | 0,29 | 0,00 |
+| cada 30 K, ln k lineal en 1/T | 0,19 | 0,17 | 0,01 |
+| **cada 15 K, ln k lineal en T** | **0,05** | **0,13** | **0,00** |
+
+  (W/m²; sin interpolar, el mapa solo: 0,01, 0,05 y 0,00). El coste del generador crece en proporción (13/7).
+- **Limitaciones declaradas:**
+  - con 16 grupos y un solo agrupamiento, el error crece en columnas muy secas (≲ 0,5 W/m² por banda en la peor medida);
+  - si hiciera falta, la mejora conocida es la partición en «hipercubo» de ecCKD (cada gas con sus propios grupos) o ajustar las tablas contra el línea a línea, como hace ecCKD.
+- **Las tablas de la luz** se harán con el mismo método cuando esté el espectro de S3N (la ponderación es la de la estrella), con el agrupamiento por la profundidad a la que τ llega a 0,25, como ecCKD.
+
+**El generador, adaptado (3.23.0):** `herramientas/generar_tablas_k.py` hace ahora las tablas del infrarrojo con MAPA, en dos fases:
+- los mapas de cada banda (`mapas/mapa_bNN.npz`, con la columna «ref»; como mucho 3 a la vez por memoria);
+- las casillas: cada gas, presión, temperatura (y fracción de vapor), promediado en los grupos.
+- Salida: `tabla_k_<GAS>.npz` y `mapas_infrarrojo.npz` (peso de cada grupo y su fracción de Planck de 100 a 350 K).
+- Las tablas de la 3.22.0 (una distribución k por casilla) no se llegaron a calcular: no se pierde nada.
+- `fase52_infrarrojo.TablasInfrarrojo` lee las tablas y calcula los flujos de una columna: interpolación en ln p, T y ln de la fracción de vapor, de ln k.
+- **Probado de punta a punta** (`test_generar_tablas_k.py`, con líneas sintéticas): tablas del generador → flujos, frente al línea a línea: −0,036 W/m² al espacio y −0,041 al suelo con 288 K (en bandas de ~10 y ~29 W/m²); −0,018 y −0,033 con 255 K.
+
+**La luz: Rayleigh, datos y ozono (3.23.0, 13/10/2026, tarde):**
+- **Decisión técnica T22 (provisional): la dispersión de Rayleigh, gas a gas** (`fase52_rayleigh.py`). La sección eficaz de cada gas sale de su índice de refracción medido y su factor de King, y la del aire es la suma pesada por la composición. Así sirve para el aire de P3N, con un 18,9 % de O₂.
+  - Fuentes: N₂, Peck y Khanna 1966; O₂, Zhang et al. 2008 y, por debajo de 0,288 µm, la tabla de Smith et al. 1976 (la fórmula de Zhang extrapolada se queda un 3,5 % corta a 0,2 µm); Ar, Peck y Fisher 1964; CO₂, Bideau-Mehu et al. 1973 (de la base de refractiveindex.info, dominio público). Factores de King de Bates 1984 (como Bodhaine et al. 1999).
+  - Comprobado: la mezcla de la Tierra reproduce el índice del aire de Peck y Reeder 1972 dentro del 0,1 % de 0,25 a 1,5 µm, y la sección a 550 nm, 4,5112·10⁻²⁷ cm², la de Bodhaine et al. 1999 (4,5105·10⁻²⁷) dentro del 0,02 %.
+  - Para P3N, la sección por molécula es un 0,1–0,3 % mayor que en la Tierra (más N₂ en lugar de O₂).
+  - El argón de P3N se supone como el de la Tierra (0,934 %): su efecto es despreciable aquí, pero es una suposición ⚠️.
+- **Los datos de la luz** (`herramientas/descargar_luz.py`, para el PC de Carlos, ~50 MB) y sus lectores (`fase52_luz.py`):
+  - el espectro de la estrella: modelos PHOENIX (Husser et al. 2013) de 5300, 5400 y 5500 K, log g = 4,5 y [Fe/H] = −0,5 (como τ Ceti; S3N tiene ~5420 K), interpolados en la temperatura; con el reparto de la luz entre las bandas. Por debajo de 0,2 µm (fuera de las bandas de M3N) no hace falta el ultravioleta lejano medido;
+  - el ozono en el ultravioleta y el visible: Serdyuchenko et al. 2014, 11 temperaturas de 193 a 293 K, de 213 a 1100 nm (de 200 a 213 nm faltan datos: limitación ⚠️);
+  - la absorción inducida por colisiones de HITRAN2024: N₂–N₂, O₂–O₂ y O₂–N₂.
+  - Lector propio de FITS (sin astropy). Si dos bloques CIA cubren el mismo tramo, el lector se para en lugar de sumarlos a ciegas.
+- **El ozono de P3N, propuesta 🔶** (`fase52_ozono.py`; es la decisión 5 del §5, de Carlos):
+  - la forma del perfil de la Tierra (atmósfera estándar de EE. UU. 1976, Anderson et al. 1986: máximo de 7,8 ppm hacia 5,7 hPa);
+  - escalada a ~180 DU de columna: los ~300 DU de media de la Tierra por el cociente 0,60 entre una estrella G8 V y el Sol de Rugheimer et al. 2013.
+  - Limitaciones: sin latitud ni estación; la forma no cambia con la estrella; el efecto del 10 % menos de O₂ está por buscar.
+
+**Las nubes: lo construido y lo que falta decidir (3.23.0, 13/10/2026, tarde).**
+
+*Construido (sin conectar):*
+- **Solapamiento entre capas y McICA, decisión técnica T23 (provisional)** (`fase52_nubes_solape.py`):
+  - exponencial-aleatorio (Hogan e Illingworth 2000): dos capas nubladas seguidas se solapan con α = e^(−Δz/L), y las separadas por cielo despejado, al azar;
+  - L según la latitud, la forma de Shonk et al. 2010 que usa el IFS: L = 0,75 + 2,149 cos²(latitud) km (2,9 km en el ecuador, 0,75 en los polos). Es una calibración terrestre (c), declarada;
+  - McICA (Pincus et al. 2003): cada punto g de cada banda ve una subcolumna sorteada con esas reglas (el algoritmo del generador de ecRad, Apache 2.0, leído el 13/10). En media es exacto, con ruido sin sesgo.
+  - Sin heterogeneidad del agua dentro de la nube (limitación ⚠️; ecRad la añade).
+  - Probado (8 pruebas): los límites aleatorio y máximo; la cobertura entre ellos y decreciente con α; con 40 000 subcolumnas, la frecuencia de nube de cada capa, de cada par y de la columna coincide con la teórica dentro del error del muestreo.
+- **La óptica de las gotas en las 16 bandas del infrarrojo** (`datos/optica_gotas_infrarrojo.npz`, de `herramientas/generar_optica_gotas.py`; `fase52_optica_nubes.TablaGotas`): β, ω y g para radios efectivos de 2 a 40 µm y temperaturas de 240 a 298 K (T17, T18). La de la luz espera al espectro de S3N.
+- **El radio efectivo de las gotas, decisión técnica T24 (provisional):** Martin et al. 1994, r_e = (3 LWC / (4π ρ_w N k))^(1/3), con las constantes del IFS (ecRad, leído el 13/10):
+  - océano: 50 núcleos de condensación por cm³ → ~51 gotas/cm³, k = 0,77;
+  - tierra: 900 → ~313 gotas/cm³, k = 0,69;
+  - la corrección por la lluvia de Wood 2000, y r_e entre 4 y 30 µm.
+  - Con 0,3 g/m³ de agua: 12,3 µm sobre el océano y 6,9 µm sobre tierra (lo típico de la Tierra).
+  - ⚠️ Son números de la Tierra actual. P3N tiene aire natural preindustrial (ficha §6.4): sobre tierra seguramente hay menos gotas (y más grandes). La cifra preindustrial está por buscar.
+
+*Lo que falta y decide Carlos (la decisión 7 del §5, «ambición de las nubes»):*
+1. **El agua de nube**, propuesta 🔶: dos trazadores nuevos del núcleo (agua líquida y hielo de nube), transportados como el vapor (el transporte positivo y conservativo de la 6.3 ya existe). Se forman por condensación de gran escala y se convierten en lluvia o nieve con una autoconversión (tipo Sundqvist et al. 1989 ⚠️). Hoy todo lo que condensa llueve al instante.
+2. **La fracción de nube**:
+   - (a) diagnóstica por la humedad relativa, con un umbral calibrado en el modo Tierra (Sundqvist et al. 1989 ⚠️), propuesta 🔶: es la más sencilla y la que mejor casa con (1);
+   - (b) pronóstica (Tiedtke 1993 ⚠️): más física, bastante más trabajo y más parámetros.
+3. **Las nubes de la convección**, propuesta 🔶: diagnosticadas a partir de la lluvia convectiva del esquema de Betts y Miller (Slingo 1987 ⚠️), porque ese esquema no produce agua de nube.
+4. **La óptica del hielo** (no es esférico, así que Mie no sirve), propuesta 🔶: usar como dato una base de propiedades de cristales medidos o calculados (por ejemplo, la de Yang et al. 2013, la de MODIS ⚠️; por comprobar que se pueda descargar), en lugar de copiar una parametrización (Fu 1996 ⚠️). Es el mismo criterio que con HITRAN.
+- **Riesgo declarado:** el umbral de humedad y la autoconversión son calibraciones (c). Se fijan en el modo Tierra antes de mirar P3N, como siempre.
 
 **Lo que queda pendiente de la 5.2, en orden:**
 - **El infrarrojo por bandas** con las tablas k y el dos flujos que ya tiene M3N (T5).

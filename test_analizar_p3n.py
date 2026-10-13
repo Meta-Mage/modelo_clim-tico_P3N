@@ -199,3 +199,25 @@ def test_tierra_mar_separa_posicion_y_misma_latitud():
     r = A.tierra_mar(T + 2.0 * tierra, tierra)
     assert abs(r["misma_latitud"] - 2.0) < 1e-12 and len(r["filas"]) == 4 and abs(r["filas"][0]["pct"] - 100 * 20 / 72) < 1e-9
     assert A.tierra_mar(T, np.zeros((36, 72), dtype=bool)) is None
+
+
+# ---------------------------------------------------------------- 3.22.1
+def test_bloqueantes_de_una_climatologia_continuada():
+    """Una climatologia continuada (--continuar-desde) no tiene fase de equilibrio propia: A3 y A5 se leen como
+    heredados de la de partida, en lugar de dar 'resumen incompleto' (fallo de la 3.22.0, visto el 13/10/2026)."""
+    import os
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "herramientas"))
+    import criterio_cierre_6_3 as CC
+    filas = "\n".join(f"  {i}: cierre energia 1.0e-08 | error dinamica {-0.047 + 0.001 * ((-1) ** i):.4f} W/m2 | resto 0.0 "
+                      f"| agua atm 1.0e-13 tierra 1.0e-14" for i in range(1, 31))
+    res = ("RESUMEN\n\nEQUILIBRIO: el de /x/p3n_3.19.0 (15 años de equilibrio y 30 de climatologia antes de esta; año "
+           "simulado de partida 45). Esta climatologia continua desde su estado final.\n\n"
+           "CLIMATOLOGIA: 30 años registrados de 30 | normal\n\nPROCEDENCIA\n  tramo 1: M3N 3.21.0, codigo abc123def456\n\n"
+           f"POR AÑO\n{filas}\n\nDERIVA: sin deriva significativa\n  aire 2 m global: -0.0002 +- 0.0011 /año (p 0.869) K | x\n")
+    t = CC.Tabla()
+    CC.seccion_a(t, res)
+    d = {c: (e, txt) for c, _, e, txt in t.filas}
+    assert d["A3"][0] == "✅" and "heredado" in d["A3"][1] and "p3n_3.19.0" in d["A3"][1]
+    assert d["A5"][0] == "✅" and "de la de partida" in d["A5"][1]
+    assert d["A1"][0] == "✅" and d["A2"][0] == "✅" and d["A4"][0] == "✅" and d["A6"][0] == "✅"
