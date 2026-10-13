@@ -281,8 +281,18 @@ def registrar_procedencia(carpeta, version, codigo, ano_sim, anos_registrados, i
                  f"{tramos[-1]['version']}, huella {tramos[-1]['codigo']}; ahora {version}, {codigo}). El resultado "
                  "mezclara versiones; queda registrado en procedencia.json y en el resumen.")
     elif not tramos and (ano_sim or anos_registrados):
-        informar("    AVISO: esta simulacion empezo antes de la 3.14.0: no consta con que codigo se hicieron los "
-                 f"{ano_sim} años anteriores.")
+        origen = os.path.join(carpeta, "origen.json")
+        if os.path.exists(origen):
+            # 3.22.0: una climatologia continuada desde otra (clima_dinamico.py --continuar-desde) empieza en el año
+            # simulado del final de la otra; la procedencia de esos años esta en origen.json (no es un aviso)
+            with open(origen, encoding="utf-8") as f:
+                og = json.load(f)
+            informar(f"    Los {ano_sim} años anteriores son de {og.get('carpeta')} (su procedencia, en origen.json: "
+                     + (", ".join(f"M3N {t['version']}" for t in og.get("procedencia_origen", [])) or "no consta")
+                     + ").")
+        else:
+            informar("    AVISO: esta simulacion empezo antes de la 3.14.0: no consta con que codigo se hicieron los "
+                     f"{ano_sim} años anteriores.")
     tramos.append({"fecha": time.strftime("%Y-%m-%d %H:%M:%S"), "version": version, "codigo": codigo,
                    "ano_sim": int(ano_sim), "anos_registrados": int(anos_registrados)})
     _escribir_json(tramos, os.path.join(carpeta, "procedencia.json"))

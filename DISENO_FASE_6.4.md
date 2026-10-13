@@ -306,3 +306,23 @@ Uso, después de `python clima_dinamico.py` con el mapa activo: `python analizar
 - **Cómo (3.21.0):** `fase6_zonal.py` las acumula por día del año en los 30 años registrados, solo leyendo el núcleo (idéntico bit a bit, `test_fase6_zonal.py`). `clima_dinamico.py --continuar-desde outputs/clima_dinamico/p3n_3.19.0` hace una climatología **nueva** de 30 años desde el estado final de aquella, que está en equilibrio y sin deriva, sin repetir el arranque ni los 15 años de equilibrio. El origen queda en `origen.json`, en el resumen y en la exportación.
 - **Coste:** ~5 h (30 años de P3N a ~37 pasos/s), después de las sensibilidades.
 - **Consecuencia:** el clima oficial de la 4.0.0 será el de esta climatología nueva, otros 30 años del mismo estado de equilibrio. Las cifras de §8.2–§8.3 cambiarán dentro del ruido entre muestras de 30 años: el error de la media es ≤ 0,25 K por banda (§8.1). El análisis se repetirá sobre ella.
+
+### 8.6 Parte D: sensibilidad al océano (PC de Carlos, 12/10/2026; `analizar_p3n.py --comparar`, 3.21.0)
+
+Cuatro climatologías exploratorias de 12 años (3.20.0, ~6,1–6,5 h cada una, en paralelo; equilibrio en 13–15 años; todas cumplen el criterio de equilibrio), cada una menos la climatología de 30 años de la 3.19.0:
+
+| Prueba | Global | Lluvia | Entre 50° S y 50° N (filas cada 10°) | Al polo de ~60° |
+|---|---|---|---|---|
+| Capa de mezcla × 0,5 | −0,03 K | −0,005 mm/día | de −0,16 a +0,05 K | de −0,24 a 0 K |
+| Capa de mezcla × 2 | +0,01 K | +0,008 | de −0,06 a +0,05 K | de −0,39 a +0,29 K |
+| D_oc × 0,5 | −0,50 K | +0,031 (+0,9 %) | de −0,32 a +0,43 K | hasta −8,06 K (82,5° S), −4,88 (72,5° S), −2,80 (77,5° y 67,5° N) |
+| D_oc × 2 | +0,61 K | −0,060 (−1,7 %) | de −0,72 a +0,35 K | hasta +11,62 K (82,5° S), +9,68 (77,5° N), +7,11 (87,5° N) |
+
+**Ruido.** El error de la media por banda es de 0,17–0,46 K en las de 12 años y ≤ 0,25 K en la de 30 (resúmenes, σ/√N_eff): diferencias por debajo de ~0,5 K en una fila no se distinguen de la variabilidad entre climatologías. Desde la 3.22.0, D da el error de cada diferencia.
+
+**Lectura (medida):**
+- **La capa de mezcla no cambia el clima medio**: todo dentro del ruido. Lo que sí debería cambiar es la **amplitud de las estaciones** (una capa más fina se calienta y se enfría más deprisa); las medias anuales no la miden. 🔶 Pendiente: medirla con la sección D de la 3.22.0 antes de escribir la incertidumbre definitiva.
+- **La difusión del océano importa poco entre 50° S y 50° N (< 0,8 K) y mucho cerca de los polos (de varios K a más de 10 K).** El signo tiene sentido físico: más difusión lleva más calor del ecuador a los polos (el ecuador se enfría 0,7 K a 2,5° S; los polos se calientan).
+- **Asimetría:** doblar la difusión calienta los polos más de lo que enfría reducirla a la mitad. 🔶 Hipótesis, no comprobada: la realimentación del hielo marino (menos hielo, mar más oscuro, más luz absorbida). Se comprueba con el hielo de la sección D de la 3.22.0.
+
+**Consecuencia para la 4.0.0 (incertidumbre declarada):** el clima de P3N es robusto al océano entre los 50° de cada hemisferio (menos de 1 K); al polo de ~60°, la incertidumbre es de **varios grados, hasta más de 10 K**, hasta que M3N tenga corrientes (Fase 6.5). Coincide con lo sabido del modo Tierra (§4.2): una difusión no tiene la forma del transporte real del océano. La exportación y H3N lo dirán.

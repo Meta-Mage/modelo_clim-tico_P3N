@@ -14,6 +14,17 @@
 #   C. la comparacion con el clima oficial de 2 capas (el json que lee H3N), si es del mismo mapa;
 #   D. la sensibilidad al oceano (§4.2): diferencias con otras simulaciones de P3N (--comparar).
 #
+# 3.22.0:
+#   - Los VIENTOS (celulas, chorros, bandas en superficie) salen de las MEDIAS ZONALES POR NIVEL de los años de la
+#     climatologia (30) si la simulacion las tiene (M3N >= 3.21.0, clave "zonal" de resultado.pkl), en vez de un solo
+#     año extra; asi tambien con --sin-ano-extra. El año extra queda para el balance de radiacion y el perfil vertical.
+#   - El HIELO MARINO sale de la climatologia (antes, del año extra).
+#   - D compara tambien el hielo marino y la AMPLITUD ESTACIONAL (doceavo mas calido menos el mas frio) y da, por
+#     filas, el ERROR DE LA DIFERENCIA (los mismos sigma/raiz(N_eff) del resumen, de las dos simulaciones): una
+#     diferencia menor que dos veces su error no se distingue de la variabilidad entre climatologias (se marca con *
+#     la que si). Con el mismo oceano (factores 1 y 1), D mide esa variabilidad: sirve para comparar dos
+#     climatologias de la misma configuracion (p. ej., la de la 3.19.0 y su continuacion en la 3.21.0).
+#
 # Uso (en la carpeta de M3N, con el venv activado), DESPUES de "python clima_dinamico.py":
 #     python analizar_p3n.py
 # Opciones:
@@ -91,6 +102,36 @@ def calendario(orbita, pasos_dia, n_dias):
                          np.where((fase >= 0.375) & (fase < 0.625), "apoastro", ""))
     return {"d_peri": d_peri, "d_apo": d_apo, "fase": fase, "doceavo": doceavo, "temporada": temporada,
             "toa_peri": float(diaria[d_peri]), "toa_apo": float(diaria[d_apo])}
+
+
+def tierra_mar(T_cel, es_tierra):
+    """3.22.0: la diferencia de temperatura media entre la tierra y el mar, descompuesta en (1) el efecto de DONDE esta
+    la tierra (en que latitudes) y (2) el contraste tierra-mar a la MISMA latitud. Cada celda de una fila mide lo mismo,
+    asi que el area de tierra de una fila es su numero de celdas de tierra por el peso de la fila.
+      total = media(tierra) - media(mar)
+      misma_latitud = sum_filas A_tierra (T_tierra - T_mar) / sum A_tierra   (solo filas con tierra y mar)
+      posicion = total - misma_latitud
+    None si no hay tierra o no hay mar."""
+    T_cel = np.asarray(T_cel, dtype=float)
+    es_tierra = np.asarray(es_tierra, dtype=bool)
+    if not es_tierra.any() or es_tierra.all():
+        return None
+    w = peso_filas()[:, None] * np.ones((1, T_cel.shape[1]))
+    total = float((T_cel * w)[es_tierra].sum() / w[es_tierra].sum() - (T_cel * w)[~es_tierra].sum() / w[~es_tierra].sum())
+    filas, num, den = [], 0.0, 0.0
+    for i in range(T_cel.shape[0]):
+        t = es_tierra[i]
+        if not t.any():
+            continue
+        Tt = float(T_cel[i, t].mean())
+        Tm = float(T_cel[i, ~t].mean()) if (~t).any() else None
+        filas.append({"i": i, "pct": 100.0 * t.mean(), "tierra": Tt, "mar": Tm})
+        if Tm is not None:
+            a = peso_filas()[i] * t.sum()
+            num += a * (Tt - Tm)
+            den += a
+    misma = num / den if den > 0 else float("nan")
+    return {"total": total, "misma_latitud": misma, "posicion": total - misma, "filas": filas}
 
 
 def media_zonal_por(diario, etiqueta, valores):
@@ -252,6 +293,15 @@ def parte_1(rc, tipo, cal, L, campos):
              f"sur {media_filas(T_zon, sur):6.2f}")
     L.append(f"   Tierra {float((T_cel * area)[es_tierra].sum() / area[es_tierra].sum()):6.2f} | mar "
              f"{float((T_cel * area)[~es_tierra].sum() / area[~es_tierra].sum()):6.2f}")
+    tm = tierra_mar(T_cel, es_tierra)
+    if tm is not None:
+        L.append(f"   Tierra menos mar {tm['total']:+6.2f} = por DONDE esta la tierra (latitudes) {tm['posicion']:+6.2f}"
+                 f" + a la MISMA latitud {tm['misma_latitud']:+6.2f} (media de las filas con tierra y mar, pesada con el"
+                 " area de tierra)")
+        L.append("   Filas con tierra: lat | % de tierra | tierra | mar | tierra - mar")
+        for f in tm["filas"]:
+            L.append(f"     {LAT[f['i']]:+5.1f} | {f['pct']:5.1f} | {f['tierra']:7.2f} | "
+                     + (f"{f['mar']:7.2f} | {f['tierra'] - f['mar']:+6.2f}" if f["mar"] is not None else "    —   |   —"))
     ecu = (np.abs(LAT) < 5).astype(float)
     L.append(f"   Ecuador (5 S-5 N) menos 87,5 N {media_filas(T_zon, ecu) - T_zon[0]:6.2f} | menos 87,5 S "
              f"{media_filas(T_zon, ecu) - T_zon[-1]:6.2f}")
@@ -306,26 +356,57 @@ def parte_1(rc, tipo, cal, L, campos):
     return T_zon, Pz
 
 
-# ------------------------------------------------------------------------------------ B. parte 2
-def parte_2(r, vientos, L, campos, ref_tierra=None):
+# ------------------------------------------------------------------------------------ B. hielo (3.22.0)
+def seccion_hielo(rc, L):
+    """4. Hielo marino de la climatologia (media de los años registrados, dia a dia)."""
     import validar_v30 as V30
-    from validar_i16 import funcion_corriente, perfil_banda
-    L.append("B (cont.). UN AÑO MAS desde el final de la climatologia")
+    h = V30.hielo(rc)
+    L.append(f"4. HIELO MARINO de la climatologia ({rc['climatologia']['anos_promediados']} años), extension (millones de km2 de "
+             "P3N; celda entera si hay hielo en la media del dia)")
+    L.append(f"   Norte: maximo {h['N_max']:5.2f}, minimo {h['N_min']:5.2f} | Sur: maximo {h['S_max']:5.2f}, minimo {h['S_min']:5.2f}")
+    L.append("")
+    return h
+
+
+def vientos_de_climatologia(z, cal):
+    """3.22.0: los vientos del nucleo a partir de las medias zonales por nivel de la climatologia (rc["zonal"],
+    fase6_zonal.combinar: medias por dia y subpasos por dia), con la misma forma que los del año extra
+    (validar_i16.ano_extra): media de todos los subpasos del año y de los de cada temporada."""
+    n = np.asarray(z["subpasos_por_dia"], dtype=float)
+    dias = len(n)
+    temporada = np.asarray(cal["temporada"])[:dias] if len(cal["temporada"]) >= dias else \
+        np.resize(np.asarray(cal["temporada"]), dias)
+    out = {"sigma": np.asarray(z["sigma_semi"]), "cos_caras": np.asarray(z["cos_caras"]),
+           "lat_caras": np.asarray(z["lat_caras"]), "anos": int(z["anos"])}
+
+    def media(sel):
+        w = n * sel
+        return {k: np.tensordot(w, np.asarray(z[k], dtype=float), axes=(0, 0)) / w.sum() for k in ("u", "vps", "ps")}
+    out["anual"] = media(np.ones(dias))
+    for t in TEMPORADAS:
+        sel = (temporada == t).astype(float)
+        if (n * sel).sum() > 0:
+            out[t] = media(sel)
+    return out
+
+
+# ------------------------------------------------------------------------------------ B. parte 2
+def parte_2(r, L):
+    """El año extra: balance de radiacion y perfil vertical (lo que la climatologia no guarda)."""
+    import validar_v30 as V30
+    from validar_i16 import perfil_banda
+    L.append("B (cont.). UN AÑO MAS desde el final de la climatologia (balance de radiacion y perfil vertical)")
     e = r["energia"]
     L.append(f"   cierre de energia {e.get('cierre_relativo', float('nan')):+.1e}; error de la dinamica "
              f"{e.get('error_dinamica_W_m2', float('nan')):+.3f} W/m2")
     L.append("")
     f = V30.informe_flujos(r["flujos"])
     absorbida = f["sw_suelo"] + f["sw_atm"]
-    L.append("4. BALANCE DE RADIACION (W/m2; sin nubes hasta la Fase 5.2)")
+    L.append("5. BALANCE DE RADIACION (W/m2; sin nubes hasta la Fase 5.2)")
     L.append(f"   Luz que llega {f['entrada']:6.1f} | reflejada {f['reflejada']:6.1f} (albedo {f['reflejada'] / f['entrada']:.3f})"
              f" | absorbida {absorbida:6.1f} (suelo {f['sw_suelo']:5.1f}, aire {f['sw_atm']:5.1f})")
     L.append(f"   Infrarrojo al espacio {f['olr']:6.1f} | neto en el tope {absorbida - f['olr']:+6.2f} | infrarrojo al suelo"
              f" {f['dlr']:6.1f}")
-    L.append("")
-    h = V30.hielo(r)
-    L.append("5. HIELO MARINO, extension (millones de km2 de P3N; celda entera si hay hielo)")
-    L.append(f"   Norte: maximo {h['N_max']:5.2f}, minimo {h['N_min']:5.2f} | Sur: maximo {h['S_max']:5.2f}, minimo {h['S_min']:5.2f}")
     L.append("")
     L.append("6. PERFIL VERTICAL (media anual por bandas)")
     L.append("   Banda      | tropopausa OMM | interpolada | T tropop. interp. | mas frio (500-50 hPa) | gradiente 0-6 km")
@@ -338,13 +419,23 @@ def parte_2(r, vientos, L, campos, ref_tierra=None):
         L.append(f"   {banda:10s} | {d['tropopausa_km']:5.1f} km       | {d['tropopausa_interp_km']:5.1f} km    | "
                  f"{d['T_tropopausa_interp']:6.1f} C          | {d['T_frio']:6.1f} C a {d['frio_km']:4.1f} km   | {g06:4.2f} K/km")
     L.append("")
+
+
+def seccion_vientos(vientos, L, campos, ref_tierra=None):
+    """7. Los vientos del nucleo (de la climatologia si la simulacion tiene medias zonales; si no, del año extra) y
+    B', la orientacion teorica."""
+    from validar_i16 import funcion_corriente
     if vientos is None or "anual" not in vientos:
+        L.append("7. VIENTOS DEL NUCLEO: sin datos (la simulacion no tiene medias zonales por nivel -M3N < 3.21.0- y no"
+                 " se ha hecho el año extra)")
+        L.append("")
         return
     sig = vientos["sigma"]
     sm = 0.5 * (sig[1:] + sig[:-1])
     lat_c = vientos["lat_caras"]
     k5 = int(np.argmin(np.abs(sig - 0.5)))
-    L.append("7. VIENTOS DEL NUCLEO (sin suponer su forma: todo lo que hay, de norte a sur)")
+    L.append("7. VIENTOS DEL NUCLEO (sin suponer su forma: todo lo que hay, de norte a sur; "
+             + (f"media de los {vientos['anos']} años de la climatologia)" if vientos.get("anos") else "del año extra)"))
     L.append("   Celulas (funcion de corriente de masa, 10^10 kg/s; >0: sube por su lado sur y baja por el norte;")
     L.append("   extremo en sigma 0,15-0,95; bordes = cruces por cero a sigma 0,5; 'debil' = menos del 5 % de la mayor):")
     resumen_cel = {}
@@ -439,13 +530,36 @@ def seccion_c(L, T_zon, ruta_oficial, huella):
     L.append("")
 
 
-def seccion_d(L, rc, carpetas, tipo):
+def amplitud_estacional(reg_media, cal):
+    """Por filas: doceavo mas calido menos el mas frio de la media zonal del aire a 2 m (como la parte 1)."""
+    doc = media_zonal_por(np.asarray(reg_media, dtype=float), cal["doceavo"], range(12))
+    serie = np.array([doc[m] for m in range(12) if m in doc])
+    return serie.max(axis=0) - serie.min(axis=0)
+
+
+def error_diferencia(rc, r):
+    """3.22.0: error de la diferencia de dos climatologias, por filas y global: raiz(e1^2 + e2^2), con
+    e = sigma/raiz(N_eff) de la serie anual de cada fila (fase6_clima.error_media, la del resumen)."""
+    from fase6_clima import error_media
+    b1 = np.asarray(rc["climatologia"]["bandas_aire2m_C"], dtype=float)
+    b2 = np.asarray(r["climatologia"]["bandas_aire2m_C"], dtype=float)
+    g1 = np.array([media_filas(x) for x in b1])
+    g2 = np.array([media_filas(x) for x in b2])
+    return (np.sqrt(error_media(b1) ** 2 + error_media(b2) ** 2),
+            float(np.sqrt(error_media(g1) ** 2 + error_media(g2) ** 2)))
+
+
+def seccion_d(L, rc, carpetas, tipo, cal=None):
     from fase1_geografia import TIERRA
+    import validar_v30 as V30
     if not carpetas:
         return
     L.append("D. SENSIBILIDAD (§4.2): otra simulacion menos esta (aire a 2 m en C, precipitacion en mm/dia)")
+    L.append("   err = error de la diferencia (sigma/raiz(N_eff) de las dos, como en el resumen); * = mayor que 2 err")
     T0 = np.asarray(rc["reg_media"], dtype=float).mean(axis=0)
     P0 = np.asarray(rc["agua"]["precipitacion"], dtype=float)
+    h0 = V30.hielo(rc)
+    a0 = amplitud_estacional(rc["reg_media"], cal) if cal is not None else None
     es_tierra = np.asarray(tipo) == TIERRA
     for c in carpetas:
         with open(os.path.join(c, "resultado.pkl"), "rb") as fh:
@@ -455,14 +569,34 @@ def seccion_d(L, rc, carpetas, tipo):
             continue
         dT = np.asarray(r["reg_media"], dtype=float).mean(axis=0) - T0
         dP = np.asarray(r["agua"]["precipitacion"], dtype=float) - P0
+        dTz = dT.mean(axis=1)
         s = r.get("sensibilidad") or {}
         L.append(f"   {c}  ({r['climatologia']['anos_promediados']} años; D_oc x{s.get('oceano_difusion', 1.0):g}, capa de"
                  f" mezcla x{s.get('oceano_capa_mezcla', 1.0):g})")
-        L.append(f"     global: dT {media_filas(dT.mean(axis=1)):+5.2f} | dP {media_filas(dP.mean(axis=1)):+6.3f}"
+        if all(v == 1.0 for v in (s.get("oceano_difusion", 1.0), s.get("oceano_capa_mezcla", 1.0))):
+            L.append("     (el mismo oceano: la diferencia mide la variabilidad entre dos climatologias de la misma configuracion)")
+        try:
+            err, err_g = error_diferencia(rc, r)
+        except (KeyError, ValueError):
+            err, err_g = np.full(FILAS, np.nan), float("nan")
+        marca = lambda d, e: "*" if np.isfinite(e) and abs(d) > 2 * e else " "
+        dg = media_filas(dTz)
+        L.append(f"     global: dT {dg:+5.2f} (err {err_g:4.2f}){marca(dg, err_g)} | dP {media_filas(dP.mean(axis=1)):+6.3f}"
+                 f" ({100 * media_filas(dP.mean(axis=1)) / media_filas(P0.mean(axis=1)):+5.1f} %)"
                  f" | en tierra: dT entre {dT[es_tierra].min():+5.2f} y {dT[es_tierra].max():+5.2f}, |dT| medio "
                  f"{np.abs(dT[es_tierra]).mean():4.2f}")
-        L.append("     por filas (cada 10 grados): " + "; ".join(f"{LAT[i]:+5.1f} {dT[i].mean():+5.2f}"
-                                                            for i in range(0, FILAS, 2)))
+        if r.get("hielo_espesor") is not None:
+            h = V30.hielo(r)
+            L.append("     hielo marino (millones de km2), esta -> la otra: "
+                     + " | ".join(f"{nom} {h0[k]:5.2f} -> {h[k]:5.2f}" for k, nom in
+                                  (("N_max", "N max"), ("N_min", "N min"), ("S_max", "S max"), ("S_min", "S min"))))
+        da = amplitud_estacional(r["reg_media"], cal) - a0 if a0 is not None else None
+        if da is not None:
+            L.append(f"     amplitud estacional (doceavo mas calido - mas frio): cambio medio {media_filas(da):+5.2f} K")
+        L.append("     por filas (cada 10 grados): lat | dT (err) | cambio de la amplitud estacional")
+        for i in range(0, FILAS, 2):
+            L.append(f"       {LAT[i]:+5.1f} | {dTz[i]:+6.2f} ({err[i]:4.2f}){marca(dTz[i], err[i])}"
+                     + (f" | {da[i]:+5.2f}" if da is not None else ""))
     L.append("")
 
 
@@ -500,6 +634,15 @@ def main():
     campos = {}
     seccion_a(L, carpeta)
     T_zon, _ = parte_1(rc, tipo, cal, L, campos)
+    seccion_hielo(rc, L)                                    # 3.22.0: de la climatologia
+    # 3.22.0: los vientos, de las medias zonales de la climatologia si las tiene (M3N >= 3.21.0)
+    vientos = vientos_de_climatologia(rc["zonal"], cal) if rc.get("zonal") else None
+    ref = None
+    if args.referencia_tierra:
+        f = os.path.join(args.referencia_tierra, "campos.npz")
+        ref = dict(np.load(f)) if os.path.exists(f) else None
+        if ref is None:
+            L.append(f"(no esta {f}: sin referencia del modo Tierra)")
     sensibilidad = any(v != 1.0 for v in (rc.get("sensibilidad") or {}).values())
     if sensibilidad and not args.sin_ano_extra:
         L.append("(Esta carpeta es una prueba de sensibilidad del oceano: el año extra se hace solo con la simulacion"
@@ -511,18 +654,15 @@ def main():
         V.SALIDA = SALIDA
         temporada = cal["temporada"]
         print("Un año mas desde una copia del ultimo punto de control (la simulacion larga no se toca)...", flush=True)
-        r, vientos = V.ano_extra(carpeta, argumentos, I,
-                                 temporada_del_dia=lambda d: (temporada[d % len(temporada)] or None),
-                                 temporadas=TEMPORADAS)
-        ref = None
-        if args.referencia_tierra:
-            f = os.path.join(args.referencia_tierra, "campos.npz")
-            ref = dict(np.load(f)) if os.path.exists(f) else None
-            if ref is None:
-                L.append(f"(no esta {f}: sin referencia del modo Tierra)")
-        parte_2(r, vientos, L, campos, ref)
+        r, vientos_extra = V.ano_extra(carpeta, argumentos, I,
+                                       temporada_del_dia=lambda d: (temporada[d % len(temporada)] or None),
+                                       temporadas=TEMPORADAS)
+        parte_2(r, L)
+        if vientos is None:
+            vientos = vientos_extra
+    seccion_vientos(vientos, L, campos, ref)
     seccion_c(L, T_zon, args.clima_oficial or RUTA_SALIDA, huella)
-    seccion_d(L, rc, args.comparar, tipo)
+    seccion_d(L, rc, args.comparar, tipo, cal)
     texto = "\n".join(L)
     print(texto)
     with open(os.path.join(SALIDA, "informe.txt"), "w", encoding="utf-8") as fh:

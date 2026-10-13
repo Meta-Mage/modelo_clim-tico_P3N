@@ -142,7 +142,7 @@ Carlos delega las decisiones técnicas que no son de worldbuilding ni de princip
 | T1 | Perfil de línea de **Voigt**, calculado con la función de Faddeeva (`scipy.special.wofz`) | Es el perfil estándar de los cálculos línea a línea en la troposfera y la estratosfera (Doppler + presión) | definición de HITRAN ⚠️ |
 | T2 | Dependencia de las líneas con la temperatura y la presión **como la define HITRAN** (intensidad con la energía del nivel bajo y la función de partición; anchura con n_air; desplazamiento con δ_air) | Es el convenio con el que están medidos los datos: usar otro mezclaría convenios | Šimečková et al. 2006 ⚠️ |
 | T3 | Funciones de partición **TIPS** como tabla de datos (no como librería dentro de M3N) | Son datos calculados de constantes moleculares; comprobado hoy, sin red: Q(H₂O, 296 K) = 174,58, Q(CO₂) = 286,09, Q(O₃) = 3475 | Gamache et al. 2017 ⚠️; valores leídos con `hitran-api` 1.3.0.0 (licencia MIT, PyPI) |
-| T4 | Para el vapor, líneas cortadas a ±25 cm⁻¹ y, si así lo exige MT_CKD, sin el "pedestal" | Tiene que ser el mismo convenio con el que se definió el continuo, o se contaría dos veces | ⚠️ por comprobar en la documentación de MT_CKD antes de usarlo; de momento es una opción del código, apagada |
+| T4 | Para el vapor, líneas cortadas a ±25 cm⁻¹ y sin el "pedestal" (su valor de Lorentz a ±25 cm⁻¹), como exige MT_CKD | Tiene que ser el mismo convenio con el que se definió el continuo, o se contaría dos veces | ✅ hitran.org/mtckd (comprobado el 12/10/2026); en el generador de tablas k, encendido para el vapor |
 | T5 | Infrarrojo de cada punto g con el **mismo solucionador de dos flujos que ya tiene M3N** (fuente de Planck lineal en τ, `DISENO_FASE_2.3.md` §2) | Ya está verificado (isotermo exacto, convergencia con las capas); se reutiliza en lugar de escribir otro | ya verificado en la 2.3 |
 
 **Construido (prototipo; en el repositorio desde la 3.21.0, sin conectar al modelo):** `fase52_lineas.py`, el cálculo línea a línea:
@@ -160,9 +160,124 @@ Carlos delega las decisiones técnicas que no son de worldbuilding ni de princip
 - la anchura Doppler del CO₂ es la de la fórmula;
 - integrado, el coeficiente devuelve la suma de las intensidades, salvo las alas cortadas (< 0,4 %).
 
-**Lo siguiente que se puede construir sin datos reales:**
-1. El paso de los coeficientes a **tablas k** por banda (ordenar dentro de la banda, cuadratura en g), probado con un modelo de banda con solución analítica.
-2. El **dos flujos con dispersión** para la luz (delta-Eddington ⚠️), probado con casos de referencia publicados.
+**Construido el 12/10/2026 (3.22.0, sin conectar):** `fase52_k.py`, las **tablas k** por banda:
+- ordenar los coeficientes dentro de la banda;
+- la cuadratura en g;
+- tablas de varias capas con la hipótesis correlacionada;
+- la transmisión de la banda, línea a línea y con la tabla.
+
+**Decisión técnica T6 (provisional):** 16 puntos de Gauss repartidos en tramos de g cada vez más estrechos hacia g = 1 (donde están los centros de las líneas). Es la práctica habitual. El reparto definitivo se fijará midiendo el error de los flujos frente al cálculo línea a línea (§4), no copiando el de otro modelo.
+
+**Probado** (`test_fase52_k.py`, 5 pruebas):
+- **En una capa, la tabla es exacta salvo la cuadratura.** Con los 16 puntos, el error de la transmisión de una línea de Lorentz es < 2·10⁻⁴ en todo el rango, de línea débil a saturada.
+- **El cálculo línea a línea reproduce la fórmula exacta de Ladenburg y Reiche** para la anchura equivalente de una línea aislada, con un acuerdo de 10⁻⁸ a 10⁻¹¹ (regímenes débil, intermedio y fuerte), contando las alas que quedan fuera de la banda.
+- **La hipótesis correlacionada es exacta** con una línea a dos presiones (el orden de los números de onda es el mismo en las dos capas).
+- **Su límite conocido:** con líneas que no se corresponden de una capa a otra, sobreestima la transmisión (0,961 frente a 0,944 en el caso de prueba). Por eso el error se medirá contra el cálculo línea a línea, como pide el §4.
+
+**Construido el 12/10/2026 (3.22.0, sin conectar):** `fase52_onda_corta.py`, la **luz en una capa que absorbe y dispersa** (nubes, aerosoles, aire), con dos flujos delta-Eddington.
+
+**Decisión técnica T7 (provisional):** ecuaciones de dos flujos de Meador y Weaver (1980) con los coeficientes de Eddington y el escalado delta (Joseph, Wiscombe y Weinman 1976) ⚠️. Es el método habitual en los modelos de clima para la luz. La capa se resuelve exacta para esas ecuaciones con un sistema de 2×2, en lugar de copiar fórmulas cerradas. Lo que llega al suelo se reparte en el haz directo de verdad (sin escalar) y el difuso.
+
+**Probado** (`test_fase52_onda_corta.py`, 21 pruebas):
+- **Sin dispersión** es exactamente la ley de Beer.
+- **La energía se conserva** (reflejada + absorbida en la capa + absorbida en el suelo = 1, con error < 10⁻⁹) con suelo negro, gris y blanco. Sin absorción, la capa no absorbe nada.
+- **Frente a un cálculo de referencia de ordenadas discretas** con 32 direcciones (PythonicDISORT 1.8, una implementación en Python de DISORT, licencia MIT ⚠️; convergido: con 16 direcciones cambia < 10⁻⁴), en 8 casos: nubes con el sol alto, medio y bajo; nube fina y gruesa; aerosol; dispersión casi isótropa; capa muy absorbente.
+  - El error es el conocido del delta-Eddington (King y Harshvardhan 1986 ⚠️): ≤ 0,02 en la reflexión y la transmisión con el sol alto o capas finas, y hasta **0,038** con el sol bajo sobre una nube (μ0 = 0,2).
+  - La tabla de referencia está en la prueba, y se recalcula si PythonicDISORT está instalado (no hace falta para M3N).
+
+**La columna entera (3.22.0):** `fase52_onda_corta.columna`. Todas las capas se resuelven a la vez y de forma exacta para las ecuaciones de dos flujos: en cada capa, su solución general más la del haz que le llega; la continuidad de los flujos en cada separación; y las condiciones de arriba y del suelo. Es un sistema de 2N ecuaciones, equivalente a «sumar capas» pero sin aproximaciones. Probado (9 pruebas más):
+- con una capa es exactamente `capa`;
+- partir una capa en cinco no cambia nada (10⁻¹²);
+- 40 capas con una nube de espesor óptico 100, sin desbordamientos y con la energía conservada;
+- tres columnas (aire, nube y aerosol, con suelo negro y gris y con el sol a 53° y a 73°) frente a ordenadas discretas de 32 direcciones: la reflexión y la transmisión, dentro de 0,04 (medido: hasta 0,034 con μ0 = 0,3); la absorción de cada capa, dentro de 0,02 (medido: hasta 0,013).
+
+**Datos de HITRAN descargados (PC de Carlos, 12/10/2026, 20:53; `herramientas/descargar_hitran.py` con hitran-api 1.3.0.0):** en `~/Documentos/B3N/datos/hitran` (390 MB, fuera del repositorio), de 0 a 50 000 cm⁻¹, todos los isotopólogos que conoce hitran-api:
+
+| Gas | Líneas | Hasta (cm⁻¹) | sha256 del .data |
+|---|---|---|---|
+| H₂O | 490 609 | 41 999,7 | `2b2b6558…a4f552` |
+| CO₂ | 544 002 | 17 696,9 | `6bf399eb…6b11ed` |
+| O₃ | 487 446 | 6 996,7 | `33c2b392…52d9df` |
+| N₂O | 516 124 | 14 017,1 | `fe1da5e3…30c8ad` |
+| CH₄ | 473 522 | 13 922,6 | `cc083881…8ea059` |
+| O₂ | 22 076 | 49 999,0 | `c4412395…c035d0` |
+
+- Comprobado que ningún gas está cortado: cada uno acaba donde acaban sus líneas en HITRAN, salvo el O₂, que llega al límite pedido; lo que queda por encima de 50 000 cm⁻¹ es ultravioleta lejano, que solo importa en la alta atmósfera.
+- Están todos los isotopólogos.
+- Las huellas completas están en su `procedencia.json`. La tabla TIPS está en `tips.json`, de 60 a 400 K.
+
+**Datos que faltan** (no son líneas):
+- las secciones eficaces del ozono en el ultravioleta y el visible (Hartley-Huggins y Chappuis), que calientan la estratosfera;
+- la absorción inducida por colisiones (O₂–O₂, N₂–N₂);
+- el continuo MT_CKD del vapor;
+- las propiedades ópticas de las gotas y el hielo de las nubes.
+
+**Lector propio y bandas (3.22.0):** `fase52_hitran.py`.
+- **Lee los archivos de HITRAN** (formato .par de 160 caracteres) sin depender de hitran-api, como pide T3. Entiende los códigos de isotopólogo ('0' = 10, 'A' = 11…) y el formato raro de algunas intensidades.
+- **Probado** (3 pruebas): lee bien cada columna y da exactamente los mismos valores que el lector oficial, línea a línea.
+- **Decisión técnica T8 (provisional): bandas.** Se adoptan los **límites** de las bandas de RRTMG: 16 en el infrarrojo, de 10 a 3250 cm⁻¹, y 14 en la luz, de 820 a 50 000 cm⁻¹ (Mlawer et al. 1997; Iacono et al. 2008; comprobados el 12/10 con el código de RRTMG en CESM, `radconstants.F90` ✅: la primera versión ponía 2380 en lugar de 2390 cm⁻¹ entre dos bandas del infrarrojo, ya corregido). Están elegidos por dónde absorbe cada gas y son de los más usados. No se adoptan sus tablas: las de M3N se calculan con HITRAN y para la atmósfera de P3N.
+- `herramientas/descargar_hitran.py` guarda además `isotopologos.json`, con la masa de cada isotopólogo (necesaria para la anchura Doppler) y su abundancia terrestre (la que ya llevan dentro las intensidades: P3N se supone con la composición isotópica de la Tierra). Para tenerlo basta volver a lanzar el programa: lo ya descargado no se repite.
+
+**El generador de las tablas k (3.22.0):** `fase52_generador.py` y `herramientas/generar_tablas_k.py`. Hacerlo «a lo bruto» (Voigt en una ventana de ±25 cm⁻¹ con el paso que exige la anchura Doppler en la alta atmósfera) costaba **~9 ms por línea** y serían cientos de horas. Con estas decisiones técnicas provisionales, cada una con su prueba de error, baja a **5–16 s por cálculo de una banda con 40 000 líneas** en el entorno de la IA:
+- **T12, rejilla adaptada (no uniforme):**
+  - una base de paso 0,01 cm⁻¹;
+  - alrededor de cada línea estrecha (semianchura de Voigt < 0,04 cm⁻¹), puntos con paso w/4 hasta 2w, y después cada uno un 10 % más lejos;
+  - cada punto pesa lo que mide su celda, y las tablas k usan esos pesos;
+  - en la alta atmósfera, de 30 a 50 veces menos puntos que una rejilla uniforme.
+- **T13, núcleo y alas:**
+  - Voigt a menos de 50 anchuras Doppler del centro;
+  - Lorentz en el resto del núcleo, hasta max(50 semianchuras, 0,25 cm⁻¹), en la rejilla fina;
+  - las alas, hasta el corte de 25 cm⁻¹, en una rejilla gruesa de 0,02 cm⁻¹ interpolada;
+  - junto a cada borde, el ala exacta.
+  - Opción del **pedestal** para el vapor (T4). Comprobado ✅ en hitran.org/mtckd: MT_CKD define la contribución local de cada línea como su forma de Lorentz menos su valor a ±25 cm⁻¹ del centro, y el continuo se suma a eso.
+- **T14, descarte de líneas débiles:**
+  - se descarta una línea si su absorción con la columna máxima posible del gas es < 10⁻⁷ cm⁻¹;
+  - la suma de lo descartado, que es una cota de lo perdido, queda guardada en cada casilla de la tabla.
+- **T15, rejilla de la tabla:**
+  - 36 presiones de 1050 a 0,01 hPa (equiespaciadas en log p);
+  - 7 temperaturas de 150 a 330 K;
+  - para el vapor, fracciones molares propias 0; 0,01 y 0,04 (por encima de 100 hPa, solo la 0, copiada);
+  - las 29 bandas distintas de T8.
+  - El error de interpolar en ella se medirá en la validación (§4).
+
+**Probado** (`test_fase52_generador.py`, 15 pruebas):
+- **Frente al cálculo de referencia** (Voigt completo en rejilla uniforme fina), con 150 líneas al azar y con y sin pedestal, en seis casos de la superficie a 10⁻⁵ atm: la transmisión de la banda difiere < 2·10⁻⁴ (medido: hasta 10⁻⁴), y la de la tabla k < 5·10⁻⁴ (medido: hasta 3,3·10⁻⁴, incluida la cuadratura).
+- **La cota del descarte** es de verdad una cota de lo perdido.
+- **Una casilla con dos isotopólogos** coincide con hacerlo a mano.
+- **Una banda sin líneas** da k = 0.
+- **El programa completo,** probado con datos sintéticos de prueba:
+  - avance;
+  - cortar y continuar, porque guarda cada casilla terminada;
+  - juntar las tablas.
+
+**El continuo del vapor (3.22.0):** `fase52_continuo.py`, MT_CKD 4.3 como dato (decisión de Carlos del 12/10).
+- **El archivo:** `absco-ref_wv-mt-ckd.nc` de AER, fijado por su commit (`679f0a4`) y comprobado por su huella sha256 (`69944eb8…`). Lo descarga `descargar_hitran.py`.
+- **La licencia de AER** permite el uso científico y redistribuirlo con su aviso de copyright, pero no incorporarlo a software comercial. Por eso no va en el repositorio.
+- **Las fórmulas** son las del módulo oficial (`mt_ckd_h2o_module.f90`, leído el 12/10), traducidas sin cambios: escalado con la densidad y la fracción molar, dependencia del propio con la temperatura, término de radiación e interpolación de 4 puntos.
+- **Probado** (3 pruebas): reproduce la salida de referencia del propio MT_CKD con un acuerdo de 5·10⁻⁵ (es la precisión con la que está impresa); el término de radiación; la interpolación; y el escalado.
+- **En el generador,** el continuo se suma a las líneas del vapor (sin pedestal) antes de ordenar, en la misma tabla.
+
+**Mie propio, para las gotas de las nubes (3.22.0):** `fase52_mie.py`.
+- **Decisión técnica T16 (provisional):** las propiedades ópticas de las gotas de agua se calculan con la teoría de Mie y los índices de refracción medidos del agua, en lugar de copiar una parametrización. El hielo no es esférico y tendrá su propio tratamiento.
+- **El algoritmo** es BHMIE (Bohren y Huffman 1983) con un arranque más holgado de la recurrencia. Al medirlo, el arranque original no convergía del todo con el agua casi transparente y gotas grandes: 5·10⁻⁵ de error en Q_ext a x = 100.
+- **La población de gotas** sigue la distribución gamma de Hansen y Travis (1974) ⚠️, con su radio efectivo y su varianza.
+- **Probado** (14 pruebas):
+  - 10 casos frente a miepython 3.3 (Prahl, licencia MIT ⚠️; valores en la prueba), con un acuerdo de 10⁻⁹;
+  - el límite de Rayleigh;
+  - la paradoja de la extinción (Q_ext → 2);
+  - una nube de r_e = 10 µm: en el visible da Q_ext ≈ 2,09, ω ≈ 1 y g ≈ 0,865, lo típico de las nubes de agua; a 3 µm el agua absorbe (ω ≈ 0,52).
+- **Faltan los índices de refracción del agua y del hielo** (fuentes por elegir: Hale y Querry 1973, Segelstein 1981 y Warren y Brandt 2008 ⚠️).
+
+**Coste estimado en el PC (orientativo):** del orden de **una noche** (~6–9 h con 11 hilos), dominada por el vapor. `--prueba` lo mide primero con 4 bandas y 3 alturas. Antes hay que volver a lanzar `descargar_hitran.py` para que escriba `isotopologos.json`; no repite la descarga.
+
+**Lo que queda pendiente de la 5.2, en orden:**
+- **El infrarrojo por bandas** con las tablas k y el dos flujos que ya tiene M3N (T5).
+- **Los datos:**
+  - las líneas de HITRAN, que se descargan en el PC de Carlos;
+  - el continuo MT_CKD;
+  - las propiedades ópticas de las gotas y el hielo de las nubes, que tienen sus propias fuentes, por decidir.
+- **Las nubes** (§3.4) y el **acoplamiento** (§3.5).
+- **La validación del modo Tierra** (§4), con su criterio fijado antes.
 
 **Lo que necesita a Carlos:**
 - La elección de (B) y del §2.

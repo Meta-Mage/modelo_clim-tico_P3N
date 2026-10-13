@@ -67,6 +67,8 @@ def test_continuar_desde_otra_climatologia(tmp_path):
     assert rn["origen"]["carpeta"] == str(base) and rn["zonal"]["anos"] == 2
     texto = (nueva / "resumen.txt").read_text(encoding="utf-8")
     assert "continua desde su estado final" in texto and "AVISO" not in texto.split("PROCEDENCIA")[1].split("BANDAS")[0]
+    # 3.22.0: tampoco en la terminal (antes salia un falso "AVISO: esta simulacion empezo antes de la 3.14.0")
+    assert "empezo antes de la 3.14.0" not in r.stdout and "son de " + str(base) in r.stdout
     # no se puede reutilizar una carpeta con simulacion propia, ni la misma carpeta
     r = correr(base, "--continuar-desde", str(nueva))
     assert r.returncode != 0 and "simulacion propia" in (r.stdout + r.stderr)

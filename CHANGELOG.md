@@ -7,6 +7,38 @@ En cada entrada:
 - **Clima exportado** dice si cambia el clima que M3N exporta por defecto para H3N.
 - **Pruebas** es el número de pruebas automáticas que pasan; "no consta" si no está documentado.
 
+## [3.22.0] — 2026-10-12
+
+- Fase: 6.4 (análisis de P3N) y 5.2 (tablas k y dos flujos de la luz).
+- Clima exportado: no cambia (el modelo no cambia).
+- Pruebas: 230 (se saltan: una sin miepython; dos sin PythonicDISORT, las que recalculan las referencias de la luz; una sin hitran-api; y una sin el archivo de MT_CKD, que en el PC está tras volver a lanzar descargar_hitran.py).
+- MENOR y no ARREGLO (NOMENCLATURA §3): el análisis gana capacidades nuevas y la 5.2, módulos y herramientas nuevos.
+
+### Cambiado
+- `analizar_p3n.py`: los vientos del núcleo (células, chorros, bandas en superficie) salen de las medias zonales por nivel de los años de la climatología (30) si la simulación las tiene (3.21.0), en vez de un solo año extra, y también con `--sin-ano-extra`; el año extra queda para el balance de radiación y el perfil vertical. El hielo marino sale de la climatología. Las secciones se renumeran: 4 hielo, 5 radiación, 6 perfil, 7 vientos.
+- `analizar_p3n.py`, parte 1: la diferencia de temperatura entre la tierra y el mar, separada en lo que se debe a **dónde** está la tierra (sus latitudes) y el contraste **a la misma latitud**, con la tabla de las filas con tierra (rasgo 5 de `DISENO_FASE_6.4.md` §8.3).
+- `analizar_p3n.py`, D: por cada simulación comparada, el hielo marino de cada hemisferio (máximo y mínimo), el cambio de la amplitud estacional por filas y el **error de la diferencia** por filas y global (σ/√N_eff de las dos, el del resumen), con `*` donde la diferencia supera dos veces su error. Con el mismo océano lo dice: así sirve también para comparar dos climatologías de la misma configuración.
+- `DISENO_FASE_6.4.md` §8.6: el resultado de las cuatro sensibilidades del océano (PC de Carlos, 12/10/2026).
+
+### Corregido
+- `fase6_clima.registrar_procedencia`: al continuar una climatología desde otra (`--continuar-desde`), salía en la terminal un falso "AVISO: esta simulacion empezo antes de la 3.14.0"; ahora dice de qué carpeta y versión son los años anteriores (`origen.json`). El resumen ya lo decía bien.
+
+### Añadido
+- `fase52_k.py` (prototipo, sin conectar): de los coeficientes línea a línea a **tablas k** por banda (distribución k correlacionada): ordenar k dentro de la banda, cuadratura de Gauss en tramos de g (16 puntos, decisión técnica T6 provisional), tablas de varias capas con la hipótesis correlacionada y transmisión de la banda línea a línea y con la tabla (`DISENO_FASE_5.2.md` §7).
+- `fase52_onda_corta.py` (prototipo, sin conectar): la luz en una capa que absorbe y dispersa (nubes, aerosoles, aire) con dos flujos delta-Eddington (Meador y Weaver 1980; Joseph et al. 1976), resuelta exacta para esas ecuaciones con un sistema de 2×2 y suelo de Lambert; decisión técnica T7 provisional (`DISENO_FASE_5.2.md` §7).
+- 21 pruebas del dos flujos (`test_fase52_onda_corta.py`): ley de Beer sin dispersión; conservación de la energía (< 10⁻⁹) con distintos suelos; escalado delta; y 8 casos frente a ordenadas discretas de 32 direcciones (PythonicDISORT 1.8, tabla en la prueba): error ≤ 0,02 con el sol alto o capas finas y ≤ 0,04 con el sol bajo sobre una nube (el conocido del método).
+- `fase52_onda_corta.columna`: la columna entera (varias capas) resuelta exacta para las ecuaciones de dos flujos (sistema de 2N ecuaciones, equivalente a "sumar capas"). 9 pruebas: una capa, partir una capa, 40 capas con una nube de espesor 100, y tres columnas frente a ordenadas discretas (hasta 0,034 en la transmisión y 0,013 en la absorción de una capa).
+- `herramientas/descargar_hitran.py`: descarga una vez, en el PC, las líneas de HITRAN de H₂O, CO₂, O₃, N₂O, CH₄ y O₂ (0–50 000 cm⁻¹) y la tabla TIPS, con `procedencia.json`. Hecho el 12/10/2026 (390 MB, 2,53 millones de líneas; `DISENO_FASE_5.2.md` §7).
+- `fase52_hitran.py` (prototipo): lector propio de las líneas de HITRAN (formato .par), sin depender de hitran-api, y los límites de las bandas (16 del infrarrojo y 14 de la luz, los de RRTMG; decisión técnica T8 provisional). 3 pruebas, una de ellas línea a línea frente al lector oficial (se salta si no está hitran-api).
+- `FICHA_COMPOSICION_P3N.md`: la ficha para decidir el aire de P3N y la luz de S3N, con las respuestas de Carlos, los rangos con fuentes y el resultado del sorteo.
+- `herramientas/sorteo_composicion.py`: el sorteo de la composición del aire de P3N con la semilla y las reglas fijadas antes (ficha de composición §6, aprobada por Carlos el 12/10/2026): CO₂ 174,7 ppm, CH₄ 358 ppb, N₂O 201,9 ppb, O₂ 18,88 %.
+- `herramientas/descargar_hitran.py` guarda también `isotopologos.json` (masa y abundancia de cada isotopólogo).
+- `fase52_mie.py` (prototipo): la teoría de Mie propia (BHMIE con arranque holgado, medido) y las propiedades medias de una población de gotas (gamma de Hansen y Travis); decisión técnica T16 provisional. 14 pruebas (`test_fase52_mie.py`): 10 casos frente a miepython (10⁻⁹), Rayleigh, paradoja de la extinción y una nube típica.
+- `fase52_continuo.py` (prototipo): el continuo del vapor MT_CKD 4.3 como dato, con las fórmulas del módulo oficial de AER; reproduce su salida de referencia (5·10⁻⁵). El generador lo suma a las líneas del vapor. `descargar_hitran.py` descarga el archivo de AER fijado por su commit y comprobado por su huella. 4 pruebas (`test_fase52_continuo.py`, una se salta sin el archivo, y una en `test_fase52_generador.py`).
+- `fase52_generador.py` y `herramientas/generar_tablas_k.py`: el generador de las tablas k desde HITRAN (rejilla adaptada, núcleo de Voigt y alas de Lorentz, descarte de líneas débiles con cota, pedestal del vapor; decisiones técnicas T12–T15 provisionales), con barra de avance, todos los hilos y la posibilidad de cortar y continuar; `--prueba` mide el tiempo. 15 pruebas (`test_fase52_generador.py`): frente al cálculo de referencia (transmisión < 2·10⁻⁴; tabla k < 5·10⁻⁴), la cota del descarte, una casilla con dos isotopólogos y una banda sin líneas.
+- 5 pruebas de las tablas k (`test_fase52_k.py`): cuadratura; una capa, exacta salvo la cuadratura (16 puntos: error de la transmisión < 2·10⁻⁴); el cálculo línea a línea de una línea aislada frente a la fórmula exacta de Ladenburg y Reiche (acuerdo de 10⁻⁸ a 10⁻¹¹ en los regímenes débil, intermedio y fuerte); la hipótesis correlacionada exacta con una línea a dos presiones, y su límite conocido con líneas que no se corresponden.
+- 6 pruebas nuevas en `test_analizar_p3n.py` (la descomposición tierra-mar, los vientos de la climatología son la media de todos los subpasos y tienen la forma de los del año extra, el hielo de la climatología, el error de la diferencia, la sección D con hielo, amplitud y error, y de dónde salen los vientos) y una comprobación más en `test_fase6_zonal.py` (sin el falso aviso).
+
 ## [3.21.0] — 2026-10-12
 
 - Fase: 6.4 (corte vertical de la climatología y climatología continuada) y 5.2 (diseño y primer prototipo).

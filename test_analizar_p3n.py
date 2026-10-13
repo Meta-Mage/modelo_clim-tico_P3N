@@ -96,3 +96,106 @@ def test_calendario_con_la_orbita_de_p3n():
 def test_factor_held_hou_de_p3n():
     # §3 de DISENO_FASE_6.4.md: x1,08 con g, Omega y a de P3N
     assert abs(A.factor_held_hou() - 1.08) < 0.005
+
+
+# ---------------------------------------------------------------- 3.22.0
+def _z_sintetico(dias=8, capas=20, filas=36, seed=1):
+    rng = np.random.default_rng(seed)
+    return {"u": rng.standard_normal((dias, capas, filas)), "vps": rng.standard_normal((dias, capas, filas - 1)),
+            "T": 250 + rng.standard_normal((dias, capas, filas)), "ps": 1e5 + rng.standard_normal((dias, filas)),
+            "subpasos_por_dia": np.array([4.0] * (dias - 1) + [2.0]),          # el ultimo dia, incompleto
+            "sigma_semi": np.linspace(0, 1, capas + 1), "lat_caras": np.linspace(85, -85, filas - 1),
+            "cos_caras": np.cos(np.radians(np.linspace(85, -85, filas - 1))), "anos": 30}
+
+
+def test_vientos_de_climatologia_es_la_media_de_todos_los_subpasos():
+    z = _z_sintetico()
+    temporada = np.array(["periastro", "periastro", "", "", "apoastro", "apoastro", "", "periastro"])
+    v = A.vientos_de_climatologia(z, {"temporada": temporada})
+    n = z["subpasos_por_dia"]
+    # la media de todos los subpasos = suma de (media del dia x subpasos del dia) / subpasos
+    esperado = (z["u"] * n[:, None, None]).sum(axis=0) / n.sum()
+    assert np.allclose(v["anual"]["u"], esperado)
+    sel = temporada == "periastro"
+    assert np.allclose(v["periastro"]["vps"], (z["vps"][sel] * n[sel, None, None]).sum(axis=0) / n[sel].sum())
+    assert v["anos"] == 30 and v["sigma"].shape == (21,) and "apoastro" in v
+    # con la misma forma que los del año extra: la funcion de corriente sale igual
+    from validar_i16 import funcion_corriente
+    psi = funcion_corriente(v["anual"]["vps"], v["sigma"], v["cos_caras"], 4.6767e6, 9.0)
+    assert psi.shape == (21, 35)
+
+
+def test_seccion_vientos_dice_de_donde_salen():
+    z = _z_sintetico()
+    v = A.vientos_de_climatologia(z, {"temporada": np.array([""] * 8)})
+    L, campos = [], {}
+    A.seccion_vientos(v, L, campos)
+    texto = "\n".join(L)
+    assert "media de los 30 años de la climatologia" in texto and "psi_anual" in campos
+    L = []
+    A.seccion_vientos(None, L, {})
+    assert "sin datos" in L[0]
+
+
+def test_error_diferencia_con_la_del_resumen():
+    from fase6_clima import error_media
+    rng = np.random.default_rng(5)
+    b1, b2 = 20 + rng.standard_normal((30, 36)), 20 + rng.standard_normal((12, 36))
+    err, err_g = A.error_diferencia({"climatologia": {"bandas_aire2m_C": b1}}, {"climatologia": {"bandas_aire2m_C": b2}})
+    assert np.allclose(err, np.sqrt(error_media(b1) ** 2 + error_media(b2) ** 2))
+    assert err.shape == (36,) and 0 < err_g < err.max()        # la media global varia menos que una fila
+
+
+def test_seccion_d_con_hielo_amplitud_y_error(tmp_path):
+    import pickle
+    rng = np.random.default_rng(2)
+    dias = 24
+    base = 10 + np.zeros((dias, 36, 72))
+    hielo = np.zeros((dias, 36, 72)); hielo[:, 0] = 1.0
+    rc = {"reg_media": base, "agua": {"precipitacion": np.full((36, 72), 3.0)}, "hielo_espesor": hielo,
+          "mapa": {"huella": "x"}, "climatologia": {"bandas_aire2m_C": 10 + 0.1 * rng.standard_normal((30, 36))}}
+    otra = dict(rc)
+    ciclo = np.sin(2 * np.pi * np.arange(dias) / dias)[:, None, None]
+    otra["reg_media"] = base + 1.0 + 2.0 * ciclo                     # 1 K mas y 4 K de amplitud estacional
+    otra["hielo_espesor"] = np.zeros_like(hielo)
+    otra["climatologia"] = {"bandas_aire2m_C": 11 + 0.1 * rng.standard_normal((12, 36)), "anos_promediados": 12}
+    otra["sensibilidad"] = {"oceano_difusion": 2.0, "oceano_capa_mezcla": 1.0}
+    with open(tmp_path / "resultado.pkl", "wb") as fh:
+        pickle.dump(otra, fh)
+    cal = {"doceavo": np.repeat(np.arange(12), 2)}
+    from fase1_geografia import TIERRA
+    tipo = np.zeros((36, 72), dtype=int); tipo[10:20, 10:20] = TIERRA
+    L = []
+    A.seccion_d(L, rc, [str(tmp_path)], tipo, cal)
+    texto = "\n".join(L)
+    assert "global: dT +1.00" in texto and ")*" in texto            # 1 K con error de ~0,03 K: distinguible
+    assert "N max " in texto and "->  0.00" in texto                 # el hielo del norte desaparece
+    assert "amplitud estacional" in texto and "cambio medio +3." in texto     # doceavos de una sinusoide de 4 K
+    # con el mismo oceano lo dice
+    otra["sensibilidad"] = {"oceano_difusion": 1.0, "oceano_capa_mezcla": 1.0}
+    with open(tmp_path / "resultado.pkl", "wb") as fh:
+        pickle.dump(otra, fh)
+    L = []
+    A.seccion_d(L, rc, [str(tmp_path)], tipo, cal)
+    assert "el mismo oceano" in "\n".join(L)
+
+
+def test_seccion_hielo_de_la_climatologia():
+    hielo = np.zeros((10, 36, 72)); hielo[:5, 0] = 1.0; hielo[:, -1] = 0.5
+    L = []
+    h = A.seccion_hielo({"hielo_espesor": hielo, "climatologia": {"anos_promediados": 30}}, L)
+    assert h["N_min"] == 0 and h["N_max"] > 0 and h["S_min"] == h["S_max"] > 0 and "30 años" in L[0]
+
+
+def test_tierra_mar_separa_posicion_y_misma_latitud():
+    """Un planeta donde la temperatura solo depende de la latitud y la tierra esta toda en el ecuador: la tierra sale
+    mas calida por POSICION, y a la misma latitud no hay diferencia. Si ademas la tierra esta 2 K mas caliente que el
+    mar de su fila, aparece en "misma latitud"."""
+    lat = A.LAT
+    T = np.repeat((30 - 0.5 * np.abs(lat))[:, None], 72, axis=1)
+    tierra = np.zeros((36, 72), dtype=bool); tierra[16:20, :20] = True
+    r = A.tierra_mar(T, tierra)
+    assert r["total"] > 5 and abs(r["misma_latitud"]) < 1e-12 and abs(r["posicion"] - r["total"]) < 1e-12
+    r = A.tierra_mar(T + 2.0 * tierra, tierra)
+    assert abs(r["misma_latitud"] - 2.0) < 1e-12 and len(r["filas"]) == 4 and abs(r["filas"][0]["pct"] - 100 * 20 / 72) < 1e-9
+    assert A.tierra_mar(T, np.zeros((36, 72), dtype=bool)) is None
